@@ -32,6 +32,8 @@ from core.exceptions import CrickPredictException
 # Import routers
 from routers.health import router as health_router
 from routers.auth import router as auth_router
+from routers.user import router as user_router
+from routers.wallet import router as wallet_router
 
 # Setup logging
 setup_logging()
@@ -63,6 +65,33 @@ class ResponseTimingMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 f"Slow request: {request.method} {request.url.path} took {duration_ms:.2f}ms"
             )
+        return response
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if not settings.DEBUG:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+class RateLimitHeadersMiddleware(BaseHTTPMiddleware):
+    """Inject rate limit info headers from request state."""
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if hasattr(request.state, 'rate_limit_remaining'):
+            response.headers["X-RateLimit-Limit"] = str(request.state.rate_limit_limit)
+            response.headers["X-RateLimit-Remaining"] = str(request.state.rate_limit_remaining)
+            response.headers["X-RateLimit-Window"] = str(request.state.rate_limit_window)
         return response
 
 
@@ -222,6 +251,12 @@ app.add_middleware(
 # GZip Compression (min 500 bytes)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
+# Security headers (CSP, X-Frame-Options, etc.)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Rate limit headers
+app.add_middleware(RateLimitHeadersMiddleware)
+
 # Request ID for distributed tracing
 app.add_middleware(RequestIDMiddleware)
 
@@ -232,6 +267,8 @@ app.add_middleware(ResponseTimingMiddleware)
 # Include routers with /api prefix
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(user_router, prefix="/api")
+app.include_router(wallet_router, prefix="/api")
 
 
 # Root endpoint

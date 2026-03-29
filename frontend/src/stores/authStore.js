@@ -127,6 +127,14 @@ export const useAuthStore = create(
         }));
       },
 
+      // Refresh user data from server
+      refreshUser: async () => {
+        try {
+          const response = await api.auth.me();
+          set({ user: response.data });
+        } catch (e) { /* silent */ }
+      },
+
       // Refresh tokens
       refreshTokens: async () => {
         const refreshToken = localStorage.getItem('crickpredict_refresh_token');

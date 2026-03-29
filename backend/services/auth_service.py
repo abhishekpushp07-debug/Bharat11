@@ -231,9 +231,7 @@ class AuthService:
                 await self.user_repo.lock_account(user.id, lock_until)
                 raise AccountLockedError(self.LOCKOUT_MINUTES)
             
-            raise InvalidCredentialsError(
-                f"Invalid PIN. {self.MAX_LOGIN_ATTEMPTS - attempts} attempts remaining"
-            )
+            raise InvalidCredentialsError()
         
         # Reset failed attempts on successful login
         await self.user_repo.reset_failed_login(user.id)
