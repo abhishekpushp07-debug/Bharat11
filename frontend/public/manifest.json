@@ -1,0 +1,27 @@
+{
+  "short_name": "CrickPredict",
+  "name": "CrickPredict - Fantasy Cricket Prediction",
+  "description": "Predict cricket match outcomes and win virtual coins! Answer 11 questions per match and climb the leaderboard.",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0D0D0D",
+  "background_color": "#0D0D0D",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "categories": ["sports", "games", "entertainment"]
+}

@@ -1,89 +1,188 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
+"""
+CrickPredict - Fantasy Cricket Prediction Platform
+Main FastAPI Application Entry Point
+
+Architecture: Clean Architecture with Repository Pattern
+- Routers: HTTP endpoints (thin layer)
+- Services: Business logic
+- Repositories: Data access
+- Models: Pydantic schemas (canonical data)
+- Core: Shared utilities (database, redis, security)
+"""
+import sys
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+# Add backend to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+from config.settings import settings
+from core.database import db_manager
+from core.logging import setup_logging, get_logger
+from core.exceptions import CrickPredictException
+
+# Import routers
+from routers.health import router as health_router
+
+# Setup logging
+setup_logging()
+logger = get_logger(__name__)
 
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
-
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager.
+    Handles startup and shutdown events.
+    """
+    # Startup
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
     
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
+    try:
+        # Connect to databases
+        await db_manager.connect()
+        
+        # Create indexes (idempotent)
+        await create_indexes()
+        
+        logger.info("Application startup complete")
+        
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
+        raise
     
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
+    yield
     
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+    # Shutdown
+    logger.info("Shutting down application")
+    await db_manager.disconnect()
+    logger.info("Application shutdown complete")
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+
+async def create_indexes():
+    """Create MongoDB indexes for optimal query performance."""
+    db = db_manager.db
     
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
+    # Users collection indexes
+    await db.users.create_index("id", unique=True)
+    await db.users.create_index("phone", unique=True)
+    await db.users.create_index("referral_code", unique=True)
     
-    return status_checks
+    # Matches collection indexes
+    await db.matches.create_index("id", unique=True)
+    await db.matches.create_index("external_match_id", sparse=True)
+    await db.matches.create_index("status")
+    await db.matches.create_index("start_time")
+    await db.matches.create_index([("status", 1), ("start_time", 1)])
+    
+    # Contests collection indexes
+    await db.contests.create_index("id", unique=True)
+    await db.contests.create_index("match_id")
+    await db.contests.create_index("status")
+    await db.contests.create_index([("match_id", 1), ("status", 1)])
+    
+    # Contest entries collection indexes
+    await db.contest_entries.create_index("id", unique=True)
+    await db.contest_entries.create_index([("contest_id", 1), ("user_id", 1)], unique=True)
+    await db.contest_entries.create_index("user_id")
+    await db.contest_entries.create_index("contest_id")
+    
+    # Questions collection indexes
+    await db.questions.create_index("id", unique=True)
+    await db.questions.create_index("category")
+    await db.questions.create_index("is_active")
+    
+    # Templates collection indexes
+    await db.templates.create_index("id", unique=True)
+    await db.templates.create_index("match_type")
+    await db.templates.create_index("is_active")
+    
+    # Question results collection indexes
+    await db.question_results.create_index("id", unique=True)
+    await db.question_results.create_index([("match_id", 1), ("question_id", 1)], unique=True)
+    
+    # Wallet transactions collection indexes
+    await db.wallet_transactions.create_index("id", unique=True)
+    await db.wallet_transactions.create_index("user_id")
+    await db.wallet_transactions.create_index([("user_id", 1), ("created_at", -1)])
+    
+    logger.info("Database indexes created/verified")
 
-# Include the router in the main app
-app.include_router(api_router)
 
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="Fantasy Cricket Prediction Platform - Predict and Win Virtual Coins!",
+    docs_url="/api/docs" if settings.DEBUG else None,
+    redoc_url="/api/redoc" if settings.DEBUG else None,
+    openapi_url="/api/openapi.json" if settings.DEBUG else None,
+    lifespan=lifespan
+)
+
+
+# Global exception handler
+@app.exception_handler(CrickPredictException)
+async def crickpredict_exception_handler(request: Request, exc: CrickPredictException):
+    """Handle all CrickPredict custom exceptions."""
+    logger.warning(f"API Error: {exc.code} - {exc.message}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.code,
+            "message": exc.message,
+            "details": exc.details
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """Handle unexpected exceptions."""
+    logger.error(f"Unexpected error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "INTERNAL_ERROR",
+            "message": "An unexpected error occurred",
+            "details": {}
+        }
+    )
+
+
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=settings.get_cors_origins_list(),
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# Include routers with /api prefix
+app.include_router(health_router, prefix="/api")
+
+
+# Root endpoint
+@app.get("/api")
+async def root():
+    """API root endpoint."""
+    return {
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "status": "running",
+        "docs": "/api/docs" if settings.DEBUG else "disabled"
+    }
+
+
+# Backwards compatibility endpoint
+@app.get("/api/")
+async def root_slash():
+    """API root endpoint with trailing slash."""
+    return await root()

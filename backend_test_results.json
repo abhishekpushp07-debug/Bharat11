@@ -1,0 +1,69 @@
+{
+  "total_tests": 5,
+  "passed_tests": 5,
+  "success_rate": 100.0,
+  "test_results": [
+    {
+      "test": "API Root Endpoint",
+      "success": true,
+      "timestamp": "2026-03-29T17:20:26.960421",
+      "details": {
+        "status_code": 200,
+        "response": {
+          "app": "CrickPredict",
+          "version": "1.0.0",
+          "status": "running",
+          "docs": "/api/docs"
+        }
+      }
+    },
+    {
+      "test": "Health Check API",
+      "success": true,
+      "timestamp": "2026-03-29T17:20:27.112687",
+      "details": {
+        "status_code": 200,
+        "overall_status": "healthy",
+        "mongodb_status": "healthy",
+        "redis_status": "disabled",
+        "mongodb_latency": 0.86,
+        "redis_latency": null
+      }
+    },
+    {
+      "test": "Readiness Probe",
+      "success": true,
+      "timestamp": "2026-03-29T17:20:27.260248",
+      "details": {
+        "status_code": 200,
+        "response": {
+          "status": "ready"
+        }
+      }
+    },
+    {
+      "test": "Liveness Probe",
+      "success": true,
+      "timestamp": "2026-03-29T17:20:27.427413",
+      "details": {
+        "status_code": 200,
+        "response": {
+          "status": "alive"
+        }
+      }
+    },
+    {
+      "test": "CORS Configuration",
+      "success": true,
+      "timestamp": "2026-03-29T17:20:27.490650",
+      "details": {
+        "status_code": 204,
+        "cors_headers": {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
+          "Access-Control-Allow-Headers": "*"
+        }
+      }
+    }
+  ]
+}
