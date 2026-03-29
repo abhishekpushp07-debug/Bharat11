@@ -297,12 +297,31 @@ async def seed_database():
     client = AsyncIOMotorClient(settings.MONGO_URL)
     db = client[settings.DB_NAME]
     
-    # Clear existing data
-    print("📝 Clearing existing data...")
-    await db.questions.delete_many({})
-    await db.templates.delete_many({})
-    await db.matches.delete_many({})
-    await db.contests.delete_many({})
+    # Check if data already exists (idempotent seeding)
+    existing_questions = await db.questions.count_documents({})
+    if existing_questions > 0:
+        print("📝 Data already exists. Checking for missing seed data...")
+        existing_matches = await db.matches.count_documents({})
+        existing_templates = await db.templates.count_documents({})
+        existing_contests = await db.contests.count_documents({})
+        print(f"   Questions: {existing_questions}, Templates: {existing_templates}, Matches: {existing_matches}, Contests: {existing_contests}")
+        
+        if existing_questions >= 11 and existing_templates >= 1 and existing_matches >= 3 and existing_contests >= 3:
+            print("✅ Seed data already complete. Skipping. Use --force flag to re-seed.")
+            
+            import sys as _sys
+            if "--force" not in _sys.argv:
+                client.close()
+                return
+        
+        # Force re-seed: clear and re-insert
+        print("🔄 Force re-seeding (--force flag or incomplete data)...")
+        await db.questions.delete_many({})
+        await db.templates.delete_many({})
+        await db.matches.delete_many({})
+        await db.contests.delete_many({})
+    else:
+        print("📝 No existing data. Fresh seeding...")
     
     # Seed Questions
     print("❓ Seeding questions...")
@@ -466,9 +485,9 @@ async def seed_database():
     
     print("\n🎉 Database seeding complete!")
     print(f"   Questions: {len(question_ids)}")
-    print(f"   Templates: 1")
+    print("   Templates: 1")
     print(f"   Matches: {len(matches_created)}")
-    print(f"   Contests: 3")
+    print("   Contests: 3")
 
 
 if __name__ == "__main__":

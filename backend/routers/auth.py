@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel
 
 from core.database import get_db
-from core.dependencies import CurrentUser, RateLimited
+from core.dependencies import CurrentUser, rate_limit_dependency
 from core.exceptions import CrickPredictException
 from models.schemas import (
     UserCreate, UserLogin, AuthResponse, TokenResponse,
@@ -25,12 +26,19 @@ def get_auth_service(db: AsyncIOMotorDatabase = Depends(get_db)) -> AuthService:
     return AuthService(db)
 
 
+class ChangePinBody(BaseModel):
+    """Request body for PIN change."""
+    old_pin: str
+    new_pin: str
+
+
 @router.post(
     "/register",
     response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register new user",
-    description="Register with phone number and 4-digit PIN. Returns tokens and user data."
+    description="Register with phone number and 4-digit PIN. Returns tokens and user data.",
+    dependencies=[Depends(rate_limit_dependency)]
 )
 async def register(
     data: UserCreate,
@@ -61,7 +69,8 @@ async def register(
     "/login",
     response_model=AuthResponse,
     summary="Login user",
-    description="Login with phone number and PIN. Returns tokens and user data."
+    description="Login with phone number and PIN. Returns tokens and user data.",
+    dependencies=[Depends(rate_limit_dependency)]
 )
 async def login(
     data: UserLogin,
@@ -125,21 +134,6 @@ async def get_me(
         return await auth_service.get_current_user(current_user.id)
     except CrickPredictException as e:
         raise e.to_http_exception()
-
-
-class ChangePinRequest:
-    """Request body for changing PIN."""
-    def __init__(self, old_pin: str, new_pin: str):
-        self.old_pin = old_pin
-        self.new_pin = new_pin
-
-
-from pydantic import BaseModel
-
-class ChangePinBody(BaseModel):
-    """Request body for PIN change."""
-    old_pin: str
-    new_pin: str
 
 
 @router.put(

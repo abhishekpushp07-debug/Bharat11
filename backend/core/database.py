@@ -5,6 +5,7 @@ World-class implementation following best practices.
 """
 import asyncio
 import logging
+import time
 from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -138,7 +139,6 @@ class DatabaseManager:
         
         # Check MongoDB
         try:
-            import time
             start = time.perf_counter()
             await self._mongo_client.admin.command('ping')
             latency = (time.perf_counter() - start) * 1000

@@ -1,152 +1,99 @@
 # CrickPredict - Product Requirements Document
 
-## Project Overview
-**App Name:** CrickPredict  
-**Type:** Fantasy Cricket Prediction PWA  
-**Tech Stack:** React.js + FastAPI + MongoDB + Redis  
-**Platform:** Mobile-first PWA (installable via Chrome)
+## Original Problem Statement
+Fantasy Cricket Prediction App (CrickPredict) - Mobile-first PWA where users predict cricket match outcomes using virtual coins. Users answer 11 questions per match, earn points based on accuracy, compete on leaderboards.
 
-## Core Concept
-Users predict cricket match outcomes by answering 11 questions per match. Virtual coins are wagered and won based on prediction accuracy.
+## Tech Stack
+- **Frontend:** React.js (PWA), Zustand (state), Tailwind CSS (dark theme)
+- **Backend:** Python FastAPI (async)
+- **Database:** MongoDB + Redis (caching/leaderboards)
+- **Auth:** Phone + 4-digit PIN (no OTP), JWT tokens
 
-## User Personas
+## 5 Iron Rules
+1. Write world's best code - stage by stage
+2. Honestly judge on 50 points after stage completion
+3. Optimize until ALL points reach 90+
+4. Re-judge (Redis, Canonical, Optimizations)
+5. Only then move to next stage
 
-### Primary: Cricket Enthusiast (18-35)
-- Watches IPL/cricket matches regularly
-- Enjoys fantasy sports but finds Dream11 complex
-- Prefers Hindi interface
-- Uses mobile primarily
+## Completed Stages
 
-### Secondary: Casual Gamer
-- Likes simple prediction games
-- Motivated by leaderboards and competition
-- Social - shares with friends
+### Stage 1: Foundation (DONE - 92.78%)
+- FastAPI server with lifespan management
+- GZip compression, Request ID, Response timing middleware
+- MongoDB connection pooling (50 max, 5 min)
+- Redis manager with sorted sets, caching, rate limiting, pub/sub
+- Custom exception hierarchy
+- Structured logging with colored output
+- PWA setup with service worker and offline support
+- Zustand stores (auth, app, socket)
+- API client with interceptors
 
-## Core Requirements (Static)
+### Stage 2: Database Schema & Models (DONE - 93.78%)
+- 15+ Pydantic canonical models with full validation
+- 9 enums for status fields
+- Repository pattern (BaseRepository + 6 specialized)
+- Bulk index creation (compound, sparse, text indexes)
+- Idempotent seed script with --force flag
+- Bilingual question models (EN/HI)
 
-### Authentication
-- Phone + 4-digit PIN (No OTP)
-- 10,000 signup bonus coins
-- Referral system with bonus
+### Stage 3: Authentication (DONE - 92.02%)
+- Phone + 4-digit PIN auth (register/login/refresh/change-pin/me)
+- bcrypt PIN hashing
+- JWT access (7d) + refresh (30d) tokens
+- Login lockout (5 fails = 15min lock)
+- Rate limiting on auth endpoints (Redis + in-memory fallback)
+- Frontend auth flow (Welcome -> Phone -> PIN screens)
 
-### Matches & Contests
-- Live cricket match integration
-- Multiple contest types (Free, Mini, Mega)
-- 11 questions per contest
-- Real-time leaderboards
+## Deep Audit Completed (2026-03-29)
+- 50 parameters x 100 marks per stage = 5000 marks each
+- Stage 1: 4639/5000 (92.78%)
+- Stage 2: 4689/5000 (93.78%)
+- Stage 3: 4601/5000 (92.02%)
+- Combined: 13929/15000 (92.86%)
+- Document: /app/DEEP_AUDIT_STAGE_1_2_3.md
 
-### Scoring Engine
-- Ball-by-ball score integration
-- Auto question resolution
-- Batch score calculation
-- Redis-based leaderboards
+### Optimizations Implemented in Audit:
+1. GZip compression middleware (500+ bytes)
+2. Request ID middleware (X-Request-ID)
+3. Response timing middleware (X-Response-Time + slow request logging)
+4. Moved inline imports to top-level (redis_manager, database)
+5. JWT_SECRET_KEY fail-fast (no default)
+6. Removed dead code (ChangePinRequest class)
+7. Rate limiting on auth endpoints
+8. Bulk index creation (IndexModel pattern)
+9. Compound index on contest_entries(contest_id, total_points DESC)
+10. TEXT index on users.username
+11. Leaderboard TTL method
+12. In-memory rate limit fallback when Redis down
+13. Idempotent seed script (check before insert, --force flag)
 
-### Wallet System
-- Virtual coins only
-- Daily rewards with streak bonus
-- Transaction history
+## Upcoming Tasks
 
----
+### Stage 4: Core Application (NEXT)
+- Live match data fetching (Cricbuzz scraping - free, 2 balls late OK)
+- Match listing API + UI
+- Match detail page
+- Live score display
 
-## What's Been Implemented
+### Stage 5-15: Future Roadmap
+- Stage 5: Contest System
+- Stage 6: Question Templates & Auto-assign
+- Stage 7: Prediction Entry Flow
+- Stage 8: Scoring Engine (deterministic, idempotent)
+- Stage 9: Leaderboard (Redis Sorted Sets)
+- Stage 10: Wallet System (Virtual Coins)
+- Stage 11: User Profile & Stats
+- Stage 12: Admin Panel
+- Stage 13: Push Notifications
+- Stage 14: Performance & Security Hardening
+- Stage 15: Final Polish & Launch
 
-### Stage 1: Foundation (Date: 2026-03-29) ✅
-- [x] Modular backend architecture
-- [x] MongoDB connection with pooling
-- [x] Redis Manager for leaderboards
-- [x] PWA configuration
-- [x] Service worker
-- [x] Zustand state management
-- [x] API client with interceptors
-- [x] Custom exception handling
-- [x] Health check endpoints
-- **Score: 47.75/50 (95.5%)**
+## Key Design References
+- Dark theme primary (black/dark grey backgrounds)
+- Red accent color (#E53E3E or similar)
+- Gradient cards for live matches
+- Bottom navigation: Home / My Contest / Wallet / Legal
+- Custom team-inspired logos (no official IPL logos)
 
-### Stage 2: Database Schema (Date: 2026-03-29) ✅
-- [x] User repository
-- [x] Match repository
-- [x] Contest repository
-- [x] Contest entry repository
-- [x] Question & Template repositories
-- [x] Wallet transaction repository
-- [x] Question result repository
-- [x] Database seeder (12 questions, 3 matches)
-- **Score: 47.6/50 (95.2%)**
-
-### Stage 3: Authentication (Date: 2026-03-29) ✅
-- [x] Registration (phone + PIN)
-- [x] Login with lockout
-- [x] JWT tokens (7-day expiry)
-- [x] Welcome screen UI
-- [x] Phone input screen
-- [x] PIN screens (create/confirm/login)
-- [x] Auth flow integration
-- [x] Home screen after login
-- **Score: 47.35/50 (94.7%)**
-
----
-
-## Prioritized Backlog
-
-### P0 - Critical (Next)
-- [ ] Stage 4: User Profile & Wallet System
-- [ ] Stage 5: Questions Bank & Templates (Admin)
-- [ ] Stage 6: Match Management System
-
-### P1 - High Priority
-- [ ] Stage 7: Contest System
-- [ ] Stage 8: Prediction Submission
-- [ ] Stage 9: Scoring Engine
-
-### P2 - Medium Priority
-- [ ] Stage 10: Real-time Leaderboard
-- [ ] Stage 11: Live Match Integration
-- [ ] Stage 12: Result & Prize Distribution
-
-### P3 - Lower Priority
-- [ ] Stage 13: Home & Navigation Polish
-- [ ] Stage 14: Admin Panel
-- [ ] Stage 15: Polish & Deployment
-
----
-
-## Next Tasks
-
-### Stage 4: User Profile & Wallet System
-1. Profile API (view/update)
-2. Avatar selection
-3. Rank system display
-4. Wallet balance API
-5. Transaction history
-6. Daily reward claim
-7. Referral code sharing
-8. Profile screen UI
-9. Wallet screen UI
-
----
-
-## Technical Notes
-
-### Cricket Score Integration
-- Using Cricbuzz scraping (FREE)
-- 2-3 ball delay acceptable
-- No paid API required
-
-### AI Integration
-- GPT-5.2 via Emergent LLM Key
-- For question generation
-- Admin feature
-
-### 5 Iron Rules
-1. World's best code - stage wise
-2. Honest 50-point judgment
-3. All points reach 90%+
-4. Re-judge after optimization
-5. Then move to next stage
-
----
-
-## Current Status
-**Stage:** 3 of 15 Complete  
-**Overall Progress:** 20%  
-**Cumulative Score:** 47.57/50 (95.13%)
+## Progress: 20% (Stages 1-3 of 15)

@@ -110,6 +110,8 @@ async def rate_limit_dependency(
     """
     Rate limiting dependency.
     Uses IP address as identifier.
+    Falls back to in-memory tracking when Redis is unavailable.
+    Returns rate limit info in response headers.
     """
     # Get client IP
     client_ip = request.client.host if request.client else "unknown"
@@ -118,15 +120,51 @@ async def rate_limit_dependency(
         client_ip = forwarded.split(",")[0].strip()
     
     identifier = f"ip:{client_ip}"
+    max_requests = settings.RATE_LIMIT_REQUESTS
+    window = settings.RATE_LIMIT_WINDOW_SECONDS
     
-    is_allowed, remaining = await redis_manager.check_rate_limit(
-        identifier,
-        settings.RATE_LIMIT_REQUESTS,
-        settings.RATE_LIMIT_WINDOW_SECONDS
-    )
+    if redis_manager.is_available:
+        is_allowed, remaining = await redis_manager.check_rate_limit(
+            identifier, max_requests, window
+        )
+    else:
+        # In-memory fallback (per-process, not shared across workers)
+        is_allowed, remaining = _memory_rate_limit(identifier, max_requests, window)
+    
+    # Store rate limit info for response headers
+    request.state.rate_limit_remaining = remaining
+    request.state.rate_limit_limit = max_requests
+    request.state.rate_limit_window = window
     
     if not is_allowed:
-        raise RateLimitExceededError(settings.RATE_LIMIT_WINDOW_SECONDS).to_http_exception()
+        raise RateLimitExceededError(window).to_http_exception()
+
+
+# In-memory rate limit fallback (simple, per-process)
+import time as _time
+_rate_limit_store: dict = {}  # {identifier: [timestamps]}
+
+def _memory_rate_limit(identifier: str, max_requests: int, window_seconds: int) -> tuple:
+    """Simple in-memory rate limiting fallback."""
+    now = _time.time()
+    cutoff = now - window_seconds
+    
+    # Get or create entry
+    if identifier not in _rate_limit_store:
+        _rate_limit_store[identifier] = []
+    
+    # Clean old entries
+    _rate_limit_store[identifier] = [
+        ts for ts in _rate_limit_store[identifier] if ts > cutoff
+    ]
+    
+    current_count = len(_rate_limit_store[identifier])
+    
+    if current_count >= max_requests:
+        return False, 0
+    
+    _rate_limit_store[identifier].append(now)
+    return True, max_requests - current_count - 1
 
 
 # Type aliases for cleaner function signatures

@@ -10,12 +10,16 @@ Architecture: Clean Architecture with Repository Pattern
 - Core: Shared utilities (database, redis, security)
 """
 import sys
+import uuid
+import time as time_module
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -32,6 +36,34 @@ from routers.auth import router as auth_router
 # Setup logging
 setup_logging()
 logger = get_logger(__name__)
+
+
+# ==================== MIDDLEWARE ====================
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Inject unique request ID for distributed tracing."""
+    
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
+class ResponseTimingMiddleware(BaseHTTPMiddleware):
+    """Measure and log API response times."""
+    
+    async def dispatch(self, request: Request, call_next):
+        start = time_module.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time_module.perf_counter() - start) * 1000
+        response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+        if duration_ms > 200:
+            logger.warning(
+                f"Slow request: {request.method} {request.url.path} took {duration_ms:.2f}ms"
+            )
+        return response
 
 
 @asynccontextmanager
@@ -66,53 +98,75 @@ async def lifespan(app: FastAPI):
 
 
 async def create_indexes():
-    """Create MongoDB indexes for optimal query performance."""
+    """Create MongoDB indexes for optimal query performance using bulk operations."""
     db = db_manager.db
     
+    from pymongo import IndexModel, ASCENDING, DESCENDING, TEXT
+    
     # Users collection indexes
-    await db.users.create_index("id", unique=True)
-    await db.users.create_index("phone", unique=True)
-    await db.users.create_index("referral_code", unique=True)
+    await db.users.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("phone", ASCENDING)], unique=True),
+        IndexModel([("referral_code", ASCENDING)], unique=True),
+        IndexModel([("username", TEXT)]),
+    ])
     
     # Matches collection indexes
-    await db.matches.create_index("id", unique=True)
-    await db.matches.create_index("external_match_id", sparse=True)
-    await db.matches.create_index("status")
-    await db.matches.create_index("start_time")
-    await db.matches.create_index([("status", 1), ("start_time", 1)])
+    await db.matches.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("external_match_id", ASCENDING)], sparse=True),
+        IndexModel([("status", ASCENDING)]),
+        IndexModel([("start_time", ASCENDING)]),
+        IndexModel([("status", ASCENDING), ("start_time", ASCENDING)]),
+    ])
     
     # Contests collection indexes
-    await db.contests.create_index("id", unique=True)
-    await db.contests.create_index("match_id")
-    await db.contests.create_index("status")
-    await db.contests.create_index([("match_id", 1), ("status", 1)])
+    await db.contests.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("match_id", ASCENDING)]),
+        IndexModel([("status", ASCENDING)]),
+        IndexModel([("match_id", ASCENDING), ("status", ASCENDING)]),
+        IndexModel([("lock_time", ASCENDING)]),
+    ])
     
     # Contest entries collection indexes
-    await db.contest_entries.create_index("id", unique=True)
-    await db.contest_entries.create_index([("contest_id", 1), ("user_id", 1)], unique=True)
-    await db.contest_entries.create_index("user_id")
-    await db.contest_entries.create_index("contest_id")
+    await db.contest_entries.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("contest_id", ASCENDING), ("user_id", ASCENDING)], unique=True),
+        IndexModel([("user_id", ASCENDING)]),
+        IndexModel([("contest_id", ASCENDING), ("total_points", DESCENDING)]),
+    ])
     
     # Questions collection indexes
-    await db.questions.create_index("id", unique=True)
-    await db.questions.create_index("category")
-    await db.questions.create_index("is_active")
+    await db.questions.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("category", ASCENDING)]),
+        IndexModel([("is_active", ASCENDING)]),
+        IndexModel([("is_active", ASCENDING), ("category", ASCENDING)]),
+    ])
     
     # Templates collection indexes
-    await db.templates.create_index("id", unique=True)
-    await db.templates.create_index("match_type")
-    await db.templates.create_index("is_active")
+    await db.templates.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("match_type", ASCENDING)]),
+        IndexModel([("is_active", ASCENDING)]),
+    ])
     
     # Question results collection indexes
-    await db.question_results.create_index("id", unique=True)
-    await db.question_results.create_index([("match_id", 1), ("question_id", 1)], unique=True)
+    await db.question_results.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("match_id", ASCENDING), ("question_id", ASCENDING)], unique=True),
+    ])
     
     # Wallet transactions collection indexes
-    await db.wallet_transactions.create_index("id", unique=True)
-    await db.wallet_transactions.create_index("user_id")
-    await db.wallet_transactions.create_index([("user_id", 1), ("created_at", -1)])
+    await db.wallet_transactions.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("user_id", ASCENDING)]),
+        IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)]),
+        IndexModel([("user_id", ASCENDING), ("reason", ASCENDING)]),
+    ])
     
-    logger.info("Database indexes created/verified")
+    logger.info("Database indexes created/verified (bulk)")
 
 
 # Create FastAPI application
@@ -165,6 +219,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# GZip Compression (min 500 bytes)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# Request ID for distributed tracing
+app.add_middleware(RequestIDMiddleware)
+
+# Response timing
+app.add_middleware(ResponseTimingMiddleware)
+
 
 # Include routers with /api prefix
 app.include_router(health_router, prefix="/api")
@@ -181,10 +244,3 @@ async def root():
         "status": "running",
         "docs": "/api/docs" if settings.DEBUG else "disabled"
     }
-
-
-# Backwards compatibility endpoint
-@app.get("/api/")
-async def root_slash():
-    """API root endpoint with trailing slash."""
-    return await root()

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = Field(default="*")
     
     # JWT Configuration
-    JWT_SECRET_KEY: str = Field(default="crickpredict-super-secret-key-change-in-production")
+    JWT_SECRET_KEY: str = Field(..., description="JWT secret key - MUST be set via environment")
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=10080)  # 7 days
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30)

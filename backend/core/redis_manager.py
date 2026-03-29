@@ -4,6 +4,7 @@ Handles leaderboards, caching, pub/sub, and rate limiting.
 World-class Redis implementation with sorted sets, pipelining, and Lua scripts.
 """
 import asyncio
+import json
 import logging
 import time
 from typing import Optional, List, Dict, Any, Tuple
@@ -211,6 +212,14 @@ class RedisManager:
         key = self._key(RedisKeyPrefix.LEADERBOARD, contest_id)
         await self._redis.delete(key)
     
+    async def leaderboard_set_ttl(self, contest_id: str, ttl_seconds: int = 86400) -> None:
+        """Set TTL on leaderboard key to prevent unbounded growth."""
+        if not self.is_available:
+            return
+        
+        key = self._key(RedisKeyPrefix.LEADERBOARD, contest_id)
+        await self._redis.expire(key, ttl_seconds)
+    
     # ==================== MATCH STATE CACHING ====================
     
     async def set_match_state(
@@ -232,7 +241,6 @@ class RedisManager:
         flat_state = {}
         for k, v in state.items():
             if isinstance(v, (dict, list)):
-                import json
                 flat_state[k] = json.dumps(v)
             else:
                 flat_state[k] = str(v) if v is not None else ""
@@ -252,7 +260,6 @@ class RedisManager:
             return None
         
         # Parse JSON fields back
-        import json
         parsed = {}
         for k, v in state.items():
             try:
@@ -275,7 +282,6 @@ class RedisManager:
         key = self._key(RedisKeyPrefix.MATCH_STATE, match_id)
         
         if isinstance(value, (dict, list)):
-            import json
             value = json.dumps(value)
         
         await self._redis.hset(key, field, str(value) if value is not None else "")
@@ -331,7 +337,6 @@ class RedisManager:
         
         key = self._key(RedisKeyPrefix.CACHE, key_suffix)
         
-        import json
         serialized = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
         await self._redis.setex(key, ttl_seconds, serialized)
     
@@ -346,7 +351,6 @@ class RedisManager:
         if value is None:
             return None
         
-        import json
         try:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError):
@@ -367,7 +371,6 @@ class RedisManager:
         if not self.is_available:
             return
         
-        import json
         full_channel = self._key(RedisKeyPrefix.PUBSUB, channel)
         await self._redis.publish(full_channel, json.dumps(message))
     
