@@ -42,6 +42,8 @@ const AuthFlow = () => {
   const handlePinConfirm = async (pin) => {
     if (pin !== createdPin) {
       setError('PINs do not match. Please try again.');
+      setCreatedPin('');
+      setStep('pin-create');
       return;
     }
 
@@ -51,16 +53,19 @@ const AuthFlow = () => {
     const result = await register(phone, pin);
     
     if (!result.success) {
-      if (result.error?.includes('already exists')) {
+      if (result.error?.toLowerCase().includes('already exists')) {
         // User exists, switch to login flow
         setIsExistingUser(true);
         setStep('pin-login');
-        setError('');
+        setError('Account exists. Please login with your PIN.');
+        setCreatedPin('');
       } else {
         setError(result.error || 'Registration failed. Please try again.');
+        setCreatedPin('');
+        setStep('pin-create');
       }
     }
-    // On success, authStore will update and App will redirect
+    // On success, authStore.isAuthenticated will be true and App will show HomeScreen
   };
 
   const handlePinLogin = async (pin) => {

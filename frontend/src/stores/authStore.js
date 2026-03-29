@@ -48,12 +48,14 @@ export const useAuthStore = create(
             refreshToken: token.refresh_token,
             isAuthenticated: true,
             isLoading: false,
+            error: null,
           });
           
           return { success: true };
         } catch (error) {
-          set({ isLoading: false, error: error.message });
-          return { success: false, error: error.message };
+          const errorMsg = error?.message || error?.response?.data?.message || 'Registration failed';
+          set({ isLoading: false, error: errorMsg });
+          return { success: false, error: errorMsg };
         }
       },
 
@@ -75,12 +77,14 @@ export const useAuthStore = create(
             refreshToken: token.refresh_token,
             isAuthenticated: true,
             isLoading: false,
+            error: null,
           });
           
           return { success: true };
         } catch (error) {
-          set({ isLoading: false, error: error.message });
-          return { success: false, error: error.message };
+          const errorMsg = error?.message || error?.response?.data?.message || 'Login failed';
+          set({ isLoading: false, error: errorMsg });
+          return { success: false, error: errorMsg };
         }
       },
 
@@ -95,7 +99,7 @@ export const useAuthStore = create(
       fetchUser: async () => {
         const token = localStorage.getItem('crickpredict_token');
         if (!token) {
-          set({ isAuthenticated: false });
+          set({ isAuthenticated: false, isLoading: false });
           return;
         }
 
@@ -104,12 +108,15 @@ export const useAuthStore = create(
           const response = await api.auth.me();
           set({
             user: response.data,
+            token: token,
             isAuthenticated: true,
             isLoading: false,
           });
         } catch (error) {
           // Token invalid - logout
+          console.log('Token invalid, logging out');
           get().logout();
+          set({ isLoading: false });
         }
       },
 
