@@ -27,6 +27,7 @@ from core.exceptions import CrickPredictException
 
 # Import routers
 from routers.health import router as health_router
+from routers.auth import router as auth_router
 
 # Setup logging
 setup_logging()
@@ -167,6 +168,7 @@ app.add_middleware(
 
 # Include routers with /api prefix
 app.include_router(health_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 
 # Root endpoint

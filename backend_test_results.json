@@ -1,12 +1,12 @@
 {
-  "total_tests": 5,
-  "passed_tests": 5,
+  "total_tests": 10,
+  "passed_tests": 10,
   "success_rate": 100.0,
   "test_results": [
     {
       "test": "API Root Endpoint",
       "success": true,
-      "timestamp": "2026-03-29T17:20:26.960421",
+      "timestamp": "2026-03-29T17:34:53.065967",
       "details": {
         "status_code": 200,
         "response": {
@@ -20,20 +20,20 @@
     {
       "test": "Health Check API",
       "success": true,
-      "timestamp": "2026-03-29T17:20:27.112687",
+      "timestamp": "2026-03-29T17:34:53.179937",
       "details": {
         "status_code": 200,
         "overall_status": "healthy",
         "mongodb_status": "healthy",
         "redis_status": "disabled",
-        "mongodb_latency": 0.86,
+        "mongodb_latency": 0.57,
         "redis_latency": null
       }
     },
     {
       "test": "Readiness Probe",
       "success": true,
-      "timestamp": "2026-03-29T17:20:27.260248",
+      "timestamp": "2026-03-29T17:34:53.278021",
       "details": {
         "status_code": 200,
         "response": {
@@ -44,7 +44,7 @@
     {
       "test": "Liveness Probe",
       "success": true,
-      "timestamp": "2026-03-29T17:20:27.427413",
+      "timestamp": "2026-03-29T17:34:53.388758",
       "details": {
         "status_code": 200,
         "response": {
@@ -55,7 +55,7 @@
     {
       "test": "CORS Configuration",
       "success": true,
-      "timestamp": "2026-03-29T17:20:27.490650",
+      "timestamp": "2026-03-29T17:34:53.455228",
       "details": {
         "status_code": 204,
         "cors_headers": {
@@ -63,6 +63,69 @@
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
           "Access-Control-Allow-Headers": "*"
         }
+      }
+    },
+    {
+      "test": "Auth Registration API",
+      "success": true,
+      "timestamp": "2026-03-29T17:34:53.555547",
+      "details": {
+        "status_code": 409,
+        "note": "User already exists (acceptable for testing)",
+        "response": {
+          "detail": {
+            "error": "USER_ALREADY_EXISTS",
+            "message": "User with this phone number already exists",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "test": "Auth Login API",
+      "success": true,
+      "timestamp": "2026-03-29T17:34:53.886284",
+      "details": {
+        "status_code": 200,
+        "user_id": "fe3f46c6-b385-49b0-87fa-c665b9a637bd",
+        "username": "TestPlayer1",
+        "phone": "9876543210",
+        "coins_balance": 10000,
+        "token_type": "bearer",
+        "expires_in": 604800
+      }
+    },
+    {
+      "test": "Auth Wrong PIN Error",
+      "success": true,
+      "timestamp": "2026-03-29T17:34:54.230185",
+      "details": {
+        "status_code": 401,
+        "error_message": "{'error': 'INVALID_CREDENTIALS', 'message': 'Invalid PIN. 4 attempts remaining', 'details': {}}",
+        "note": "Correctly shows error with remaining attempts"
+      }
+    },
+    {
+      "test": "Auth Me Endpoint",
+      "success": true,
+      "timestamp": "2026-03-29T17:34:54.340622",
+      "details": {
+        "status_code": 200,
+        "user_id": "fe3f46c6-b385-49b0-87fa-c665b9a637bd",
+        "username": "TestPlayer1",
+        "phone": "9876543210",
+        "coins_balance": 10000,
+        "rank_title": "Rookie",
+        "total_points": 0
+      }
+    },
+    {
+      "test": "Auth Token Expiry",
+      "success": true,
+      "timestamp": "2026-03-29T17:34:54.341457",
+      "details": {
+        "expiry_days": 7.0,
+        "note": "Token expires in approximately 7 days"
       }
     }
   ]

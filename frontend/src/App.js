@@ -3,11 +3,11 @@
  * Fantasy Cricket Prediction PWA
  */
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
 import { api } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppStore } from "@/stores/appStore";
+import { AuthFlow } from "@/components/auth";
 
 // Splash Screen Component
 const SplashScreen = () => (
@@ -20,163 +20,202 @@ const SplashScreen = () => (
   </div>
 );
 
-// Home Screen Component (Placeholder for Stage 1)
+// Home Screen Component (After Login)
 const HomeScreen = () => {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [healthStatus, setHealthStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [matches, setMatches] = useState([]);
+  const [contests, setContests] = useState([]);
 
   useEffect(() => {
-    const checkHealth = async () => {
+    const loadData = async () => {
       try {
-        const response = await api.health();
-        setHealthStatus(response.data);
+        const health = await api.health();
+        setHealthStatus(health.data);
       } catch (error) {
         console.error('Health check failed:', error);
-        setHealthStatus({ status: 'error', message: error.message });
-      } finally {
-        setLoading(false);
       }
     };
-    checkHealth();
+    loadData();
   }, []);
 
   return (
-    <div className="min-h-screen bg-bg-primary p-4">
+    <div className="min-h-screen bg-bg-primary pb-20" data-testid="home-screen">
       {/* Header */}
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-wide">
-            CRICKPREDICT
-          </h1>
-          <p className="text-text-secondary text-xs">Fantasy Cricket Prediction</p>
-        </div>
-        <div className="w-10 h-10 rounded-full bg-bg-elevated border border-primary/30 flex items-center justify-center">
-          <svg className="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-          </svg>
+      <header className="sticky top-0 z-20 bg-bg-primary/95 backdrop-blur-md border-b border-bg-elevated px-4 py-3 safe-top">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-xl font-bold text-primary tracking-wide">
+              CRICKPREDICT
+            </h1>
+          </div>
+          <button 
+            onClick={() => logout()}
+            className="w-9 h-9 rounded-full bg-bg-card border border-primary/30 flex items-center justify-center"
+            data-testid="profile-btn"
+          >
+            <svg className="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+            </svg>
+          </button>
         </div>
       </header>
 
-      {/* Stage 1 Status Card */}
-      <div className="card p-6 mb-6">
-        <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-success animate-pulse" />
-          Stage 1: Foundation Complete
+      {/* Banner */}
+      <div className="px-4 py-3">
+        <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-4 text-center">
+          <p className="text-primary font-medium font-hindi">
+            🏏 Revolution in Fantasy Cricket is here
+          </p>
+        </div>
+      </div>
+
+      {/* Balance Card */}
+      <div className="px-4 py-2">
+        <div className="flex gap-3">
+          <div className="flex-1 bg-bg-card border border-bg-elevated rounded-xl p-4">
+            <p className="text-text-tertiary text-xs mb-1">My Balance</p>
+            <p className="font-numbers text-2xl font-bold text-gold flex items-center gap-1">
+              {user?.coins_balance?.toLocaleString() || 0}
+              <span className="text-base">🪙</span>
+            </p>
+          </div>
+          <button className="flex-1 bg-gradient-primary rounded-xl p-4 flex items-center justify-center gap-2 text-white font-semibold">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Deposit
+          </button>
+        </div>
+      </div>
+
+      {/* Live Matches Section */}
+      <div className="px-4 py-4">
+        <h2 className="text-lg font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <span className="text-primary">⚡</span>
+          Live Matches
         </h2>
-        
-        <div className="space-y-3">
-          {/* Backend Status */}
-          <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg">
-            <span className="text-text-secondary text-sm">Backend API</span>
-            {loading ? (
-              <span className="skeleton w-16 h-5" />
-            ) : (
-              <span className={`text-sm font-medium ${
-                healthStatus?.status === 'healthy' ? 'text-success' : 'text-primary'
-              }`}>
-                {healthStatus?.status === 'healthy' ? '✓ Connected' : '✗ Error'}
-              </span>
-            )}
-          </div>
-
-          {/* MongoDB Status */}
-          <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg">
-            <span className="text-text-secondary text-sm">MongoDB</span>
-            {loading ? (
-              <span className="skeleton w-16 h-5" />
-            ) : (
-              <span className={`text-sm font-medium ${
-                healthStatus?.services?.mongodb?.status === 'healthy' ? 'text-success' : 'text-warning'
-              }`}>
-                {healthStatus?.services?.mongodb?.status === 'healthy' 
-                  ? `✓ ${healthStatus.services.mongodb.latency_ms}ms` 
-                  : '○ Checking...'}
-              </span>
-            )}
-          </div>
-
-          {/* Redis Status */}
-          <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg">
-            <span className="text-text-secondary text-sm">Redis Cache</span>
-            {loading ? (
-              <span className="skeleton w-16 h-5" />
-            ) : (
-              <span className={`text-sm font-medium ${
-                healthStatus?.services?.redis?.status === 'healthy' ? 'text-success' : 
-                healthStatus?.services?.redis?.status === 'disabled' ? 'text-text-tertiary' : 'text-warning'
-              }`}>
-                {healthStatus?.services?.redis?.status === 'healthy' 
-                  ? `✓ ${healthStatus.services.redis.latency_ms}ms`
-                  : healthStatus?.services?.redis?.status === 'disabled'
-                  ? '○ Disabled'
-                  : '○ Connecting...'}
-              </span>
-            )}
-          </div>
-
-          {/* PWA Status */}
-          <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg">
-            <span className="text-text-secondary text-sm">PWA Ready</span>
-            <span className="text-sm font-medium text-success">✓ Installable</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Architecture Overview */}
-      <div className="card p-6 mb-6">
-        <h3 className="text-md font-semibold text-text-primary mb-3">Architecture</h3>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="p-3 bg-bg-secondary rounded-lg text-center">
-            <div className="text-primary font-semibold">React.js</div>
-            <div className="text-text-tertiary text-xs">Frontend PWA</div>
-          </div>
-          <div className="p-3 bg-bg-secondary rounded-lg text-center">
-            <div className="text-primary font-semibold">FastAPI</div>
-            <div className="text-text-tertiary text-xs">Backend</div>
-          </div>
-          <div className="p-3 bg-bg-secondary rounded-lg text-center">
-            <div className="text-primary font-semibold">MongoDB</div>
-            <div className="text-text-tertiary text-xs">Database</div>
-          </div>
-          <div className="p-3 bg-bg-secondary rounded-lg text-center">
-            <div className="text-primary font-semibold">Redis</div>
-            <div className="text-text-tertiary text-xs">Cache & Leaderboard</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Features Checklist */}
-      <div className="card p-6">
-        <h3 className="text-md font-semibold text-text-primary mb-3">Stage 1 Checklist</h3>
-        <div className="space-y-2 text-sm">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+          {/* Sample Match Cards */}
           {[
-            'Project Structure (Modular Architecture)',
-            'MongoDB Connection with Pooling',
-            'Redis Manager (Leaderboards, Cache)',
-            'PWA Configuration (manifest.json)',
-            'Service Worker (Offline Support)',
-            'Zustand State Management',
-            'API Client with Interceptors',
-            'Custom Exception Handling',
-            'Base Repository Pattern',
-            'Security Utilities (JWT, bcrypt)',
-            'Health Check Endpoints',
-            'Dark Theme UI System',
-          ].map((item, index) => (
-            <div key={index} className="flex items-center gap-2 text-text-secondary">
-              <span className="text-success">✓</span>
-              {item}
+            { teamA: 'MI', teamB: 'CSK', colorA: 'blue', colorB: 'yellow' },
+            { teamA: 'RCB', teamB: 'KKR', colorA: 'red', colorB: 'purple' },
+            { teamA: 'DC', teamB: 'PBKS', colorA: 'blue', colorB: 'red' },
+          ].map((match, idx) => (
+            <div 
+              key={idx}
+              className={`flex-shrink-0 w-40 rounded-xl p-4 bg-team-${match.colorA} border-2 border-primary/50`}
+              data-testid={`match-card-${idx}`}
+            >
+              <p className="text-white font-semibold text-center mb-2">
+                {match.teamA} VS {match.teamB}
+              </p>
+              <div className="live-indicator mx-auto w-fit">
+                LIVE
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Version Info */}
-      <div className="mt-6 text-center text-text-tertiary text-xs">
-        <p>CrickPredict v1.0.0 | Stage 1 Complete</p>
-        <p className="mt-1">World's Best Architecture - Ready for Judging</p>
+      {/* Hot Contests Section */}
+      <div className="px-4 py-4">
+        <h2 className="text-lg font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <span className="text-gold">🏆</span>
+          Hot Contests
+        </h2>
+        
+        {/* Contest Card */}
+        <div className="card p-4 flex items-center justify-between">
+          <div>
+            <p className="text-text-primary font-semibold">MI VS CSK</p>
+            <p className="text-primary text-sm font-numbers">
+              1000 real cash
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-text-tertiary">🔥</span>
+            <button className="btn btn-primary py-2 px-4 text-sm">
+              JOIN <span className="font-numbers">🪙 100</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* User Info Card */}
+      <div className="px-4 py-4">
+        <div className="card p-4">
+          <h3 className="text-md font-semibold text-text-primary mb-3">Your Profile</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Username</span>
+              <span className="text-text-primary">{user?.username}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Rank</span>
+              <span className="text-primary font-medium">{user?.rank_title}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Total Points</span>
+              <span className="text-gold font-numbers">{user?.total_points}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Referral Code</span>
+              <span className="text-info font-mono">{user?.referral_code}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* System Status (Dev Mode) */}
+      <div className="px-4 py-4">
+        <div className="card p-4 opacity-75">
+          <h3 className="text-xs font-semibold text-text-tertiary mb-2">System Status</h3>
+          <div className="flex gap-4 text-xs">
+            <span className={`flex items-center gap-1 ${healthStatus?.services?.mongodb?.status === 'healthy' ? 'text-success' : 'text-warning'}`}>
+              <span className="w-2 h-2 rounded-full bg-current" />
+              MongoDB
+            </span>
+            <span className={`flex items-center gap-1 ${healthStatus?.services?.redis?.status === 'healthy' ? 'text-success' : 'text-text-tertiary'}`}>
+              <span className="w-2 h-2 rounded-full bg-current" />
+              Redis
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <nav className="bottom-nav" data-testid="bottom-nav">
+        <a href="#" className="bottom-nav-item active">
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+          </svg>
+          <span>Home</span>
+        </a>
+        <a href="#" className="bottom-nav-item">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+          <span>My Contest</span>
+        </a>
+        <div className="bottom-nav-center">
+          <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <a href="#" className="bottom-nav-item">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+          <span>Wallet</span>
+        </a>
+        <a href="#" className="bottom-nav-item">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+          </svg>
+          <span>Legal</span>
+        </a>
+      </nav>
     </div>
   );
 };
@@ -184,7 +223,7 @@ const HomeScreen = () => {
 // Main App Component
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const { fetchUser } = useAuthStore();
+  const { fetchUser, isAuthenticated } = useAuthStore();
   const { showToast } = useAppStore();
 
   useEffect(() => {
@@ -209,12 +248,7 @@ function App() {
 
   return (
     <div className="App min-h-screen bg-bg-primary">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomeScreen />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+      {isAuthenticated ? <HomeScreen /> : <AuthFlow />}
     </div>
   );
 }
