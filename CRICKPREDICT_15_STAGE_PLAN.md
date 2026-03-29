@@ -8,7 +8,7 @@
 **App Type:** Mobile-First PWA (Progressive Web App) - Chrome/Safari installable shortcut
 **Tech Stack:** React.js + Tailwind CSS + FastAPI + MongoDB + Redis
 **AI Integration:** GPT-5.2 (via Emergent LLM Key) for Question Generation
-**Cricket API:** EntitySport (Ball-by-ball WebSocket data)
+**Cricket Data:** FREE Cricbuzz Scraping (2-ball delay, unlimited requests)
 **Authentication:** Phone Number + 4-digit PIN (No OTP)
 **Economy:** Virtual Coins Only (No Real Money)
 
