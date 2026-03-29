@@ -51,12 +51,13 @@ class ContestStatus(str, Enum):
 
 class QuestionCategory(str, Enum):
     """Question categories."""
-    BATTING = "batting"
-    BOWLING = "bowling"
-    MATCH = "match"
-    POWERPLAY = "powerplay"
-    DEATH_OVERS = "death_overs"
-    FIELDING = "fielding"
+    MATCH_OUTCOME = "match_outcome"
+    RUNS = "runs"
+    WICKETS = "wickets"
+    BOUNDARIES = "boundaries"
+    PLAYER_PERFORMANCE = "player_performance"
+    MILESTONE = "milestone"
+    SPECIAL = "special"
 
 
 class QuestionDifficulty(str, Enum):
@@ -68,6 +69,7 @@ class QuestionDifficulty(str, Enum):
 
 class EvaluationType(str, Enum):
     """Types of question evaluation."""
+    EXACT_MATCH = "exact_match"
     RANGE_MATCH = "range_match"
     BOOLEAN_MATCH = "boolean_match"
     COMPOUND_MATCH = "compound_match"

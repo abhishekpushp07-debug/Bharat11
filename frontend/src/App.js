@@ -11,6 +11,7 @@ import BottomNav from "@/components/BottomNav";
 import HomePage from "@/pages/HomePage";
 import WalletPage from "@/pages/WalletPage";
 import ProfilePage from "@/pages/ProfilePage";
+import MatchDetailPage from "@/pages/MatchDetailPage";
 import { COLORS } from "@/constants/design";
 
 // Splash Screen
@@ -36,15 +37,32 @@ const MyContestsPage = () => (
 // Main App Shell (after login)
 const AppShell = () => {
   const [activeTab, setActiveTab] = useState('home');
+  const [selectedMatch, setSelectedMatch] = useState(null);
+
+  const handleMatchClick = (match) => {
+    setSelectedMatch(match);
+    setActiveTab('matchDetail');
+  };
+
+  const handleBackFromMatch = () => {
+    setSelectedMatch(null);
+    setActiveTab('home');
+  };
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'home': return <HomePage />;
+      case 'home': return <HomePage onMatchClick={handleMatchClick} />;
+      case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} />;
       case 'contests': return <MyContestsPage />;
       case 'wallet': return <WalletPage />;
       case 'profile': return <ProfilePage />;
-      default: return <HomePage />;
+      default: return <HomePage onMatchClick={handleMatchClick} />;
     }
+  };
+
+  const handleTabChange = (tab) => {
+    setSelectedMatch(null);
+    setActiveTab(tab);
   };
 
   return (
@@ -64,7 +82,7 @@ const AppShell = () => {
       </main>
 
       {/* Bottom Navigation */}
-      <BottomNav active={activeTab} onChange={setActiveTab} />
+      <BottomNav active={['matchDetail'].includes(activeTab) ? 'home' : activeTab} onChange={handleTabChange} />
     </div>
   );
 };

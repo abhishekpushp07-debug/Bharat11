@@ -4,7 +4,31 @@ import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { Coins, ChevronRight, Clock, Users, Trophy } from 'lucide-react';
 
-export default function HomePage() {
+const TEAM_COLORS = {
+  MI: ['#004BA0', '#00599E'], CSK: ['#F9CD05', '#F3A012'],
+  RCB: ['#D4213D', '#A0171F'], KKR: ['#3A225D', '#552583'],
+  DC: ['#0078BC', '#17479E'], PBKS: ['#ED1B24', '#AA1019'],
+  SRH: ['#FF822A', '#E35205'], RR: ['#EA1A85', '#C51D70'],
+  GT: ['#1C1C2B', '#0B4F6C'], LSG: ['#2E90A8', '#1B7B93'],
+};
+
+const getTeamGrad = (short) => {
+  const c = TEAM_COLORS[short] || ['#555', '#333'];
+  return `linear-gradient(135deg, ${c[0]}, ${c[1]})`;
+};
+
+const formatTime = (d) => {
+  const date = new Date(d);
+  const now = new Date();
+  const diff = date - now;
+  if (diff < 0) return 'LIVE';
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (hours > 24) return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return `${hours}h ${mins}m`;
+};
+
+export default function HomePage({ onMatchClick }) {
   const { user } = useAuthStore();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,48 +37,18 @@ export default function HomePage() {
 
   const fetchMatches = async () => {
     try {
-      // Matches API will be in Stage 6, using seed data for now
-      setLoading(false);
+      const res = await apiClient.get('/matches?limit=10');
+      setMatches(res.data.matches || []);
     } catch (e) {
+      console.error('Match fetch error:', e);
+    } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (d) => {
-    const date = new Date(d);
-    const now = new Date();
-    const diff = date - now;
-    const hours = Math.floor(diff / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    if (diff < 0) return 'LIVE';
-    if (hours > 24) return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    return `${hours}h ${mins}m`;
-  };
-
-  // Team color mappings
-  const TEAM_COLORS = {
-    MI: ['#004BA0', '#00599E'], CSK: ['#F9CD05', '#F3A012'],
-    RCB: ['#D4213D', '#A0171F'], KKR: ['#3A225D', '#552583'],
-    DC: ['#0078BC', '#17479E'], PBKS: ['#ED1B24', '#AA1019'],
-    SRH: ['#FF822A', '#E35205'], RR: ['#EA1A85', '#C51D70'],
-    GT: ['#1C1C2B', '#0B4F6C'], LSG: ['#2E90A8', '#1B7B93'],
-  };
-
-  const getTeamGrad = (short) => {
-    const c = TEAM_COLORS[short] || ['#555', '#333'];
-    return `linear-gradient(135deg, ${c[0]}, ${c[1]})`;
-  };
-
-  // Demo matches from seed data
-  const demoMatches = [
-    { id: 1, team_a: { name: 'Mumbai Indians', short_name: 'MI' }, team_b: { name: 'Chennai Super Kings', short_name: 'CSK' }, venue: 'Wankhede Stadium', status: 'upcoming', start_time: new Date(Date.now() + 7200000).toISOString(), contests_count: 3 },
-    { id: 2, team_a: { name: 'Royal Challengers', short_name: 'RCB' }, team_b: { name: 'Kolkata Knight Riders', short_name: 'KKR' }, venue: 'Chinnaswamy Stadium', status: 'upcoming', start_time: new Date(Date.now() + 86400000).toISOString(), contests_count: 3 },
-    { id: 3, team_a: { name: 'Delhi Capitals', short_name: 'DC' }, team_b: { name: 'Punjab Kings', short_name: 'PBKS' }, venue: 'Arun Jaitley Stadium', status: 'upcoming', start_time: new Date(Date.now() + 172800000).toISOString(), contests_count: 3 },
-  ];
-
   return (
     <div data-testid="home-page" className="pb-4 space-y-4">
-      {/* Greeting + Balance Bar */}
+      {/* Greeting + Balance */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Hey, {user?.username || 'Player'}!</h1>
@@ -66,79 +60,121 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Live / Upcoming Section */}
+      {/* Matches Section */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-white">Upcoming Matches</h2>
-          <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{demoMatches.length} matches</span>
+          <h2 className="text-base font-semibold text-white">
+            {matches.some(m => m.status === 'live') ? 'Live & Upcoming' : 'Upcoming Matches'}
+          </h2>
+          <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{matches.length} matches</span>
         </div>
 
-        <div className="space-y-3">
-          {demoMatches.map(match => (
-            <div data-testid={`match-card-${match.id}`} key={match.id} className="rounded-2xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-              {/* Match Header */}
-              <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border.light}` }}>
-                <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match.venue}</span>
-                <div className="flex items-center gap-1.5">
-                  <Clock size={12} color={COLORS.warning.main} />
-                  <span className="text-xs font-semibold" style={{ color: COLORS.warning.main }}>{formatTime(match.start_time)}</span>
-                </div>
-              </div>
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} />
+          </div>
+        ) : matches.length === 0 ? (
+          <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
+            <div className="text-4xl mb-3">🏏</div>
+            <p className="text-sm" style={{ color: COLORS.text.secondary }}>No matches available right now</p>
+            <p className="text-xs mt-1" style={{ color: COLORS.text.tertiary }}>Check back soon!</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {matches.map(match => {
+              const teamA = match.team_a || {};
+              const teamB = match.team_b || {};
+              const isLive = match.status === 'live';
+              const score = match.live_score;
 
-              {/* Teams */}
-              <div className="px-4 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-black text-white" style={{ background: getTeamGrad(match.team_a.short_name) }}>
-                    {match.team_a.short_name}
+              return (
+                <div
+                  data-testid={`match-card-${match.id}`}
+                  key={match.id}
+                  className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
+                  style={{
+                    background: COLORS.background.card,
+                    border: `1px solid ${isLive ? COLORS.primary.main + '44' : COLORS.border.light}`,
+                    boxShadow: isLive ? `0 0 12px ${COLORS.primary.main}22` : 'none'
+                  }}
+                  onClick={() => onMatchClick?.(match)}
+                >
+                  {/* Header */}
+                  <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border.light}` }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match.tournament || match.venue}</span>
+                      {isLive && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white animate-pulse" style={{ background: COLORS.primary.main }}>LIVE</span>}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={12} color={isLive ? COLORS.primary.main : COLORS.warning.main} />
+                      <span className="text-xs font-semibold" style={{ color: isLive ? COLORS.primary.main : COLORS.warning.main }}>
+                        {isLive ? 'In Progress' : formatTime(match.start_time)}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-bold text-white">{match.team_a.short_name}</div>
-                    <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{match.team_a.name}</div>
-                  </div>
-                </div>
 
-                <div className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: COLORS.primary.gradient, color: '#fff' }}>VS</div>
+                  {/* Teams */}
+                  <div className="px-4 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white" style={{ background: getTeamGrad(teamA.short_name) }}>
+                        {teamA.short_name || '?'}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white">{teamA.short_name || 'TBD'}</div>
+                        {isLive && score?.batting_team === teamA.short_name ? (
+                          <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{score.score} ({score.overs})</div>
+                        ) : (
+                          <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{teamA.name || ''}</div>
+                        )}
+                      </div>
+                    </div>
 
-                <div className="flex items-center gap-3 flex-row-reverse">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-black text-white" style={{ background: getTeamGrad(match.team_b.short_name) }}>
-                    {match.team_b.short_name}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-white">{match.team_b.short_name}</div>
-                    <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{match.team_b.name}</div>
-                  </div>
-                </div>
-              </div>
+                    <div className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: isLive ? COLORS.primary.gradient : `${COLORS.primary.main}22`, color: isLive ? '#fff' : COLORS.primary.main }}>
+                      VS
+                    </div>
 
-              {/* Footer */}
-              <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary }}>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <Trophy size={12} color={COLORS.accent.gold} />
-                    <span className="text-xs" style={{ color: COLORS.text.secondary }}>{match.contests_count} Contests</span>
+                    <div className="flex items-center gap-3 flex-row-reverse">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white" style={{ background: getTeamGrad(teamB.short_name) }}>
+                        {teamB.short_name || '?'}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-white">{teamB.short_name || 'TBD'}</div>
+                        {isLive && score?.batting_team === teamB.short_name ? (
+                          <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{score.score} ({score.overs})</div>
+                        ) : (
+                          <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{teamB.name || ''}</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Users size={12} color={COLORS.info.main} />
-                    <span className="text-xs" style={{ color: COLORS.text.secondary }}>Open</span>
+
+                  {/* Footer */}
+                  <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <Trophy size={12} color={COLORS.accent.gold} />
+                        <span className="text-xs" style={{ color: COLORS.text.secondary }}>{match.venue}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: COLORS.primary.main }}>
+                      {isLive ? 'Live Score' : 'Predict Now'} <ChevronRight size={14} />
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: COLORS.primary.main }}>
-                  Predict Now <ChevronRight size={14} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Hot Contests Section */}
+      {/* Hot Contests */}
       <div>
         <h2 className="text-base font-semibold text-white mb-3">Hot Contests</h2>
         <div className="space-y-2">
           {[
-            { name: 'Free Contest', fee: 0, pool: 1000, participants: '0/100' },
-            { name: 'Mini Contest', fee: 100, pool: 5000, participants: '0/50' },
-            { name: 'Mega Contest', fee: 500, pool: 25000, participants: '0/100' },
+            { name: 'Free Contest', fee: 0, pool: 1000, tag: 'FREE' },
+            { name: 'Mini Contest', fee: 100, pool: 5000, tag: 'Popular' },
+            { name: 'Mega Contest', fee: 500, pool: 25000, tag: 'Mega' },
           ].map((c, i) => (
             <div data-testid={`contest-card-${i}`} key={i} className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
               <div>
@@ -149,7 +185,7 @@ export default function HomePage() {
                 </div>
               </div>
               <button className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: c.fee === 0 ? COLORS.success.bg : COLORS.primary.gradient, color: c.fee === 0 ? COLORS.success.main : '#fff' }}>
-                {c.fee === 0 ? 'FREE' : 'Join'}
+                {c.tag}
               </button>
             </div>
           ))}
