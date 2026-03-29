@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight } from 'lucide-react';
@@ -15,17 +15,17 @@ export default function MatchDetailPage({ match, onBack }) {
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (match?.id) fetchContests();
-  }, [match?.id]);
-
-  const fetchContests = async () => {
+  const fetchContests = useCallback(async () => {
     try {
       const res = await apiClient.get(`/matches/${match.id}/contests`);
       setContests(res.data.contests || []);
     } catch (e) { /* silent */ }
     finally { setLoading(false); }
-  };
+  }, [match?.id]);
+
+  useEffect(() => {
+    if (match?.id) fetchContests();
+  }, [match?.id, fetchContests]);
 
   const teamA = match?.team_a || {};
   const teamB = match?.team_b || {};
