@@ -229,12 +229,16 @@ async def seed_super_admin():
     
     existing = await db.users.find_one({"phone": SUPER_ADMIN_PHONE})
     if existing:
+        updates = {}
         if not existing.get("is_admin"):
-            await db.users.update_one(
-                {"phone": SUPER_ADMIN_PHONE},
-                {"$set": {"is_admin": True}}
-            )
-            logger.info(f"Promoted {SUPER_ADMIN_PHONE} to super admin")
+            updates["is_admin"] = True
+        if existing.get("username", "").startswith("Player"):
+            updates["username"] = "SuperAdmin"
+        if existing.get("coins_balance", 0) < 100000:
+            updates["coins_balance"] = 100000
+        if updates:
+            await db.users.update_one({"phone": SUPER_ADMIN_PHONE}, {"$set": updates})
+            logger.info(f"Updated super admin {SUPER_ADMIN_PHONE}: {list(updates.keys())}")
         return
     
     from core.security import jwt_manager
