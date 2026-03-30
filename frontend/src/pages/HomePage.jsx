@@ -5,6 +5,7 @@ import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_CARD_IMAGES, getTeamLogo, getTeamGradient, getTeamCardImage, normalizeTeam } from '../constants/teams';
 import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin } from 'lucide-react';
 import PredictionBadge from '../components/PredictionBadge';
+import StreakBanner from '../components/StreakBanner';
 
 const getTeamGrad = (short) => getTeamGradient(short);
 
@@ -120,6 +121,9 @@ export default function HomePage({ onMatchClick }) {
 
       {/* Prediction Accuracy Badge */}
       <PredictionBadge />
+
+      {/* Prediction Streak */}
+      <StreakBanner />
 
       {/* Dual Points Banner - Vibrant */}
       <div data-testid="dual-banner" className="grid grid-cols-2 gap-2.5">

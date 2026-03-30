@@ -550,8 +550,65 @@ async def run_settlement_for_match(match_id: str, db) -> Dict[str, Any]:
     }
 
 
+def get_streak_multiplier(streak: int) -> int:
+    """Get points multiplier based on prediction streak. 5+=2x, 10+=4x."""
+    if streak >= 10:
+        return 4
+    elif streak >= 5:
+        return 2
+    return 1
+
+
+async def update_user_streaks(db, user_correct_map: Dict[str, bool], points_map: Dict[str, int] = None) -> Dict[str, Dict]:
+    """
+    Batch update prediction streaks for users after question resolution.
+    user_correct_map: {user_id: True/False}
+    Returns: {user_id: {"new_streak": int, "multiplier": int, "bonus": int}}
+    """
+    from pymongo import UpdateOne
+
+    user_ids = list(user_correct_map.keys())
+    if not user_ids:
+        return {}
+
+    # Batch read current streaks
+    users_cursor = db.users.find(
+        {"id": {"$in": user_ids}},
+        {"_id": 0, "id": 1, "prediction_streak": 1, "max_prediction_streak": 1}
+    )
+    users_data = await users_cursor.to_list(length=len(user_ids))
+    streak_data = {u["id"]: (u.get("prediction_streak", 0), u.get("max_prediction_streak", 0)) for u in users_data}
+
+    streak_ops = []
+    results = {}
+
+    for user_id, is_correct in user_correct_map.items():
+        current_streak, max_streak = streak_data.get(user_id, (0, 0))
+
+        if is_correct:
+            new_streak = current_streak + 1
+            multiplier = get_streak_multiplier(new_streak)
+            base_points = (points_map or {}).get(user_id, 0)
+            bonus = base_points * (multiplier - 1)  # extra points on top of base
+
+            update_set = {"prediction_streak": new_streak}
+            if new_streak > max_streak:
+                update_set["max_prediction_streak"] = new_streak
+
+            streak_ops.append(UpdateOne({"id": user_id}, {"$set": update_set}))
+            results[user_id] = {"new_streak": new_streak, "multiplier": multiplier, "bonus": bonus}
+        else:
+            streak_ops.append(UpdateOne({"id": user_id}, {"$set": {"prediction_streak": 0}}))
+            results[user_id] = {"new_streak": 0, "multiplier": 1, "bonus": 0}
+
+    if streak_ops:
+        await db.users.bulk_write(streak_ops)
+
+    return results
+
+
 async def _resolve_question_internal(db, contest_id: str, match_id: str, question_id: str, correct_option: str, question: Dict):
-    """Internal question resolution — same logic as manual resolve endpoint."""
+    """Internal question resolution with streak tracking and multiplier bonuses."""
     from pymongo import UpdateOne
     from models.schemas import generate_id, utc_now
 
@@ -582,12 +639,19 @@ async def _resolve_question_internal(db, contest_id: str, match_id: str, questio
     )
     entries = await entries_cursor.to_list(length=10000)
 
+    # Phase 1: Score with base points
     bulk_ops = []
+    user_correct_map = {}
+    user_points_map = {}
+
     for entry in entries:
         for i, pred in enumerate(entry.get("predictions", [])):
             if pred["question_id"] == question_id:
                 is_correct = pred["selected_option"] == correct_option
                 earned = points_value if is_correct else 0
+                user_correct_map[entry["user_id"]] = is_correct
+                if is_correct:
+                    user_points_map[entry["user_id"]] = points_value
                 bulk_ops.append(UpdateOne(
                     {"_id": entry["_id"], f"predictions.{i}.question_id": question_id},
                     {"$set": {
@@ -601,7 +665,36 @@ async def _resolve_question_internal(db, contest_id: str, match_id: str, questio
     if bulk_ops:
         await db.contest_entries.bulk_write(bulk_ops)
 
-    logger.info(f"Auto-resolved Q:{question_id} → {correct_option} | {len(entries)} entries scored")
+    # Phase 2: Update streaks and apply bonus multiplier
+    streak_results = await update_user_streaks(db, user_correct_map, user_points_map)
+
+    # Phase 3: Apply streak bonus points to entries
+    bonus_ops = []
+    for entry in entries:
+        uid = entry["user_id"]
+        sr = streak_results.get(uid)
+        if sr and sr["bonus"] > 0:
+            for i, pred in enumerate(entry.get("predictions", [])):
+                if pred["question_id"] == question_id:
+                    bonus_ops.append(UpdateOne(
+                        {"_id": entry["_id"], f"predictions.{i}.question_id": question_id},
+                        {
+                            "$inc": {
+                                f"predictions.{i}.points_earned": sr["bonus"],
+                                "total_points": sr["bonus"]
+                            },
+                            "$set": {
+                                f"predictions.{i}.streak_multiplier": sr["multiplier"]
+                            }
+                        }
+                    ))
+                    break
+
+    if bonus_ops:
+        await db.contest_entries.bulk_write(bonus_ops)
+
+    streak_bonuses = sum(sr["bonus"] for sr in streak_results.values() if sr["bonus"] > 0)
+    logger.info(f"Auto-resolved Q:{question_id} → {correct_option} | {len(entries)} entries scored | Streak bonuses: {streak_bonuses}")
 
 
 async def _auto_finalize_contest(db, contest_id: str) -> Dict:

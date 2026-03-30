@@ -156,6 +156,8 @@ class User(TimestampMixin):
     referred_by: Optional[str] = Field(default=None)
     daily_streak: int = Field(default=0, ge=0)
     last_daily_claim: Optional[datetime] = Field(default=None)
+    prediction_streak: int = Field(default=0, ge=0)
+    max_prediction_streak: int = Field(default=0, ge=0)
     is_banned: bool = Field(default=False)
     is_admin: bool = Field(default=False)
     failed_login_attempts: int = Field(default=0)
@@ -221,6 +223,8 @@ class UserResponse(BaseModel):
     contests_won: int
     referral_code: str
     daily_streak: int
+    prediction_streak: int = 0
+    max_prediction_streak: int = 0
     is_admin: bool = False
     created_at: datetime
 

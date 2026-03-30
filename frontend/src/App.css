@@ -369,3 +369,136 @@
 .verdict-upset { background: linear-gradient(160deg, #2a0a0a 0%, #3d1515 50%, #2a0a0a 100%); }
 .verdict-classic { background: linear-gradient(160deg, #0a1a0a 0%, #152d15 50%, #0a1a0a 100%); }
 .verdict-heartbreak { background: linear-gradient(160deg, #1a1a2e 0%, #2e2e4e 50%, #1a1a2e 100%); }
+
+
+/* ===== PREDICTION STREAK ANIMATIONS ===== */
+
+/* Hot streak border animation */
+.streak-hot-border {
+  border: 2px solid transparent !important;
+  background-clip: padding-box;
+  position: relative;
+}
+.streak-hot-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, #FF3B3B, #FF6B00, #FFD700, #FF3B3B);
+  background-size: 300% 300%;
+  animation: streakBorderGlow 3s ease infinite;
+  z-index: -1;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  padding: 2px;
+  border-radius: 12px;
+}
+
+@keyframes streakBorderGlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Fire icon animation */
+.streak-fire-icon {
+  color: #FF6B00;
+  filter: drop-shadow(0 0 4px #FF3B3B88);
+  animation: streakFirePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes streakFirePulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px #FF3B3B55); }
+  50% { transform: scale(1.15); filter: drop-shadow(0 0 10px #FF3B3Baa); }
+}
+
+/* Streak number glow */
+.streak-number-glow {
+  animation: streakNumGlow 2s ease-in-out infinite;
+}
+
+@keyframes streakNumGlow {
+  0%, 100% { text-shadow: 0 0 8px rgba(255, 59, 59, 0.3); }
+  50% { text-shadow: 0 0 16px rgba(255, 59, 59, 0.6), 0 0 32px rgba(255, 107, 0, 0.3); }
+}
+
+/* Fire background for hot streaks */
+.streak-fire-bg {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(255, 59, 59, 0.04) 40%,
+    rgba(255, 107, 0, 0.06) 70%,
+    rgba(255, 215, 0, 0.03) 100%
+  );
+  animation: streakFireBg 4s ease-in-out infinite;
+}
+
+@keyframes streakFireBg {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Streak ambient glow for Streak King */
+.streak-ambient {
+  background: radial-gradient(
+    ellipse at 20% 50%,
+    rgba(255, 59, 59, 0.06) 0%,
+    transparent 60%
+  );
+}
+
+/* Streak icon glow box */
+.streak-icon-glow {
+  animation: streakIconBox 2.5s ease-in-out infinite;
+}
+
+@keyframes streakIconBox {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 107, 0, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(255, 59, 59, 0.4), 0 0 40px rgba(255, 107, 0, 0.15); }
+}
+
+/* Progress bar glow */
+.streak-progress-glow {
+  box-shadow: 0 0 6px rgba(255, 107, 0, 0.4);
+}
+
+/* Fire particles */
+.streak-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.streak-particle {
+  position: absolute;
+  bottom: 0;
+  left: var(--x, 50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #FF6B00;
+  opacity: 0;
+  animation: streakParticleRise 2s ease-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes streakParticleRise {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0.7;
+    background: #FF3B3B;
+  }
+  40% {
+    opacity: 0.5;
+    background: #FF6B00;
+  }
+  100% {
+    transform: translateY(-60px) translateX(var(--drift, 10px)) scale(0);
+    opacity: 0;
+    background: #FFD700;
+  }
+}

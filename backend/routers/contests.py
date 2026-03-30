@@ -547,6 +547,8 @@ async def resolve_question(
     score_updates = []  # (user_id, points_earned)
     correct_count = 0
     wrong_count = 0
+    user_correct_map = {}
+    user_points_map = {}
 
     for entry in entries:
         for i, pred in enumerate(entry.get("predictions", [])):
@@ -556,8 +558,11 @@ async def resolve_question(
 
                 if is_correct:
                     correct_count += 1
+                    user_correct_map[entry["user_id"]] = True
+                    user_points_map[entry["user_id"]] = points_value
                 else:
                     wrong_count += 1
+                    user_correct_map[entry["user_id"]] = False
 
                 bulk_ops.append(UpdateOne(
                     {"_id": entry["_id"], f"predictions.{i}.question_id": data.question_id},
@@ -572,6 +577,37 @@ async def resolve_question(
 
     if bulk_ops:
         await db.contest_entries.bulk_write(bulk_ops)
+
+    # 6b. Update prediction streaks and apply bonus multiplier
+    from services.settlement_engine import update_user_streaks
+    streak_results = await update_user_streaks(db, user_correct_map, user_points_map)
+
+    # Apply streak bonuses to entries
+    bonus_ops = []
+    total_bonus = 0
+    for entry in entries:
+        uid = entry["user_id"]
+        sr = streak_results.get(uid)
+        if sr and sr["bonus"] > 0:
+            total_bonus += sr["bonus"]
+            for i, pred in enumerate(entry.get("predictions", [])):
+                if pred["question_id"] == data.question_id:
+                    bonus_ops.append(UpdateOne(
+                        {"_id": entry["_id"], f"predictions.{i}.question_id": data.question_id},
+                        {
+                            "$inc": {
+                                f"predictions.{i}.points_earned": sr["bonus"],
+                                "total_points": sr["bonus"]
+                            },
+                            "$set": {
+                                f"predictions.{i}.streak_multiplier": sr["multiplier"]
+                            }
+                        }
+                    ))
+                    break
+
+    if bonus_ops:
+        await db.contest_entries.bulk_write(bonus_ops)
 
     # 7. Update Redis leaderboard
     redis_mgr = RedisManager(db_manager._redis_client)
@@ -588,7 +624,8 @@ async def resolve_question(
         "entries_evaluated": len(entries),
         "correct": correct_count,
         "wrong": wrong_count,
-        "points_value": points_value
+        "points_value": points_value,
+        "streak_bonuses": total_bonus
     }
 
 
@@ -1037,4 +1074,78 @@ async def get_my_badge(
         "accuracy_pct": accuracy_pct,
         "total_points_earned": stats["total_points_earned"],
         "contests_count": len(stats["contests_played"]),
+    }
+
+
+# ==================== PREDICTION STREAK ====================
+
+@router.get(
+    "/global/top-streak",
+    summary="Top prediction streak holders",
+    description="Returns users with the highest current active prediction streaks."
+)
+async def get_top_streaks(
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Get top users by active prediction streak (current hot streaks)."""
+    cursor = db.users.find(
+        {"prediction_streak": {"$gte": 1}},
+        {"_id": 0, "id": 1, "username": 1, "avatar_url": 1, "prediction_streak": 1, "max_prediction_streak": 1}
+    ).sort("prediction_streak", -1).limit(limit)
+    users = await cursor.to_list(length=limit)
+
+    streaks = []
+    for rank, u in enumerate(users, 1):
+        streaks.append({
+            "rank": rank,
+            "user_id": u["id"],
+            "username": u.get("username", "Unknown"),
+            "avatar_url": u.get("avatar_url"),
+            "current_streak": u.get("prediction_streak", 0),
+            "max_streak": u.get("max_prediction_streak", 0),
+            "is_hot": u.get("prediction_streak", 0) >= 5,
+        })
+
+    return {"streaks": streaks, "total": len(streaks)}
+
+
+@router.get(
+    "/global/my-streak",
+    summary="Get current user's prediction streak",
+    description="Returns the user's current and max prediction streak with multiplier info."
+)
+async def get_my_streak(
+    current_user: CurrentUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Get the current user's prediction streak status."""
+    user = await db.users.find_one(
+        {"id": current_user.id},
+        {"_id": 0, "prediction_streak": 1, "max_prediction_streak": 1}
+    )
+    if not user:
+        return {"current_streak": 0, "max_streak": 0, "is_hot": False, "multiplier": 1, "next_milestone": 5}
+
+    current = user.get("prediction_streak", 0)
+    max_s = user.get("max_prediction_streak", 0)
+    is_hot = current >= 5
+
+    if current >= 10:
+        multiplier = 4
+        next_milestone = None  # Already at max
+    elif current >= 5:
+        multiplier = 2
+        next_milestone = 10
+    else:
+        multiplier = 1
+        next_milestone = 5
+
+    return {
+        "current_streak": current,
+        "max_streak": max_s,
+        "is_hot": is_hot,
+        "multiplier": multiplier,
+        "next_milestone": next_milestone,
+        "streak_to_next": (next_milestone - current) if next_milestone else 0,
     }
