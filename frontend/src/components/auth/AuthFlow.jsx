@@ -27,7 +27,7 @@ const AuthFlow = () => {
     
     // For now, we'll try to determine if user exists by attempting login
     // In a real app, you might have a separate endpoint to check
-    // For CrickPredict, we'll just go to PIN creation flow first
+    // For Bharat 11, we'll just go to PIN creation flow first
     // If they enter wrong PIN during login, they can register
     setStep('pin-create');
     setIsExistingUser(false);

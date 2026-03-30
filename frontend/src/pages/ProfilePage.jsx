@@ -112,10 +112,12 @@ export default function ProfilePage({ onAdminClick }) {
         </div>
       )}
 
-      {/* Admin Panel */}
-      <button data-testid="admin-btn" onClick={onAdminClick} className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors" style={{ background: COLORS.background.card, color: COLORS.warning.main, border: `1px solid ${COLORS.warning.main}33` }}>
-        <Shield size={16} /> Admin Panel
-      </button>
+      {/* Admin Panel - only for admins */}
+      {user?.is_admin && (
+        <button data-testid="admin-btn" onClick={onAdminClick} className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors" style={{ background: COLORS.background.card, color: COLORS.warning.main, border: `1px solid ${COLORS.warning.main}33` }}>
+          <Shield size={16} /> Admin Panel
+        </button>
+      )}
 
       {/* Logout */}
       <button data-testid="logout-btn" onClick={logout} className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors" style={{ background: COLORS.error.bg, color: COLORS.error.main, border: `1px solid ${COLORS.error.main}33` }}>

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     """
     
     # App Info
-    APP_NAME: str = "CrickPredict"
+    APP_NAME: str = "Bharat 11"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = Field(default=False)
     ENVIRONMENT: str = Field(default="development")

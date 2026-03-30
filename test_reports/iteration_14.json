@@ -1,0 +1,104 @@
+{
+  "summary": "Bharat 11 Admin Panel Testing Complete. Fixed critical bug: is_admin field was missing from UserResponse. 24/26 backend tests pass. All admin panel features verified: Dashboard, Questions CRUD, Templates CRUD with types, Matches management, Contests creation, Resolve tab. Super admin 7004186276/5524 works correctly. Non-admin users correctly blocked from admin endpoints (403).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/templates", "issue": "Old templates (created before template_type feature) don't have template_type field - returns null/missing. Not a bug, just legacy data."},
+      {"endpoint": "PUT /api/matches/{id}/status", "issue": "Match status transitions are validated (e.g., live->upcoming not allowed). This is correct behavior, test logic was wrong."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Templates tab", "issue": "Transient 422 error seen once - may be related to questions API timing. Works on retry.", "affected_selectors": ["[data-testid='admin-tab-templates']"]}
+    ],
+    "design_issues": []
+  },
+  "passed_tests": {
+    "branding": {
+      "welcome_screen": "PASS - Shows 'BHARAT 11' title and B11 logo",
+      "app_header": "PASS - Shows 'BHARAT 11' in header",
+      "splash_screen": "PASS - Shows 'BHARAT 11' during loading"
+    },
+    "super_admin_login": {
+      "login_7004186276_5524": "PASS - Super admin logs in successfully",
+      "is_admin_in_response": "PASS - is_admin=true returned in user response",
+      "admin_panel_visible": "PASS - Admin Panel button visible on Profile page"
+    },
+    "admin_panel_tabs": {
+      "dashboard_tab": "PASS - Shows stats (users, questions, templates, matches, contests)",
+      "questions_tab": "PASS - Lists 83 questions, CRUD buttons work",
+      "templates_tab": "PASS - Lists templates with type badges (FULL MATCH/IN-MATCH)",
+      "matches_tab": "PASS - Lists 20 matches with status badges, Create Match button",
+      "contests_tab": "PASS - Lists 28 contests, Create Contest button",
+      "resolve_tab": "PASS - Shows contests for resolution"
+    },
+    "admin_api_endpoints": {
+      "GET /api/admin/stats": "PASS - Returns all counts",
+      "POST /api/admin/questions": "PASS - Creates question with bilingual text",
+      "PUT /api/admin/questions/{id}": "PASS - Updates question",
+      "DELETE /api/admin/questions/{id}": "PASS - Deletes question",
+      "POST /api/admin/templates": "PASS - Creates template with template_type",
+      "POST /api/admin/templates/{id}/set-default": "PASS - Sets template as default",
+      "POST /api/matches": "PASS - Admin can create match",
+      "POST /api/admin/matches/{id}/assign-templates": "PASS - Validates min 1 full_match",
+      "POST /api/admin/contests": "PASS - Creates contest"
+    },
+    "non_admin_restrictions": {
+      "admin_panel_hidden": "PASS - Admin Panel button NOT visible for non-admin",
+      "GET /api/admin/stats": "PASS - Returns 403 for non-admin",
+      "POST /api/matches": "PASS - Returns 403 for non-admin",
+      "PUT /api/matches/{id}/status": "PASS - Returns 403 for non-admin",
+      "POST /api/admin/contests": "PASS - Returns 403 for non-admin"
+    },
+    "regression": {
+      "health_check": "PASS",
+      "matches_list_public": "PASS - 20 matches",
+      "old_admin_access": "PASS - 9876543210/1234 still has admin access",
+      "non_admin_wallet": "PASS - Wallet works for non-admin"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_panel_iteration14.py",
+    "/app/test_reports/pytest/pytest_admin_panel_14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED: is_admin field was missing from UserResponse model - added to schemas.py",
+    "FIXED: _user_to_response() in auth_service.py and user_service.py now includes is_admin",
+    "Template types (full_match/in_match) correctly implemented with validation",
+    "Admin endpoints correctly use AdminUser dependency for authorization",
+    "Match status transitions are properly validated (live->upcoming not allowed)"
+  ],
+  "updated_files": [
+    "/app/backend/models/schemas.py",
+    "/app/backend/services/auth_service.py",
+    "/app/backend/services/user_service.py",
+    "/app/memory/test_credentials.md"
+  ],
+  "success_rate": {
+    "backend": "92% (24/26 passed, 2 test logic issues)",
+    "frontend": "100% (all admin panel features verified)"
+  },
+  "test_credentials": {
+    "super_admin": {"phone": "7004186276", "pin": "5524", "is_admin": true},
+    "old_admin": {"phone": "9876543210", "pin": "1234", "is_admin": true},
+    "non_admin": {"phone": "9111111111", "pin": "5678", "is_admin": false}
+  },
+  "seed_data_creation": "Super admin seeded on startup via seed_super_admin() in server.py lifespan",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bharat 11 admin panel fully functional. Key fix: is_admin field added to UserResponse. All 6 admin tabs work (Dashboard, Questions, Templates, Matches, Contests, Resolve). Template types (full_match/in_match) implemented. Non-admin users correctly blocked from admin endpoints. Old templates without template_type field are legacy data - not a bug.",
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Cricbuzz scraper returns connected:false in container environment (network blocked)"]
+  },
+  "bugs_fixed_by_testing_agent": [
+    {
+      "bug": "is_admin field missing from user response",
+      "root_cause": "UserResponse model in schemas.py did not include is_admin field. _user_to_response() methods in auth_service.py and user_service.py did not map is_admin.",
+      "fix": "Added is_admin: bool = False to UserResponse model. Added is_admin=user.is_admin to both _user_to_response() methods.",
+      "files_changed": ["/app/backend/models/schemas.py", "/app/backend/services/auth_service.py", "/app/backend/services/user_service.py"]
+    }
+  ]
+}

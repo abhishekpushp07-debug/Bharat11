@@ -42,10 +42,10 @@ class EvaluationRulesCreate(BaseModel):
 class QuestionCreate(BaseModel):
     question_text_en: str
     question_text_hi: str = ""
-    category: QuestionCategory = QuestionCategory.MATCH_OUTCOME
+    category: QuestionCategory = QuestionCategory.MATCH
     difficulty: QuestionDifficulty = QuestionDifficulty.EASY
     options: list[QuestionOptionCreate] = Field(..., min_length=2, max_length=4)
-    points: int = Field(default=10, ge=1, le=100)
+    points: int = Field(default=10, ge=1, le=200)
     evaluation_rules: Optional[EvaluationRulesCreate] = None
     is_active: bool = True
 
@@ -65,16 +65,20 @@ class TemplateCreate(BaseModel):
     name: str
     description: str = ""
     match_type: str = "T20"
-    question_ids: list[str] = Field(..., min_length=1, max_length=15)
+    template_type: str = "full_match"
+    question_ids: list[str] = Field(..., min_length=1, max_length=20)
     is_active: bool = True
+    is_default: bool = False
 
 
 class TemplateUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     match_type: Optional[str] = None
+    template_type: Optional[str] = None
     question_ids: Optional[list[str]] = None
     is_active: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class BulkQuestionImport(BaseModel):
@@ -338,15 +342,25 @@ async def create_template(
     total_points = sum(q.get("points", 10) for q in questions)
 
     now = utc_now().isoformat()
+
+    # If setting as default, unset other defaults of same type
+    if data.is_default:
+        await db.templates.update_many(
+            {"template_type": data.template_type, "is_default": True},
+            {"$set": {"is_default": False}}
+        )
+
     template = {
         "id": generate_id(),
         "name": data.name,
         "description": data.description,
         "match_type": data.match_type,
+        "template_type": data.template_type,
         "question_ids": data.question_ids,
         "total_points": total_points,
         "question_count": len(data.question_ids),
         "is_active": data.is_active,
+        "is_default": data.is_default,
         "created_at": now,
         "updated_at": now
     }
@@ -424,9 +438,221 @@ async def clone_template(
         **original,
         "id": generate_id(),
         "name": f"{original['name']} (Copy)",
+        "is_default": False,
         "created_at": now,
         "updated_at": now
     }
     await db.templates.insert_one(clone)
     del clone["_id"]
     return clone
+
+
+@router.post(
+    "/templates/{template_id}/set-default",
+    summary="Set a template as the default for its type"
+)
+async def set_template_default(
+    template_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    template = await db.templates.find_one({"id": template_id}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    t_type = template.get("template_type", "full_match")
+    # Unset other defaults of same type
+    await db.templates.update_many(
+        {"template_type": t_type, "is_default": True},
+        {"$set": {"is_default": False}}
+    )
+    await db.templates.update_one(
+        {"id": template_id},
+        {"$set": {"is_default": True, "updated_at": utc_now().isoformat()}}
+    )
+    return {"message": f"Template '{template['name']}' set as default {t_type}", "id": template_id}
+
+
+# ==================== CONTEST CREATION ====================
+
+class ContestCreate(BaseModel):
+    match_id: str
+    template_id: str
+    name: str
+    entry_fee: int = Field(default=0, ge=0)
+    prize_pool: int = Field(default=1000, ge=0)
+    max_participants: int = Field(default=100, ge=2)
+    prize_distribution: list[dict] = Field(default_factory=list)
+
+
+@router.post(
+    "/contests",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a contest for a match"
+)
+async def admin_create_contest(
+    data: ContestCreate,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    # Validate match exists
+    match = await db.matches.find_one({"id": data.match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    # Validate template exists
+    template = await db.templates.find_one({"id": data.template_id}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    from datetime import timedelta
+    start_time = match.get("start_time", "")
+    if isinstance(start_time, str):
+        from datetime import datetime as dt
+        try:
+            start_time = dt.fromisoformat(start_time.replace('Z', '+00:00'))
+        except Exception:
+            start_time = utc_now() + timedelta(hours=1)
+
+    now = utc_now().isoformat()
+    contest = {
+        "id": generate_id(),
+        "match_id": data.match_id,
+        "template_id": data.template_id,
+        "name": data.name,
+        "entry_fee": data.entry_fee,
+        "prize_pool": data.prize_pool,
+        "max_participants": data.max_participants,
+        "current_participants": 0,
+        "prize_distribution": data.prize_distribution or [
+            {"rank_start": 1, "rank_end": 1, "prize": int(data.prize_pool * 0.5)},
+            {"rank_start": 2, "rank_end": 3, "prize": int(data.prize_pool * 0.15)},
+            {"rank_start": 4, "rank_end": 10, "prize": int(data.prize_pool * 0.05)},
+        ],
+        "status": "open",
+        "lock_time": (start_time - timedelta(minutes=15)).isoformat() if hasattr(start_time, 'isoformat') else start_time,
+        "created_at": now,
+        "updated_at": now
+    }
+    await db.contests.insert_one(contest)
+    del contest["_id"]
+
+    # Auto-assign template to match if not already
+    templates_assigned = match.get("templates_assigned", [])
+    if data.template_id not in templates_assigned:
+        templates_assigned.append(data.template_id)
+        await db.matches.update_one(
+            {"id": data.match_id},
+            {"$set": {"templates_assigned": templates_assigned}}
+        )
+
+    return contest
+
+
+# ==================== MATCH TEMPLATE MANAGEMENT ====================
+
+@router.post(
+    "/matches/{match_id}/assign-templates",
+    summary="Assign templates to match (1 full_match required, max 5 total)"
+)
+async def assign_templates_to_match(
+    match_id: str,
+    template_ids: list[str],
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    if len(template_ids) > 5:
+        raise HTTPException(status_code=400, detail="Max 5 templates per match")
+
+    # Fetch templates and validate
+    cursor = db.templates.find({"id": {"$in": template_ids}}, {"_id": 0})
+    templates = await cursor.to_list(length=len(template_ids))
+
+    if len(templates) != len(template_ids):
+        raise HTTPException(status_code=400, detail="Some template IDs are invalid")
+
+    full_match_count = sum(1 for t in templates if t.get("template_type", "full_match") == "full_match")
+    in_match_count = sum(1 for t in templates if t.get("template_type") == "in_match")
+
+    if full_match_count < 1:
+        raise HTTPException(status_code=400, detail="At least 1 full_match template is required")
+    if in_match_count > 4:
+        raise HTTPException(status_code=400, detail="Max 4 in_match templates allowed")
+
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {"templates_assigned": template_ids, "updated_at": utc_now().isoformat()}}
+    )
+
+    return {
+        "match_id": match_id,
+        "templates_assigned": template_ids,
+        "full_match": full_match_count,
+        "in_match": in_match_count
+    }
+
+
+@router.get(
+    "/matches/{match_id}/templates",
+    summary="Get templates assigned to a match"
+)
+async def get_match_templates(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    template_ids = match.get("templates_assigned", [])
+    if not template_ids:
+        # Return default templates
+        default_full = await db.templates.find_one(
+            {"template_type": "full_match", "is_default": True, "is_active": True},
+            {"_id": 0}
+        )
+        if default_full:
+            return {"templates": [default_full], "using_defaults": True}
+        return {"templates": [], "using_defaults": True}
+
+    cursor = db.templates.find({"id": {"$in": template_ids}}, {"_id": 0})
+    templates = await cursor.to_list(length=len(template_ids))
+    return {"templates": templates, "using_defaults": False}
+
+
+# ==================== ADMIN STATS ====================
+
+@router.get(
+    "/stats",
+    summary="Get admin dashboard stats"
+)
+async def get_admin_stats(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    total_users = await db.users.count_documents({})
+    total_matches = await db.matches.count_documents({})
+    total_contests = await db.contests.count_documents({})
+    total_questions = await db.questions.count_documents({})
+    total_templates = await db.templates.count_documents({})
+    live_matches = await db.matches.count_documents({"status": "live"})
+    upcoming_matches = await db.matches.count_documents({"status": "upcoming"})
+    open_contests = await db.contests.count_documents({"status": "open"})
+    active_entries = await db.contest_entries.count_documents({})
+
+    return {
+        "users": total_users,
+        "matches": total_matches,
+        "contests": total_contests,
+        "questions": total_questions,
+        "templates": total_templates,
+        "live_matches": live_matches,
+        "upcoming_matches": upcoming_matches,
+        "open_contests": open_contests,
+        "active_entries": active_entries
+    }

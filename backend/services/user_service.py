@@ -33,6 +33,7 @@ class UserService:
             contests_won=user.contests_won,
             referral_code=user.referral_code,
             daily_streak=user.daily_streak,
+            is_admin=user.is_admin,
             created_at=user.created_at
         )
     

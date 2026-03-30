@@ -51,13 +51,19 @@ class ContestStatus(str, Enum):
 
 class QuestionCategory(str, Enum):
     """Question categories."""
-    MATCH_OUTCOME = "match_outcome"
-    RUNS = "runs"
-    WICKETS = "wickets"
-    BOUNDARIES = "boundaries"
+    BATTING = "batting"
+    BOWLING = "bowling"
+    POWERPLAY = "powerplay"
+    DEATH_OVERS = "death_overs"
+    MATCH = "match"
     PLAYER_PERFORMANCE = "player_performance"
-    MILESTONE = "milestone"
     SPECIAL = "special"
+
+
+class TemplateType(str, Enum):
+    """Template types for match phases."""
+    FULL_MATCH = "full_match"
+    IN_MATCH = "in_match"
 
 
 class QuestionDifficulty(str, Enum):
@@ -215,6 +221,7 @@ class UserResponse(BaseModel):
     contests_won: int
     referral_code: str
     daily_streak: int
+    is_admin: bool = False
     created_at: datetime
 
 
@@ -313,16 +320,18 @@ class Question(TimestampMixin):
 # ==================== TEMPLATE MODELS ====================
 
 class Template(TimestampMixin):
-    """Question template (group of 11 questions)."""
+    """Question template - group of questions for a match phase."""
     model_config = ConfigDict(extra="ignore")
     
     id: str = Field(default_factory=generate_id)
     name: str
     description: Optional[str] = Field(default=None)
     match_type: MatchType = Field(default=MatchType.T20)
-    question_ids: List[str] = Field(..., min_length=11, max_length=11)
+    template_type: TemplateType = Field(default=TemplateType.FULL_MATCH)
+    question_ids: List[str] = Field(..., min_length=1, max_length=20)
     total_points: int = Field(default=0)
     is_active: bool = Field(default=True)
+    is_default: bool = Field(default=False)
 
 
 # ==================== CONTEST MODELS ====================

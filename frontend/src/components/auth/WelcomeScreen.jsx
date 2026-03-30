@@ -17,7 +17,7 @@ const WelcomeScreen = ({ onGetStarted }) => {
         {/* Logo */}
         <div className="mb-8 animate-fade-in">
           <div className="w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center shadow-glow-red">
-            <span className="font-display text-3xl font-bold text-white">CP</span>
+            <span className="font-display text-3xl font-bold text-white">B11</span>
           </div>
         </div>
 
@@ -26,7 +26,7 @@ const WelcomeScreen = ({ onGetStarted }) => {
           className="font-display text-4xl font-bold text-primary tracking-wider mb-2 text-center animate-fade-in"
           style={{ animationDelay: '100ms' }}
         >
-          CRICKPREDICT
+          BHARAT 11
         </h1>
         
         <p 

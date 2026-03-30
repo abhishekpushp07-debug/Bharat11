@@ -131,6 +131,9 @@ async def lifespan(app: FastAPI):
         # Create indexes (idempotent)
         await create_indexes()
         
+        # Seed super admin (idempotent)
+        await seed_super_admin()
+        
         logger.info("Application startup complete")
         
     except Exception as e:
@@ -215,6 +218,53 @@ async def create_indexes():
     ])
     
     logger.info("Database indexes created/verified (bulk)")
+
+
+
+async def seed_super_admin():
+    """Ensure super admin user exists (idempotent)."""
+    db = db_manager.db
+    SUPER_ADMIN_PHONE = "7004186276"
+    SUPER_ADMIN_PIN = "5524"
+    
+    existing = await db.users.find_one({"phone": SUPER_ADMIN_PHONE})
+    if existing:
+        if not existing.get("is_admin"):
+            await db.users.update_one(
+                {"phone": SUPER_ADMIN_PHONE},
+                {"$set": {"is_admin": True}}
+            )
+            logger.info(f"Promoted {SUPER_ADMIN_PHONE} to super admin")
+        return
+    
+    from core.security import jwt_manager
+    from models.schemas import generate_id, generate_referral_code, utc_now
+    
+    pin_hash = jwt_manager.hash_pin(SUPER_ADMIN_PIN)
+    user_doc = {
+        "id": generate_id(),
+        "phone": SUPER_ADMIN_PHONE,
+        "pin_hash": pin_hash,
+        "username": "SuperAdmin",
+        "avatar_url": None,
+        "coins_balance": 100000,
+        "rank_title": "GOAT",
+        "total_points": 0,
+        "matches_played": 0,
+        "contests_won": 0,
+        "referral_code": generate_referral_code(),
+        "referred_by": None,
+        "daily_streak": 0,
+        "last_daily_claim": None,
+        "is_banned": False,
+        "is_admin": True,
+        "failed_login_attempts": 0,
+        "locked_until": None,
+        "created_at": utc_now().isoformat(),
+        "updated_at": utc_now().isoformat()
+    }
+    await db.users.insert_one(user_doc)
+    logger.info(f"Super admin created: {SUPER_ADMIN_PHONE}")
 
 
 # Create FastAPI application

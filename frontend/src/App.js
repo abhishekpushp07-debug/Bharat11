@@ -1,5 +1,5 @@
 /**
- * CrickPredict - Main App Component
+ * Bharat 11 - Main App Component
  * Fantasy Cricket Prediction PWA
  */
 import { useEffect, useState, useCallback } from "react";
@@ -21,7 +21,7 @@ import { COLORS } from "@/constants/design";
 const SplashScreen = () => (
   <div className="fixed inset-0 flex flex-col items-center justify-center z-50" style={{ background: COLORS.background.primary }}>
     <div className="text-3xl font-bold tracking-wider mb-4" style={{ color: COLORS.primary.main, fontFamily: "'Orbitron', sans-serif" }}>
-      CRICKPREDICT
+      BHARAT 11
     </div>
     <div className="w-10 h-10 border-3 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} />
     <p className="mt-4 text-sm" style={{ color: COLORS.text.secondary }}>Loading...</p>
@@ -112,7 +112,7 @@ const AppShell = () => {
       <header className="sticky top-0 z-40 px-4 py-3 safe-top" style={{ background: `${COLORS.background.primary}F0`, backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.border.light}` }}>
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <h1 data-testid="app-title" className="text-lg font-bold tracking-wider" style={{ color: COLORS.primary.main, fontFamily: "'Orbitron', sans-serif" }}>
-            CRICKPREDICT
+            BHARAT 11
           </h1>
         </div>
       </header>
