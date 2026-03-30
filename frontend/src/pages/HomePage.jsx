@@ -4,7 +4,7 @@ import { useSocketStore } from '../stores/socketStore';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_CARD_IMAGES, getTeamLogo, getTeamGradient, getTeamCardImage, normalizeTeam } from '../constants/teams';
-import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin, Wifi, WifiOff, Bell, BellOff } from 'lucide-react';
+import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin, Wifi, WifiOff, Bell, BellOff, X, Calendar, Award, Users, BarChart3, Loader2 } from 'lucide-react';
 import PredictionBadge from '../components/PredictionBadge';
 import StreakBanner from '../components/StreakBanner';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -70,6 +70,7 @@ export default function HomePage({ onMatchClick }) {
   const [liveTicker, setLiveTicker] = useState([]);
   const [pointsTable, setPointsTable] = useState([]);
   const [showFullTable, setShowFullTable] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState(null);
   const refreshTimer = useRef(null);
   const tickerRef = useRef(null);
 
@@ -220,43 +221,71 @@ export default function HomePage({ onMatchClick }) {
       {liveTicker.length > 0 && (
         <div data-testid="live-ticker">
           <div className="flex items-center gap-2 mb-2">
-            <Activity size={14} color={COLORS.primary.main} className="animate-pulse" />
-            <span className="text-xs font-bold" style={{ color: COLORS.primary.main }}>IPL LIVE</span>
-            <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{liveTicker.length} matches</span>
+            <div className="relative">
+              <Activity size={14} color="#FF3B3B" className="animate-pulse" />
+              <div className="absolute inset-0 animate-ping" style={{ opacity: 0.3 }}>
+                <Activity size={14} color="#FF3B3B" />
+              </div>
+            </div>
+            <span className="text-xs font-black tracking-wider" style={{ color: '#FF3B3B', textShadow: '0 0 8px rgba(255,59,59,0.4)' }}>IPL LIVE</span>
+            <div className="h-3 w-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            <span className="text-[10px] font-bold" style={{ color: COLORS.text.secondary }}>{liveTicker.length} matches</span>
           </div>
           <div ref={tickerRef} className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
             {liveTicker.map((s, i) => {
               const t1Short = (s.t1.match(/\[(\w+)\]/)?.[1]) || s.t1.split(' ')[0];
               const t2Short = (s.t2.match(/\[(\w+)\]/)?.[1]) || s.t2.split(' ')[0];
-              const isLive = s.ms === 'result' || s.t1s;
+              const t1Norm = normalizeTeam(t1Short);
+              const t2Norm = normalizeTeam(t2Short);
+              const t1Color = (TEAM_COLORS[t1Norm] || { primary: '#888' }).primary;
+              const t2Color = (TEAM_COLORS[t2Norm] || { primary: '#888' }).primary;
+              const isLiveMatch = s.ms === 'live';
+              const isResult = s.ms === 'result';
               return (
                 <div key={s.id || i} data-testid={`ticker-${i}`}
-                  className="shrink-0 rounded-xl p-2.5 min-w-[170px] relative overflow-hidden"
+                  className="shrink-0 rounded-xl p-2.5 min-w-[175px] relative overflow-hidden transition-all duration-300"
                   style={{
-                    background: s.ms === 'live' ? 'linear-gradient(135deg, #1a0505, #2a0a0a, #1a0508)' : 'linear-gradient(135deg, #0d0d14, #12121c, #0d0d14)',
-                    border: `1px solid ${s.ms === 'result' ? 'rgba(34,197,94,0.3)' : s.ms === 'live' ? 'rgba(220,40,60,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                    boxShadow: s.ms === 'live' ? '0 0 12px rgba(220,40,60,0.1)' : 'none',
+                    background: isLiveMatch
+                      ? `linear-gradient(135deg, rgba(220,40,60,0.12), rgba(180,20,40,0.06), rgba(0,0,0,0.9))`
+                      : isResult
+                        ? `linear-gradient(135deg, rgba(34,197,94,0.08), rgba(0,0,0,0.95))`
+                        : `linear-gradient(135deg, ${t1Color}12, #0d0d14, ${t2Color}08)`,
+                    border: `1px solid ${isLiveMatch ? 'rgba(255,50,50,0.4)' : isResult ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                    boxShadow: isLiveMatch
+                      ? '0 0 20px rgba(255,50,50,0.12), inset 0 0 20px rgba(255,50,50,0.03)'
+                      : isResult ? '0 0 10px rgba(34,197,94,0.08)' : 'none',
                   }}>
-                  {s.ms === 'live' && <div className="absolute inset-0 pointer-events-none" style={{
-                    background: 'radial-gradient(ellipse at 50% 0%, rgba(220,40,60,0.08), transparent 70%)',
-                  }} />}
+                  {isLiveMatch && (
+                    <div className="absolute top-0 left-0 right-0 h-px" style={{
+                      background: 'linear-gradient(90deg, transparent, rgba(255,50,50,0.6), transparent)',
+                    }} />
+                  )}
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
-                      {s.t1img && <img src={s.t1img} alt="" className="w-4 h-4 rounded-sm" />}
-                      <span className="text-[10px] font-bold text-white">{t1Short}</span>
+                      {s.t1img && <img src={s.t1img} alt="" className="w-4 h-4 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
+                      <span className="text-[10px] font-black text-white">{t1Short}</span>
                     </div>
-                    {s.t1s && <span className="text-[10px] font-bold" style={{ color: COLORS.primary.main }}>{s.t1s}</span>}
+                    {s.t1s && <span className="text-[10px] font-black" style={{ color: t1Color, textShadow: `0 0 6px ${t1Color}44` }}>{s.t1s}</span>}
                   </div>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
-                      {s.t2img && <img src={s.t2img} alt="" className="w-4 h-4 rounded-sm" />}
-                      <span className="text-[10px] font-bold text-white">{t2Short}</span>
+                      {s.t2img && <img src={s.t2img} alt="" className="w-4 h-4 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
+                      <span className="text-[10px] font-black text-white">{t2Short}</span>
                     </div>
-                    {s.t2s && <span className="text-[10px] font-bold" style={{ color: COLORS.primary.main }}>{s.t2s}</span>}
+                    {s.t2s && <span className="text-[10px] font-black" style={{ color: t2Color, textShadow: `0 0 6px ${t2Color}44` }}>{s.t2s}</span>}
                   </div>
-                  <div className="text-[8px] truncate" style={{ color: s.ms === 'result' ? COLORS.success.main : s.ms === 'live' ? COLORS.primary.main : COLORS.text.tertiary }}>
+                  <div className="text-[8px] truncate font-bold" style={{
+                    color: isResult ? '#4ade80' : isLiveMatch ? '#FF5555' : COLORS.text.tertiary,
+                    textShadow: isResult ? '0 0 4px rgba(34,197,94,0.3)' : isLiveMatch ? '0 0 4px rgba(255,50,50,0.3)' : 'none',
+                  }}>
                     {s.status}
                   </div>
+                  {isLiveMatch && (
+                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,50,50,0.2)' }}>
+                      <div className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-[7px] font-black text-red-400">LIVE</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -289,47 +318,58 @@ export default function HomePage({ onMatchClick }) {
               {showFullTable ? 'Show Less' : 'View All'}
             </button>
           </div>
-          <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid rgba(255,255,255,0.06)` }}>
             {/* Header */}
-            <div className="flex items-center px-3 py-2" style={{ background: COLORS.background.tertiary }}>
+            <div className="flex items-center px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
               <span className="w-6 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
               <span className="flex-1 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>TEAM</span>
               <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>P</span>
-              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.success.main }}>W</span>
-              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.error.main }}>L</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: '#4ade80' }}>W</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: '#f87171' }}>L</span>
               <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>NR</span>
+              <span className="w-6"></span>
             </div>
             {(showFullTable ? sortedTable : sortedTable.slice(0, 4)).map((team, i) => {
-              const teamShort = (team.shortname || '').toUpperCase();
-              const tc = TEAM_COLORS[teamShort] || TEAM_COLORS[teamShort.replace('SH', 'SRH')] || {};
-              const teamPrimary = tc.primary || '#ffffff';
-              const teamSecondary = tc.secondary || teamPrimary;
+              const teamShort = normalizeTeam((team.shortname || '').toUpperCase());
+              const tc = TEAM_COLORS[teamShort] || TEAM_COLORS[(team.shortname || '').toUpperCase()] || { primary: '#666', secondary: '#444' };
+              const teamPrimary = tc.primary;
+              const teamSecondary = tc.secondary;
               return (
               <div key={team.shortname || i} data-testid={`pt-row-${team.shortname}`}
-                className="flex items-center px-3 py-2.5 relative overflow-hidden"
+                className="flex items-center px-3 py-2.5 relative overflow-hidden cursor-pointer transition-all duration-200 active:scale-[0.98]"
+                onClick={() => setSelectedTeam({ shortname: teamShort, ...team })}
                 style={{
-                  borderTop: '1px solid rgba(0,0,0,0.25)',
-                  background: `linear-gradient(90deg, ${teamPrimary}30, ${teamPrimary}18, ${teamSecondary}0a)`,
+                  borderTop: '1px solid rgba(0,0,0,0.3)',
+                  background: `linear-gradient(90deg, ${teamPrimary}40, ${teamPrimary}25, ${teamSecondary}15, transparent)`,
                   borderLeft: `3px solid ${teamPrimary}`,
                 }}>
-                {/* Subtle team glow */}
+                {/* Full row team color wash */}
                 <div className="absolute inset-0 pointer-events-none" style={{
-                  background: `radial-gradient(ellipse at 0% 50%, ${teamPrimary}15, transparent 60%)`,
+                  background: `linear-gradient(90deg, ${teamPrimary}18, ${teamPrimary}08, transparent 70%)`,
                 }} />
-                <span className="w-6 text-[11px] font-black relative" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}88` }}>{i + 1}</span>
-                <div className="flex-1 flex items-center gap-2 relative">
-                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
-                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 6px ${teamPrimary}55` }}>{team.shortname}</span>
+                <span className="w-6 text-[11px] font-black relative z-10" style={{ color: '#fff', textShadow: `0 0 10px ${teamPrimary}` }}>{i + 1}</span>
+                <div className="flex-1 flex items-center gap-2 relative z-10">
+                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" style={{ filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.4))' }} />}
+                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}66` }}>{team.shortname}</span>
                 </div>
-                <span className="w-7 text-center text-xs font-bold relative" style={{ color: 'rgba(255,255,255,0.85)' }}>{team.matches}</span>
-                <span className="w-7 text-center text-xs font-black relative" style={{ color: '#4ade80' }}>{team.wins}</span>
-                <span className="w-7 text-center text-xs font-bold relative" style={{ color: '#f87171' }}>{team.loss}</span>
-                <span className="w-7 text-center text-xs font-medium relative" style={{ color: 'rgba(255,255,255,0.5)' }}>{team.nr}</span>
+                <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: 'rgba(255,255,255,0.85)' }}>{team.matches}</span>
+                <span className="w-7 text-center text-xs font-black relative z-10" style={{ color: '#4ade80' }}>{team.wins}</span>
+                <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: '#f87171' }}>{team.loss}</span>
+                <span className="w-7 text-center text-xs font-medium relative z-10" style={{ color: 'rgba(255,255,255,0.5)' }}>{team.nr}</span>
+                <ChevronRight size={12} className="relative z-10" color="rgba(255,255,255,0.3)" />
               </div>
               );
             })}
           </div>
         </div>
+      )}
+
+      {/* Team Matches Drawer */}
+      {selectedTeam && (
+        <TeamMatchesDrawer
+          team={selectedTeam}
+          onClose={() => setSelectedTeam(null)}
+        />
       )}
 
       {/* Upcoming Matches */}
@@ -498,6 +538,473 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
           {isLive ? 'Live Score' : isCompleted ? 'View Results' : 'Predict Now'} <ChevronRight size={14} />
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ==================== TEAM MATCHES DRAWER ====================
+function TeamMatchesDrawer({ team, onClose }) {
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const teamShort = normalizeTeam((team.shortname || '').toUpperCase());
+  const tc = TEAM_COLORS[teamShort] || { primary: '#888', secondary: '#666' };
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await apiClient.get(`/cricket/ipl/team/${teamShort}/matches`);
+        setMatches(res.data.matches || []);
+      } catch (_) {}
+      finally { setLoading(false); }
+    };
+    fetch();
+  }, [teamShort]);
+
+  if (selectedMatch) {
+    return <MatchFullDataView match={selectedMatch} onBack={() => setSelectedMatch(null)} onClose={onClose} teamColor={tc.primary} />;
+  }
+
+  return (
+    <div data-testid="team-drawer" className="fixed inset-0 z-50 flex flex-col" style={{ background: '#0a0a0f' }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 p-4 relative" style={{
+        background: `linear-gradient(135deg, ${tc.primary}30, ${tc.primary}10, transparent)`,
+        borderBottom: `1px solid ${tc.primary}30`,
+      }}>
+        <button onClick={onClose} className="p-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          <X size={16} color="#fff" />
+        </button>
+        {team.img && <img src={team.img} alt="" className="w-8 h-8 rounded-lg" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.3))' }} />}
+        <div>
+          <h2 className="text-base font-black text-white">{teamShort} Matches</h2>
+          <span className="text-[10px]" style={{ color: `${tc.primary}cc` }}>{matches.length} matches in IPL 2026</span>
+        </div>
+      </div>
+
+      {/* Match List */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={24} className="animate-spin" color={tc.primary} />
+          </div>
+        ) : matches.map((m, i) => {
+          const teams = m.teamInfo || [];
+          const t1 = teams[0] || {};
+          const t2 = teams[1] || {};
+          const isEnded = m.matchEnded;
+          const isStarted = m.matchStarted && !m.matchEnded;
+          return (
+            <div key={m.id || i} data-testid={`team-match-${i}`}
+              className="rounded-xl p-3 cursor-pointer transition-all active:scale-[0.97]"
+              onClick={() => setSelectedMatch(m)}
+              style={{
+                background: isStarted ? `linear-gradient(135deg, rgba(255,50,50,0.08), #111)` : `linear-gradient(135deg, ${tc.primary}0a, #111)`,
+                border: `1px solid ${isStarted ? 'rgba(255,50,50,0.25)' : isEnded ? `${tc.primary}20` : 'rgba(255,255,255,0.06)'}`,
+              }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Calendar size={10} color={COLORS.text.tertiary} />
+                  <span className="text-[10px] font-bold" style={{ color: COLORS.text.secondary }}>{m.date || ''}</span>
+                </div>
+                <span className="text-[8px] font-black px-1.5 py-0.5 rounded" style={{
+                  background: isStarted ? 'rgba(255,50,50,0.2)' : isEnded ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
+                  color: isStarted ? '#FF5555' : isEnded ? '#4ade80' : COLORS.text.tertiary,
+                }}>
+                  {isStarted ? 'LIVE' : isEnded ? 'COMPLETED' : 'UPCOMING'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {t1.img && <img src={t1.img} alt="" className="w-5 h-5 rounded-sm" />}
+                <span className="text-xs font-black text-white flex-1">{t1.shortname || t1.name || '?'}</span>
+                <span className="text-[10px] font-bold" style={{ color: COLORS.text.secondary }}>vs</span>
+                <span className="text-xs font-black text-white flex-1 text-right">{t2.shortname || t2.name || '?'}</span>
+                {t2.img && <img src={t2.img} alt="" className="w-5 h-5 rounded-sm" />}
+              </div>
+              {m.venue && (
+                <div className="flex items-center gap-1 mt-1.5">
+                  <MapPin size={8} color={COLORS.text.tertiary} />
+                  <span className="text-[8px] truncate" style={{ color: COLORS.text.tertiary }}>{m.venue}</span>
+                </div>
+              )}
+              <div className="text-[9px] mt-1 truncate" style={{ color: isEnded ? '#4ade80' : COLORS.text.tertiary }}>{m.status || ''}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==================== MATCH FULL DATA VIEW ====================
+function MatchFullDataView({ match, onBack, onClose, teamColor }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('info');
+  const [commentary, setCommentary] = useState(null);
+  const [commentaryLoading, setCommentaryLoading] = useState(false);
+
+  const cricApiId = match.id || '';
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await apiClient.get(`/cricket/match/${cricApiId}/full-data`);
+        setData(res.data);
+      } catch (_) {}
+      finally { setLoading(false); }
+    };
+    if (cricApiId) fetch();
+  }, [cricApiId]);
+
+  const loadCommentary = async () => {
+    if (commentary) return;
+    setCommentaryLoading(true);
+    try {
+      // Find internal match_id from our DB
+      const matchesRes = await apiClient.get('/matches?limit=50');
+      const ourMatches = matchesRes.data.matches || [];
+      const ourMatch = ourMatches.find(m =>
+        m.cricketdata_id === cricApiId || m.external_match_id === cricApiId
+      );
+      if (ourMatch) {
+        const res = await apiClient.get(`/matches/${ourMatch.id}/ai-commentary`);
+        setCommentary(res.data);
+      }
+    } catch (_) {}
+    finally { setCommentaryLoading(false); }
+  };
+
+  const tabs = [
+    { id: 'info', label: 'Info', icon: Award },
+    { id: 'scorecard', label: 'Scorecard', icon: BarChart3 },
+    { id: 'squad', label: 'Squad', icon: Users },
+    { id: 'points', label: 'Fantasy', icon: Trophy },
+    { id: 'commentary', label: 'AI Commentary', icon: Zap },
+  ];
+
+  const info = data?.match_info;
+  const teams = info?.teamInfo || [];
+  const t1 = teams[0] || {};
+  const t2 = teams[1] || {};
+
+  return (
+    <div data-testid="match-full-data" className="fixed inset-0 z-50 flex flex-col" style={{ background: '#0a0a0f' }}>
+      {/* Header */}
+      <div className="p-3 relative" style={{
+        background: `linear-gradient(135deg, ${teamColor}20, transparent)`,
+        borderBottom: `1px solid ${teamColor}25`,
+      }}>
+        <div className="flex items-center gap-2 mb-2">
+          <button onClick={onBack} className="p-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <ChevronLeft size={16} color="#fff" />
+          </button>
+          <button onClick={onClose} className="p-1.5 rounded-full ml-auto" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <X size={14} color="#fff" />
+          </button>
+        </div>
+        {info && (
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-4 mb-1">
+              <div className="flex items-center gap-2">
+                {t1.img && <img src={t1.img} alt="" className="w-6 h-6 rounded" />}
+                <span className="text-sm font-black text-white">{t1.shortname || '?'}</span>
+              </div>
+              <span className="text-[10px] font-bold" style={{ color: teamColor }}>VS</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-white">{t2.shortname || '?'}</span>
+                {t2.img && <img src={t2.img} alt="" className="w-6 h-6 rounded" />}
+              </div>
+            </div>
+            {info.score && info.score.length > 0 && (
+              <div className="flex items-center justify-center gap-4 text-xs font-bold" style={{ color: teamColor }}>
+                {info.score.map((s, i) => (
+                  <span key={i}>{s.r}/{s.w} ({s.o} ov)</span>
+                ))}
+              </div>
+            )}
+            <div className="text-[9px] mt-1 font-bold" style={{ color: info.matchEnded ? '#4ade80' : '#FF5555' }}>{info.status}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 px-2 py-1.5 overflow-x-auto" style={{ background: 'rgba(255,255,255,0.02)', scrollbarWidth: 'none' }}>
+        {tabs.map(t => (
+          <button key={t.id} data-testid={`tab-${t.id}`}
+            onClick={() => { setActiveTab(t.id); if (t.id === 'commentary') loadCommentary(); }}
+            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all"
+            style={{
+              background: activeTab === t.id ? `${teamColor}25` : 'transparent',
+              color: activeTab === t.id ? teamColor : COLORS.text.tertiary,
+              border: `1px solid ${activeTab === t.id ? `${teamColor}40` : 'transparent'}`,
+            }}>
+            <t.icon size={10} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-3">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={24} className="animate-spin" color={teamColor} />
+          </div>
+        ) : !data ? (
+          <div className="text-center py-10 text-sm" style={{ color: COLORS.text.tertiary }}>Data not available</div>
+        ) : (
+          <>
+            {activeTab === 'info' && <MatchInfoTab data={data} teamColor={teamColor} />}
+            {activeTab === 'scorecard' && <ScorecardTab data={data} teamColor={teamColor} />}
+            {activeTab === 'squad' && <SquadTab data={data} teamColor={teamColor} />}
+            {activeTab === 'points' && <FantasyPointsTab data={data} teamColor={teamColor} />}
+            {activeTab === 'commentary' && <CommentaryTab commentary={commentary} loading={commentaryLoading} teamColor={teamColor} />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Sub-tabs ----
+function MatchInfoTab({ data, teamColor }) {
+  const info = data.match_info;
+  const metrics = data.metrics;
+  if (!info) return <div className="text-center text-sm py-10" style={{ color: COLORS.text.tertiary }}>Match info not available</div>;
+
+  return (
+    <div className="space-y-3">
+      <InfoRow label="Match" value={info.name} color={teamColor} />
+      <InfoRow label="Venue" value={info.venue} color={teamColor} />
+      <InfoRow label="Date" value={info.date} color={teamColor} />
+      <InfoRow label="Toss" value={info.tossWinner ? `${info.tossWinner} chose to ${info.tossChoice}` : '—'} color={teamColor} />
+      <InfoRow label="Winner" value={info.matchWinner || '—'} color={teamColor} highlight />
+      <InfoRow label="Status" value={info.status} color={teamColor} />
+      {metrics && (
+        <div className="mt-3">
+          <div className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: teamColor }}>Match Metrics</div>
+          <div className="grid grid-cols-2 gap-2">
+            <MetricCard label="Total Runs" value={metrics.match_total_runs} color={teamColor} />
+            <MetricCard label="Total Wickets" value={metrics.match_total_wickets} color={teamColor} />
+            <MetricCard label="Total Sixes" value={metrics.match_total_sixes} color={teamColor} />
+            <MetricCard label="Total Fours" value={metrics.match_total_fours} color={teamColor} />
+            <MetricCard label="Top Scorer" value={metrics.highest_run_scorer || '—'} sub={`${metrics.highest_run_scorer_runs} runs`} color={teamColor} />
+            <MetricCard label="Best Bowler" value={metrics.best_bowler || '—'} sub={`${metrics.best_bowler_wickets} wickets`} color={teamColor} />
+          </div>
+        </div>
+      )}
+      {data.available_sections && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {data.available_sections.map(s => (
+            <span key={s} className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${teamColor}15`, color: teamColor }}>{s}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScorecardTab({ data, teamColor }) {
+  const sc = data.scorecard;
+  if (!sc || !sc.innings || sc.innings.length === 0) return <div className="text-center text-sm py-10" style={{ color: COLORS.text.tertiary }}>Scorecard not available</div>;
+
+  return (
+    <div className="space-y-4">
+      {sc.innings.map((inn, idx) => (
+        <div key={idx}>
+          <div className="text-[10px] font-black uppercase tracking-wider mb-2 px-1" style={{ color: teamColor }}>{inn.inning}</div>
+          {/* Batting */}
+          <div className="rounded-lg overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="flex px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <span className="flex-1 text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>BATTER</span>
+              <span className="w-7 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>R</span>
+              <span className="w-7 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>B</span>
+              <span className="w-6 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>4s</span>
+              <span className="w-6 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>6s</span>
+              <span className="w-8 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>SR</span>
+            </div>
+            {(inn.batting || []).map((b, bi) => {
+              const name = typeof b.batsman === 'object' ? b.batsman.name : b.batsman;
+              const isHighScore = b.r >= 50;
+              return (
+                <div key={bi} className="flex px-2 py-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.03)', background: isHighScore ? `${teamColor}08` : 'transparent' }}>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-bold text-white truncate block">{name || '?'}</span>
+                    <span className="text-[7px]" style={{ color: COLORS.text.tertiary }}>{b['dismissal-text'] || b.dismissal || ''}</span>
+                  </div>
+                  <span className="w-7 text-center text-[10px] font-black" style={{ color: isHighScore ? teamColor : '#fff' }}>{b.r}</span>
+                  <span className="w-7 text-center text-[10px]" style={{ color: COLORS.text.secondary }}>{b.b}</span>
+                  <span className="w-6 text-center text-[10px]" style={{ color: b['4s'] > 0 ? '#60a5fa' : COLORS.text.tertiary }}>{b['4s']}</span>
+                  <span className="w-6 text-center text-[10px]" style={{ color: b['6s'] > 0 ? '#f59e0b' : COLORS.text.tertiary }}>{b['6s']}</span>
+                  <span className="w-8 text-center text-[10px] font-bold" style={{ color: b.sr >= 150 ? '#4ade80' : COLORS.text.secondary }}>{b.sr}</span>
+                </div>
+              );
+            })}
+          </div>
+          {/* Bowling */}
+          <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="flex px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <span className="flex-1 text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>BOWLER</span>
+              <span className="w-6 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>O</span>
+              <span className="w-6 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>M</span>
+              <span className="w-7 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>R</span>
+              <span className="w-6 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>W</span>
+              <span className="w-8 text-center text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>ECO</span>
+            </div>
+            {(inn.bowling || []).map((bw, bwi) => {
+              const name = typeof bw.bowler === 'object' ? bw.bowler.name : bw.bowler;
+              const isGood = bw.w >= 2;
+              return (
+                <div key={bwi} className="flex px-2 py-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.03)', background: isGood ? `${teamColor}08` : 'transparent' }}>
+                  <span className="flex-1 text-[10px] font-bold text-white truncate">{name || '?'}</span>
+                  <span className="w-6 text-center text-[10px]" style={{ color: COLORS.text.secondary }}>{bw.o}</span>
+                  <span className="w-6 text-center text-[10px]" style={{ color: COLORS.text.tertiary }}>{bw.m}</span>
+                  <span className="w-7 text-center text-[10px]" style={{ color: COLORS.text.secondary }}>{bw.r}</span>
+                  <span className="w-6 text-center text-[10px] font-black" style={{ color: isGood ? '#4ade80' : '#fff' }}>{bw.w}</span>
+                  <span className="w-8 text-center text-[10px] font-bold" style={{ color: bw.eco <= 7 ? '#4ade80' : bw.eco >= 10 ? '#f87171' : COLORS.text.secondary }}>{bw.eco}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SquadTab({ data, teamColor }) {
+  const squads = data.squad;
+  if (!squads || squads.length === 0) return <div className="text-center text-sm py-10" style={{ color: COLORS.text.tertiary }}>Squad not available</div>;
+
+  return (
+    <div className="space-y-4">
+      {squads.map((team, ti) => (
+        <div key={ti}>
+          <div className="flex items-center gap-2 mb-2">
+            {team.img && <img src={team.img} alt="" className="w-5 h-5 rounded" />}
+            <span className="text-[11px] font-black text-white">{team.teamName || team.shortname}</span>
+            <span className="text-[9px]" style={{ color: COLORS.text.tertiary }}>{(team.players || []).length} players</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(team.players || []).map((p, pi) => (
+              <div key={pi} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                {p.playerImg && <img src={p.playerImg} alt="" className="w-6 h-6 rounded-full object-cover" style={{ background: '#222' }} />}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] font-bold text-white truncate">{p.name}</div>
+                  <div className="text-[7px]" style={{ color: teamColor }}>{p.role || '—'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FantasyPointsTab({ data, teamColor }) {
+  const fp = data.fantasy_points;
+  if (!fp || !fp.totals || fp.totals.length === 0) return <div className="text-center text-sm py-10" style={{ color: COLORS.text.tertiary }}>Fantasy points not available</div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: teamColor }}>Top Fantasy Performers</div>
+      <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
+          <span className="w-5 text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
+          <span className="flex-1 text-[8px] font-bold" style={{ color: COLORS.text.tertiary }}>PLAYER</span>
+          <span className="w-12 text-center text-[8px] font-bold" style={{ color: teamColor }}>POINTS</span>
+        </div>
+        {fp.totals.slice(0, 15).map((p, i) => (
+          <div key={i} className="flex items-center px-2 py-1.5" style={{
+            borderTop: '1px solid rgba(255,255,255,0.03)',
+            background: i < 3 ? `${teamColor}0${8 - i * 2}` : 'transparent',
+          }}>
+            <span className="w-5 text-[10px] font-black" style={{ color: i < 3 ? teamColor : COLORS.text.tertiary }}>{i + 1}</span>
+            <span className="flex-1 text-[10px] font-bold text-white truncate">{p.name}</span>
+            <span className="w-12 text-center text-[11px] font-black" style={{
+              color: p.points >= 0 ? teamColor : '#f87171',
+              fontFamily: "'Rajdhani', sans-serif",
+            }}>{p.points}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommentaryTab({ commentary, loading, teamColor }) {
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin" color={teamColor} /></div>;
+  if (!commentary) return <div className="text-center text-sm py-10" style={{ color: COLORS.text.tertiary }}>AI commentary not available. Match scorecard needed.</div>;
+
+  const { match_pulse, key_moments, star_performers, turning_point, verdict } = commentary;
+
+  return (
+    <div className="space-y-4">
+      {match_pulse && (
+        <div className="p-3 rounded-xl" style={{ background: `${teamColor}10`, border: `1px solid ${teamColor}25` }}>
+          <div className="text-sm font-black text-white">{match_pulse.headline}</div>
+          <div className="text-[10px] mt-1" style={{ color: COLORS.text.secondary }}>{match_pulse.sub}</div>
+        </div>
+      )}
+      {verdict && (
+        <div className="p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: teamColor }}>Verdict</div>
+          <div className="text-xs font-bold text-white">{verdict.headline}</div>
+          <div className="text-[10px] mt-1" style={{ color: COLORS.text.secondary }}>{verdict.description}</div>
+        </div>
+      )}
+      {star_performers && star_performers.length > 0 && (
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: teamColor }}>Star Performers</div>
+          {star_performers.map((sp, i) => (
+            <div key={i} className="flex items-center gap-2 p-2 rounded-lg mb-1.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black" style={{ background: `${teamColor}20`, color: teamColor }}>{(sp.rating || 0).toFixed(1)}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-black text-white">{sp.name}</div>
+                <div className="text-[8px]" style={{ color: COLORS.text.secondary }}>{sp.stats}</div>
+                <div className="text-[8px] italic" style={{ color: teamColor }}>{sp.headline}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {key_moments && key_moments.length > 0 && (
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: teamColor }}>Key Moments</div>
+          {key_moments.slice(0, 10).map((km, i) => (
+            <div key={i} className="flex gap-2 mb-1.5 p-2 rounded-lg" style={{ background: km.impact === 'high' ? `${teamColor}08` : 'transparent' }}>
+              <span className="text-[9px] font-bold shrink-0 w-8" style={{ color: teamColor }}>{km.over || '—'}</span>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-white">{km.title}</div>
+                <div className="text-[9px]" style={{ color: COLORS.text.secondary }}>{km.description}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Helper Components ----
+function InfoRow({ label, value, color, highlight }) {
+  return (
+    <div className="flex items-start gap-2 px-1">
+      <span className="text-[9px] font-bold uppercase w-16 shrink-0" style={{ color: COLORS.text.tertiary }}>{label}</span>
+      <span className={`text-[10px] ${highlight ? 'font-black' : 'font-bold'}`} style={{ color: highlight ? color : '#fff' }}>{value || '—'}</span>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, sub, color }) {
+  return (
+    <div className="p-2.5 rounded-lg" style={{ background: `${color}08`, border: `1px solid ${color}15` }}>
+      <div className="text-[8px] font-bold uppercase" style={{ color: COLORS.text.tertiary }}>{label}</div>
+      <div className="text-base font-black" style={{ color, fontFamily: "'Rajdhani', sans-serif" }}>{value}</div>
+      {sub && <div className="text-[8px]" style={{ color: COLORS.text.secondary }}>{sub}</div>}
     </div>
   );
 }

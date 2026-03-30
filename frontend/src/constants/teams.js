@@ -37,21 +37,21 @@ export const TEAM_API_LOGOS = {
   SH: 'https://g.cricapi.com/iapi/279-637852957609490368.png?w=48',
 };
 
-// Team brand colors [primary, secondary]
+// Team brand colors {primary, secondary}
 export const TEAM_COLORS = {
-  MI: ['#004BA0', '#00599E'],
-  CSK: ['#F9CD05', '#F3A012'],
-  RCB: ['#D4213D', '#A0171F'],
-  RCBW: ['#D4213D', '#A0171F'],
-  KKR: ['#3A225D', '#552583'],
-  DC: ['#0078BC', '#17479E'],
-  PBKS: ['#ED1B24', '#AA1019'],
-  PK: ['#ED1B24', '#AA1019'],
-  SRH: ['#FF822A', '#E35205'],
-  SH: ['#FF822A', '#E35205'],
-  RR: ['#EA1A85', '#C51D70'],
-  GT: ['#1C1C2B', '#0B4F6C'],
-  LSG: ['#2E90A8', '#1B7B93'],
+  MI: { primary: '#004BA0', secondary: '#00599E' },
+  CSK: { primary: '#F9CD05', secondary: '#F3A012' },
+  RCB: { primary: '#D4213D', secondary: '#A0171F' },
+  RCBW: { primary: '#D4213D', secondary: '#A0171F' },
+  KKR: { primary: '#3A225D', secondary: '#552583' },
+  DC: { primary: '#0078BC', secondary: '#17479E' },
+  PBKS: { primary: '#ED1B24', secondary: '#AA1019' },
+  PK: { primary: '#ED1B24', secondary: '#AA1019' },
+  SRH: { primary: '#FF822A', secondary: '#E35205' },
+  SH: { primary: '#FF822A', secondary: '#E35205' },
+  RR: { primary: '#EA1A85', secondary: '#C51D70' },
+  GT: { primary: '#1C1C2B', secondary: '#0B4F6C' },
+  LSG: { primary: '#2E90A8', secondary: '#1B7B93' },
 };
 
 // All valid IPL short names (for filtering)
@@ -67,8 +67,8 @@ export const normalizeTeam = (short) => {
 
 // Get team gradient for backgrounds
 export const getTeamGradient = (short) => {
-  const c = TEAM_COLORS[short] || ['#555', '#333'];
-  return `linear-gradient(135deg, ${c[0]}, ${c[1]})`;
+  const c = TEAM_COLORS[short] || { primary: '#555', secondary: '#333' };
+  return `linear-gradient(135deg, ${c.primary}, ${c.secondary})`;
 };
 
 // Get small logo URL

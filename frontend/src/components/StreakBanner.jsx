@@ -5,7 +5,36 @@ import { COLORS } from '../constants/design';
 import { Flame, Zap, Crown, TrendingUp } from 'lucide-react';
 
 function FireIcon({ size = 20, className = '' }) {
-  return <Flame size={size} className={className} />;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="fireGrad" x1="12" y1="24" x2="12" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF4500" />
+          <stop offset="35%" stopColor="#FF6600" />
+          <stop offset="60%" stopColor="#FFB800" />
+          <stop offset="85%" stopColor="#FFD700" />
+          <stop offset="100%" stopColor="#FFEE44" />
+        </linearGradient>
+        <linearGradient id="fireInner" x1="12" y1="22" x2="12" y2="8" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF2200" />
+          <stop offset="50%" stopColor="#FF5500" />
+          <stop offset="100%" stopColor="#FFAA00" />
+        </linearGradient>
+        <filter id="fireGlow">
+          <feGaussianBlur stdDeviation="1.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <path d="M12 2C10.5 6 7 8 7 12.5C7 15.5 9.24 18 12 18C14.76 18 17 15.5 17 12.5C17 8 13.5 6 12 2Z"
+        fill="url(#fireGrad)" stroke="url(#fireInner)" strokeWidth="0.5" filter="url(#fireGlow)" />
+      <path d="M12 8C11 10.5 9.5 11.5 9.5 13.5C9.5 15 10.62 16.2 12 16.2C13.38 16.2 14.5 15 14.5 13.5C14.5 11.5 13 10.5 12 8Z"
+        fill="url(#fireInner)" opacity="0.9" />
+      <ellipse cx="12" cy="15" rx="1.5" ry="2" fill="#FFEE44" opacity="0.7" />
+    </svg>
+  );
 }
 
 function getStreakTier(streak) {

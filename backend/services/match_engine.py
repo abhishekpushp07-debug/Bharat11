@@ -87,7 +87,7 @@ async def get_match_current_state(match_id: str, db) -> dict:
     if status == "upcoming":
         return {"innings": 0, "over": 0.0, "status": "upcoming"}
 
-    live_score = match.get("live_score", {})
+    live_score = match.get("live_score") or {}
     scores = live_score.get("scores", [])
 
     if not scores:

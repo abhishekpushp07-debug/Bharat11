@@ -630,48 +630,55 @@
 
 /* BOLD fire icon - orange/yellow/red gradient */
 .streak-fire-icon-bold {
-  color: #FF6B00;
-  filter: drop-shadow(0 0 6px rgba(255,69,0,0.7)) drop-shadow(0 0 12px rgba(255,165,0,0.4));
-  animation: fireIconPulse 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(255,69,0,0.8)) drop-shadow(0 0 16px rgba(255,165,0,0.5)) drop-shadow(0 0 3px rgba(255,200,0,0.9));
+  animation: fireIconPulse 1.2s ease-in-out infinite;
 }
 
 @keyframes fireIconPulse {
   0%, 100% {
-    transform: scale(1);
-    color: #FF4500;
-    filter: drop-shadow(0 0 6px rgba(255,69,0,0.7)) drop-shadow(0 0 12px rgba(255,165,0,0.4));
+    transform: scale(1) translateY(0);
+    filter: drop-shadow(0 0 8px rgba(255,69,0,0.8)) drop-shadow(0 0 16px rgba(255,165,0,0.5)) drop-shadow(0 0 3px rgba(255,200,0,0.9));
   }
-  33% {
-    transform: scale(1.1);
-    color: #FF8C00;
-    filter: drop-shadow(0 0 10px rgba(255,140,0,0.8)) drop-shadow(0 0 18px rgba(255,200,0,0.5));
+  25% {
+    transform: scale(1.12) translateY(-1px);
+    filter: drop-shadow(0 0 12px rgba(255,140,0,0.9)) drop-shadow(0 0 24px rgba(255,215,0,0.6)) drop-shadow(0 0 4px rgba(255,255,100,1));
   }
-  66% {
-    transform: scale(1.05);
-    color: #FF2020;
-    filter: drop-shadow(0 0 8px rgba(255,32,32,0.8)) drop-shadow(0 0 16px rgba(255,69,0,0.5));
+  50% {
+    transform: scale(1.05) translateY(0.5px);
+    filter: drop-shadow(0 0 10px rgba(255,32,32,0.9)) drop-shadow(0 0 20px rgba(255,69,0,0.6)) drop-shadow(0 0 3px rgba(255,150,0,0.8));
+  }
+  75% {
+    transform: scale(1.15) translateY(-1.5px);
+    filter: drop-shadow(0 0 14px rgba(255,165,0,0.95)) drop-shadow(0 0 28px rgba(255,200,0,0.5)) drop-shadow(0 0 5px rgba(255,69,0,0.9));
   }
 }
 
 /* Fire icon box glow */
 .streak-fire-box {
   animation: fireBoxGlow 2s ease-in-out infinite;
-  box-shadow: 0 0 12px rgba(255,69,0,0.2), 0 0 24px rgba(255,165,0,0.1);
+  box-shadow: 0 0 16px rgba(255,69,0,0.3), 0 0 32px rgba(255,165,0,0.15), inset 0 0 20px rgba(255,100,0,0.08);
 }
 
 @keyframes fireBoxGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(255,69,0,0.2), 0 0 16px rgba(255,165,0,0.08); }
-  50% { box-shadow: 0 0 16px rgba(255,69,0,0.35), 0 0 32px rgba(255,165,0,0.15); }
+  0%, 100% { box-shadow: 0 0 12px rgba(255,69,0,0.25), 0 0 24px rgba(255,165,0,0.1), inset 0 0 15px rgba(255,100,0,0.05); }
+  50% { box-shadow: 0 0 24px rgba(255,69,0,0.45), 0 0 48px rgba(255,165,0,0.2), inset 0 0 30px rgba(255,100,0,0.1); }
 }
 
-/* Sparkling red streak count */
+/* Sparkling red streak count - BOLD and glowing */
 .streak-count-glow {
-  animation: streakCountSpark 2s ease-in-out infinite;
+  animation: streakCountSpark 1.5s ease-in-out infinite;
 }
 
 @keyframes streakCountSpark {
-  0%, 100% { text-shadow: 0 0 8px rgba(255,32,32,0.5), 0 0 16px rgba(255,69,0,0.2); }
-  50% { text-shadow: 0 0 14px rgba(255,32,32,0.7), 0 0 28px rgba(255,69,0,0.4), 0 0 40px rgba(255,140,0,0.2); }
+  0%, 100% {
+    text-shadow: 0 0 10px rgba(255,32,32,0.6), 0 0 20px rgba(255,69,0,0.3), 0 0 4px rgba(255,200,0,0.4);
+  }
+  33% {
+    text-shadow: 0 0 18px rgba(255,32,32,0.85), 0 0 36px rgba(255,69,0,0.5), 0 0 50px rgba(255,140,0,0.3), 0 2px 8px rgba(255,0,0,0.4);
+  }
+  66% {
+    text-shadow: 0 0 14px rgba(255,80,0,0.75), 0 0 28px rgba(255,32,32,0.45), 0 0 6px rgba(255,215,0,0.5);
+  }
 }
 
 /* Update streak number glow for purple */

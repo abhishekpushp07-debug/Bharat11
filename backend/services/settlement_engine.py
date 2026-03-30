@@ -397,7 +397,7 @@ async def run_settlement_for_match(match_id: str, db) -> Dict[str, Any]:
 
     Returns settlement report.
     """
-    from services.cricket_data import cricket_service
+    from services.api_cache import cached_cricket
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
     if not match:
@@ -417,8 +417,8 @@ async def run_settlement_for_match(match_id: str, db) -> Dict[str, Any]:
             "match_id": match_id
         }
 
-    # Fetch scorecard
-    scorecard_data = await cricket_service.get_scorecard(cricketdata_id)
+    # Fetch scorecard (via cache)
+    scorecard_data = await cached_cricket.get_scorecard(db, cricketdata_id)
     if not scorecard_data:
         return {"error": "Could not fetch scorecard from CricketData API", "resolved": 0}
 
@@ -807,7 +807,7 @@ async def _auto_finalize_contest(db, contest_id: str) -> Dict:
 
 async def fetch_match_metrics(match_id: str, db) -> Dict[str, Any]:
     """Fetch scorecard and return parsed metrics + raw scores for display."""
-    from services.cricket_data import cricket_service
+    from services.api_cache import cached_cricket
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
     if not match:
@@ -820,7 +820,7 @@ async def fetch_match_metrics(match_id: str, db) -> Dict[str, Any]:
     if not cd_id:
         return {"error": "No CricketData ID linked"}
 
-    scorecard_data = await cricket_service.get_scorecard(cd_id)
+    scorecard_data = await cached_cricket.get_scorecard(db, cd_id)
     if not scorecard_data:
         return {"error": "Could not fetch scorecard"}
 

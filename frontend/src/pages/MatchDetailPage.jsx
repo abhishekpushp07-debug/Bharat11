@@ -234,7 +234,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
           </div>
           <div className="px-6 py-5 flex items-center justify-between">
             <div className="flex flex-col items-center gap-2 flex-1">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamA.short_name), boxShadow: `0 4px 20px ${(TEAM_COLORS[teamA.short_name] || ['#555'])[0]}44` }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamA.short_name), boxShadow: `0 4px 20px ${(TEAM_COLORS[teamA.short_name] || {primary:'#555'}).primary}44` }}>
                 {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-12 h-12 object-contain" /> : teamA.short_name || '?'}
               </div>
               <div className="text-center">
@@ -251,7 +251,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
               <div className={`text-xs font-black px-3 py-1.5 rounded-xl ${isLive ? 'animate-live-pulse' : ''}`} style={{ background: `${COLORS.primary.main}22`, color: COLORS.primary.main }}>VS</div>
             </div>
             <div className="flex flex-col items-center gap-2 flex-1">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamB.short_name), boxShadow: `0 4px 20px ${(TEAM_COLORS[teamB.short_name] || ['#555'])[0]}44` }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamB.short_name), boxShadow: `0 4px 20px ${(TEAM_COLORS[teamB.short_name] || {primary:'#555'}).primary}44` }}>
                 {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-12 h-12 object-contain" /> : teamB.short_name || '?'}
               </div>
               <div className="text-center">

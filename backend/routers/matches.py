@@ -224,8 +224,8 @@ async def get_match_scorecard_public(
     match_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    """Public scorecard endpoint — no admin required."""
-    from services.cricket_data import cricket_service
+    """Public scorecard endpoint — no admin required. Uses MongoDB cache."""
+    from services.api_cache import cached_cricket
     from services.settlement_engine import parse_scorecard_to_metrics, _auto_link_cricketdata_id
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -238,7 +238,7 @@ async def get_match_scorecard_public(
     if not cd_id:
         return {"match_id": match_id, "error": "Scorecard not available", "scorecard": None}
 
-    data = await cricket_service.get_scorecard(cd_id)
+    data = await cached_cricket.get_scorecard(db, cd_id)
     if not data:
         return {"match_id": match_id, "error": "Could not fetch scorecard", "scorecard": None}
 
@@ -297,8 +297,8 @@ IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
     summary="Get playing squad for a match (LOT5 API 2)"
 )
 async def get_match_squad(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Returns both teams with player details (name, role, batting/bowling style, photo)."""
-    from services.cricket_data import cricket_service
+    """Returns both teams with player details. Uses MongoDB cache."""
+    from services.api_cache import cached_cricket
     from services.settlement_engine import _auto_link_cricketdata_id
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -311,7 +311,7 @@ async def get_match_squad(match_id: str, db: AsyncIOMotorDatabase = Depends(get_
     if not cd_id:
         return {"match_id": match_id, "error": "Squad not available", "squads": []}
 
-    data = await cricket_service.get_squad(cd_id)
+    data = await cached_cricket.get_squad(db, cd_id)
     if not data:
         return {"match_id": match_id, "error": "Could not fetch squad", "squads": []}
 
@@ -323,8 +323,8 @@ async def get_match_squad(match_id: str, db: AsyncIOMotorDatabase = Depends(get_
     summary="Get fantasy points per player (LOT3 API 2)"
 )
 async def get_match_fantasy_points(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Player fantasy points by innings + totals. SLOW API - cached 5 min."""
-    from services.cricket_data import cricket_service
+    """Player fantasy points by innings + totals. SLOW API - cached in MongoDB."""
+    from services.api_cache import cached_cricket
     from services.settlement_engine import _auto_link_cricketdata_id
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -337,7 +337,7 @@ async def get_match_fantasy_points(match_id: str, db: AsyncIOMotorDatabase = Dep
     if not cd_id:
         return {"match_id": match_id, "error": "Fantasy points not available", "innings": [], "totals": []}
 
-    data = await cricket_service.get_match_points(cd_id)
+    data = await cached_cricket.get_match_points(db, cd_id)
     if not data:
         return {"match_id": match_id, "error": "Could not fetch points", "innings": [], "totals": []}
 
@@ -353,8 +353,8 @@ async def get_match_fantasy_points(match_id: str, db: AsyncIOMotorDatabase = Dep
     summary="Get detailed match info - toss, winner (LOT2 API 5)"
 )
 async def get_match_info_detail(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Returns toss winner/choice, match winner, series_id, scores."""
-    from services.cricket_data import cricket_service
+    """Returns toss winner/choice, match winner, series_id, scores. Uses MongoDB cache."""
+    from services.api_cache import cached_cricket
     from services.settlement_engine import _auto_link_cricketdata_id
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -367,7 +367,7 @@ async def get_match_info_detail(match_id: str, db: AsyncIOMotorDatabase = Depend
     if not cd_id:
         return {"match_id": match_id, "error": "Info not available"}
 
-    data = await cricket_service.get_match_info(cd_id)
+    data = await cached_cricket.get_match_info(db, cd_id)
     if not data:
         return {"match_id": match_id, "error": "Could not fetch info"}
 
@@ -709,8 +709,8 @@ async def sync_match_score(
     summary="Ball-by-ball data (LOT4) — extras & events"
 )
 async def get_match_bbb(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Ball-by-ball feed from match_bbb API. Returns extras/penalty events per ball."""
-    from services.cricket_data import cricket_service
+    """Ball-by-ball feed from match_bbb API. Uses MongoDB cache."""
+    from services.api_cache import cached_cricket
     from services.settlement_engine import _auto_link_cricketdata_id
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -723,7 +723,7 @@ async def get_match_bbb(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db
     if not cd_id:
         return {"match_id": match_id, "error": "BBB data not available", "balls": []}
 
-    data = await cricket_service.get_match_bbb(cd_id)
+    data = await cached_cricket.get_match_bbb(db, cd_id)
     if not data:
         return {"match_id": match_id, "error": "Could not fetch BBB data", "balls": []}
 
@@ -762,8 +762,8 @@ async def get_ai_commentary(match_id: str, force: bool = False, db: AsyncIOMotor
     scorecard = None
     cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
     if cd_id:
-        from services.cricket_data import cricket_service
-        scorecard = await cricket_service.get_scorecard(cd_id)
+        from services.api_cache import cached_cricket
+        scorecard = await cached_cricket.get_scorecard(db, cd_id)
 
     if not scorecard or not scorecard.get("scorecard"):
         return {"match_id": match_id, "commentary": [], "error": "Scorecard not available yet"}
@@ -771,8 +771,8 @@ async def get_ai_commentary(match_id: str, force: bool = False, db: AsyncIOMotor
     # Get match info for context
     match_info = None
     if cd_id:
-        from services.cricket_data import cricket_service
-        match_info = await cricket_service.get_match_info(cd_id)
+        from services.api_cache import cached_cricket
+        match_info = await cached_cricket.get_match_info(db, cd_id)
 
     # Generate structured AI commentary
     result = await generate_ai_commentary(scorecard, match_info)

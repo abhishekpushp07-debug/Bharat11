@@ -90,12 +90,12 @@ export default function MyContestsPage({ onContestClick }) {
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="flex items-center gap-2 flex-1">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white"
-                      style={{ background: TEAM_COLORS[teamA.short_name] || '#555' }}>
+                      style={{ background: (TEAM_COLORS[teamA.short_name] || {primary: '#555'}).primary }}>
                       {teamA.short_name || '?'}
                     </div>
                     <span className="text-xs font-medium text-white">vs</span>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white"
-                      style={{ background: TEAM_COLORS[teamB.short_name] || '#555' }}>
+                      style={{ background: (TEAM_COLORS[teamB.short_name] || {primary: '#555'}).primary }}>
                       {teamB.short_name || '?'}
                     </div>
                   </div>
