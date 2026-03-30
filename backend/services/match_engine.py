@@ -149,7 +149,9 @@ async def check_can_submit(template: dict, match_id: str, db) -> dict:
 
 async def apply_default_template_fallback(match_id: str, db):
     """
-    If a match has no templates, copy templates from the most recent completed match.
+    If a match has no templates, use the admin-defined Default Templates (up to 5).
+    These are templates marked with is_default=True in the DB.
+    Falls back to copying from last match if no defaults exist.
     """
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
     if not match:
@@ -159,7 +161,47 @@ async def apply_default_template_fallback(match_id: str, db):
     if existing and len(existing) > 0:
         return {"applied": False, "reason": f"Match already has {len(existing)} templates"}
 
-    # Find the most recent match with templates (by start_time descending)
+    now = utc_now().isoformat()
+    team_a = match.get("team_a", {}).get("short_name", "TM1")
+    team_b = match.get("team_b", {}).get("short_name", "TM2")
+
+    # Strategy 1: Use admin-defined default templates (is_default=True)
+    default_templates = await db.templates.find(
+        {"is_default": True, "is_active": True},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(length=5)
+
+    if default_templates:
+        new_template_ids = []
+        for t in default_templates:
+            new_id = generate_id()
+            new_t = {**t}
+            new_t["id"] = new_id
+            new_t["name"] = f"{team_a} vs {team_b} — {t.get('phase_label', t.get('name', 'Default'))}"
+            new_t["is_default"] = False  # Clone is not default itself
+            new_t["auto_generated"] = True
+            new_t["source_default_id"] = t.get("id")
+            new_t["match_id"] = match_id
+            new_t["created_at"] = now
+            new_t["updated_at"] = now
+            new_t.pop("_id", None)
+            await db.templates.insert_one(new_t)
+            new_template_ids.append(new_id)
+
+        await db.matches.update_one(
+            {"id": match_id},
+            {"$set": {"templates_assigned": new_template_ids, "updated_at": now}}
+        )
+
+        logger.info(f"Applied {len(new_template_ids)} default templates to {team_a} vs {team_b}")
+        return {
+            "applied": True,
+            "source": "default_templates",
+            "templates_copied": len(new_template_ids),
+            "template_ids": new_template_ids
+        }
+
+    # Strategy 2: Fallback - copy from last match
     last_match = await db.matches.find_one(
         {
             "id": {"$ne": match_id},
@@ -170,9 +212,8 @@ async def apply_default_template_fallback(match_id: str, db):
     )
 
     if not last_match or not last_match.get("templates_assigned"):
-        return {"applied": False, "reason": "No previous match with templates found"}
+        return {"applied": False, "reason": "No default templates or previous match templates found"}
 
-    # Copy templates: duplicate them with new IDs
     source_template_ids = last_match["templates_assigned"]
     source_templates = await db.templates.find(
         {"id": {"$in": source_template_ids}},
@@ -182,23 +223,20 @@ async def apply_default_template_fallback(match_id: str, db):
     if not source_templates:
         return {"applied": False, "reason": "Source templates not found"}
 
-    now = utc_now().isoformat()
     new_template_ids = []
-    team_a = match.get("team_a", {}).get("short_name", "TM1")
-    team_b = match.get("team_b", {}).get("short_name", "TM2")
-
     for t in source_templates:
         new_id = generate_id()
         new_t = {**t}
         new_t["id"] = new_id
         new_t["name"] = f"{team_a} vs {team_b} — {t.get('phase_label', t.get('template_type', 'Match'))}"
+        new_t["auto_generated"] = True
+        new_t["match_id"] = match_id
         new_t["created_at"] = now
         new_t["updated_at"] = now
         new_t.pop("_id", None)
         await db.templates.insert_one(new_t)
         new_template_ids.append(new_id)
 
-    # Assign to match
     await db.matches.update_one(
         {"id": match_id},
         {"$set": {"templates_assigned": new_template_ids, "updated_at": now}}
@@ -206,6 +244,7 @@ async def apply_default_template_fallback(match_id: str, db):
 
     return {
         "applied": True,
+        "source": "last_match",
         "templates_copied": len(new_template_ids),
         "from_match": last_match["id"],
         "template_ids": new_template_ids

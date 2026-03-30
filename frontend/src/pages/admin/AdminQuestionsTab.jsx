@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
-import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Save, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Save, Loader2, CheckSquare, Square } from 'lucide-react';
 
 export default function AdminQuestionsTab() {
   const [questions, setQuestions] = useState([]);
@@ -15,6 +15,8 @@ export default function AdminQuestionsTab() {
   const [editingQ, setEditingQ] = useState(null);
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const LIMIT = 100;
 
   const fetchQuestions = useCallback(async (p = 1) => {
@@ -28,6 +30,7 @@ export default function AdminQuestionsTab() {
       setTotal(res.data.total || 0);
       setHasMore(res.data.has_more || false);
       setPage(p);
+      setSelectedIds(new Set());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [search, categoryFilter]);
@@ -44,8 +47,37 @@ export default function AdminQuestionsTab() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected questions?`)) return;
+    setBulkDeleting(true);
+    try {
+      await apiClient.post('/admin/questions/bulk-delete', { ids: Array.from(selectedIds) });
+      setSelectedIds(new Set());
+      fetchQuestions(page);
+    } catch (e) {
+      alert('Bulk delete failed: ' + (e.response?.data?.detail || e.message));
+    } finally { setBulkDeleting(false); }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === questions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(questions.map(q => q.id)));
+    }
+  };
+
   const handleSeed = async () => {
-    if (!window.confirm('This will seed 500+ bilingual questions into the pool. Continue?')) return;
+    if (!window.confirm('Seed 500+ bilingual questions into pool?')) return;
     setSeeding(true);
     setSeedResult(null);
     try {
@@ -66,7 +98,7 @@ export default function AdminQuestionsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-white">Question Pool</h2>
-          <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{total} questions (max 2000)</span>
+          <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{total} questions</span>
         </div>
         <div className="flex gap-2">
           <button data-testid="seed-btn" onClick={handleSeed} disabled={seeding}
@@ -89,6 +121,26 @@ export default function AdminQuestionsTab() {
           color: seedResult.error ? COLORS.error.main : COLORS.success.main,
         }}>
           {seedResult.error || `Seeded ${seedResult.seeded} questions. Total: ${seedResult.total_in_db}`}
+        </div>
+      )}
+
+      {/* Multi-Select Actions */}
+      {selectedIds.size > 0 && (
+        <div data-testid="bulk-actions-bar" className="flex items-center gap-3 p-2.5 rounded-xl animate-in slide-in-from-top-2"
+          style={{ background: COLORS.error.bg, border: `1px solid ${COLORS.error.main}33` }}>
+          <span className="text-xs font-bold" style={{ color: COLORS.error.main }}>
+            {selectedIds.size} selected
+          </span>
+          <button data-testid="bulk-delete-btn" onClick={handleBulkDelete} disabled={bulkDeleting}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+            style={{ background: COLORS.error.main, color: '#fff' }}>
+            {bulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            Delete Selected
+          </button>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="px-2 py-1 rounded text-xs" style={{ color: COLORS.text.tertiary }}>
+            Clear
+          </button>
         </div>
       )}
 
@@ -115,10 +167,28 @@ export default function AdminQuestionsTab() {
         <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin" color={COLORS.primary.main} /></div>
       ) : (
         <div className="space-y-1.5">
+          {/* Select All */}
+          {questions.length > 0 && (
+            <button data-testid="select-all-btn" onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-xs mb-1 px-1" style={{ color: COLORS.text.secondary }}>
+              {selectedIds.size === questions.length ? <CheckSquare size={14} color={COLORS.primary.main} /> : <Square size={14} />}
+              {selectedIds.size === questions.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
           {questions.map((q, i) => (
             <div key={q.id} data-testid={`question-row-${i}`}
               className="flex items-start gap-2 p-2.5 rounded-lg group"
-              style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+              style={{
+                background: selectedIds.has(q.id) ? `${COLORS.primary.main}11` : COLORS.background.card,
+                border: `1px solid ${selectedIds.has(q.id) ? COLORS.primary.main + '44' : COLORS.border.light}`
+              }}>
+              {/* Checkbox */}
+              <button onClick={() => toggleSelect(q.id)} className="mt-0.5 shrink-0">
+                {selectedIds.has(q.id) ?
+                  <CheckSquare size={16} color={COLORS.primary.main} /> :
+                  <Square size={16} color={COLORS.text.tertiary} />
+                }
+              </button>
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-bold text-white mb-0.5 leading-snug">{q.question_text_en}</div>
                 <div className="text-[10px] mb-1" style={{ color: COLORS.text.tertiary }}>{q.question_text_hi}</div>
@@ -153,9 +223,7 @@ export default function AdminQuestionsTab() {
             className="p-2 rounded-lg disabled:opacity-30" style={{ background: COLORS.background.card }}>
             <ChevronLeft size={14} color="#fff" />
           </button>
-          <span className="text-xs font-bold text-white">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-xs font-bold text-white">Page {page} of {totalPages}</span>
           <button onClick={() => fetchQuestions(page + 1)} disabled={!hasMore}
             className="p-2 rounded-lg disabled:opacity-30" style={{ background: COLORS.background.card }}>
             <ChevronRight size={14} color="#fff" />
@@ -263,7 +331,6 @@ function QuestionFormModal({ question, categories, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* Options */}
           <div>
             <label className="text-[10px] font-bold mb-1 block" style={{ color: COLORS.text.tertiary }}>Options (4)</label>
             {form.options.map((opt, idx) => (
@@ -281,7 +348,6 @@ function QuestionFormModal({ question, categories, onClose, onSaved }) {
             ))}
           </div>
 
-          {/* Auto Resolution */}
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] font-bold mb-1 block" style={{ color: COLORS.text.tertiary }}>Metric Key</label>

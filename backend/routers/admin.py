@@ -1336,6 +1336,398 @@ async def admin_adjust_coins(
     }
 
 
+# ==================== BULK DELETE OPERATIONS ====================
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[str] = Field(..., min_length=1, max_length=500)
+
+
+@router.post(
+    "/questions/bulk-delete",
+    summary="Bulk delete questions by IDs"
+)
+async def bulk_delete_questions(
+    data: BulkDeleteRequest,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    result = await db.questions.delete_many({"id": {"$in": data.ids}})
+    return {"deleted": result.deleted_count, "requested": len(data.ids)}
+
+
+@router.post(
+    "/templates/bulk-delete",
+    summary="Bulk delete templates by IDs"
+)
+async def bulk_delete_templates(
+    data: BulkDeleteRequest,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    result = await db.templates.delete_many({"id": {"$in": data.ids}})
+    return {"deleted": result.deleted_count, "requested": len(data.ids)}
+
+
+@router.post(
+    "/contests/bulk-delete",
+    summary="Bulk delete contests by IDs"
+)
+async def bulk_delete_contests(
+    data: BulkDeleteRequest,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    # Also delete related contest entries
+    await db.contest_entries.delete_many({"contest_id": {"$in": data.ids}})
+    result = await db.contests.delete_many({"id": {"$in": data.ids}})
+    return {"deleted": result.deleted_count, "requested": len(data.ids)}
+
+
+# ==================== AI PREVIEW + RESOLVE OVERRIDE ====================
+
+@router.get(
+    "/contests/{contest_id}/ai-preview",
+    summary="AI Preview: Get AI-predicted answers for a contest's questions"
+)
+async def ai_preview_contest(
+    contest_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    The BRAIN of Auto-Resolve Override.
+    1. Loads contest → template → questions
+    2. Fetches scorecard from CricketData API (via cache)
+    3. Runs each question through the settlement evaluator
+    4. Returns questions with AI's predicted answers + confidence info
+    Admin can then review, edit, and submit final answers.
+    """
+    from services.settlement_engine import evaluate_question, parse_scorecard_to_metrics, _auto_link_cricketdata_id
+    from services.api_cache import cached_cricket
+
+    contest = await db.contests.find_one({"id": contest_id}, {"_id": 0})
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+
+    # Get template and questions
+    template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found for this contest")
+
+    qids = template.get("question_ids", [])
+    questions_cursor = db.questions.find({"id": {"$in": qids}}, {"_id": 0})
+    questions = await questions_cursor.to_list(length=len(qids))
+    q_map = {q["id"]: q for q in questions}
+    ordered_questions = [q_map[qid] for qid in qids if qid in q_map]
+
+    # Get match and scorecard
+    match = await db.matches.find_one({"id": contest.get("match_id")}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    metrics = {}
+    scorecard_available = False
+    scorecard_error = None
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        cd_id = await _auto_link_cricketdata_id(match, db)
+
+    if cd_id:
+        try:
+            scorecard_data = await cached_cricket.get_scorecard(db, cd_id)
+            if scorecard_data:
+                metrics = parse_scorecard_to_metrics(scorecard_data)
+                scorecard_available = True
+            else:
+                scorecard_error = "Scorecard data not available yet"
+        except Exception as e:
+            scorecard_error = str(e)
+    else:
+        scorecard_error = "No CricketData ID linked to this match"
+
+    # Check existing resolutions
+    resolved_cursor = db.question_results.find(
+        {"match_id": contest.get("match_id"), "question_id": {"$in": qids}},
+        {"_id": 0, "question_id": 1, "correct_option": 1}
+    )
+    resolved_list = await resolved_cursor.to_list(length=len(qids))
+    resolved_map = {r["question_id"]: r["correct_option"] for r in resolved_list}
+
+    # Build AI preview for each question
+    preview_items = []
+    for q in ordered_questions:
+        qid = q["id"]
+        already_resolved = qid in resolved_map
+
+        # AI prediction
+        ai_answer = None
+        ai_confidence = "none"
+        ai_reason = "No scorecard data"
+
+        if scorecard_available:
+            ai_answer = evaluate_question(q, metrics)
+            if ai_answer:
+                ai_confidence = "high"
+                # Find the metric value for context
+                auto_res = q.get("auto_resolution") or {}
+                metric_key = auto_res.get("metric", "")
+                metric_val = metrics.get(metric_key, "N/A")
+                ai_reason = f"Metric '{metric_key}' = {metric_val}"
+            else:
+                ai_confidence = "low"
+                auto_res = q.get("auto_resolution") or {}
+                trigger = auto_res.get("trigger", "")
+                ai_reason = f"Trigger '{trigger}' not met yet or metric unavailable"
+
+        preview_items.append({
+            "question_id": qid,
+            "question_text_en": q.get("question_text_en", ""),
+            "question_text_hi": q.get("question_text_hi", ""),
+            "category": q.get("category", ""),
+            "points": q.get("points", 10),
+            "options": q.get("options", []),
+            "auto_resolution": q.get("auto_resolution"),
+            "ai_predicted_answer": ai_answer,
+            "ai_confidence": ai_confidence,
+            "ai_reason": ai_reason,
+            "already_resolved": already_resolved,
+            "resolved_answer": resolved_map.get(qid),
+        })
+
+    team_a = match.get("team_a", {}).get("short_name", "?")
+    team_b = match.get("team_b", {}).get("short_name", "?")
+
+    return {
+        "contest_id": contest_id,
+        "contest_name": contest.get("name", ""),
+        "match_label": f"{team_a} vs {team_b}",
+        "match_status": match.get("status", "unknown"),
+        "template_type": template.get("template_type", "full_match"),
+        "scorecard_available": scorecard_available,
+        "scorecard_error": scorecard_error,
+        "key_metrics": {
+            "innings_1_runs": metrics.get("innings_1_total_runs", "N/A"),
+            "innings_2_runs": metrics.get("innings_2_total_runs", "N/A"),
+            "total_sixes": metrics.get("match_total_sixes", "N/A"),
+            "total_fours": metrics.get("match_total_fours", "N/A"),
+            "match_winner": metrics.get("match_winner", "N/A"),
+            "match_completed": metrics.get("match_completed", False),
+        } if scorecard_available else {},
+        "questions": preview_items,
+        "total_questions": len(preview_items),
+        "resolved_count": len(resolved_map),
+        "ai_answered_count": sum(1 for p in preview_items if p["ai_predicted_answer"]),
+    }
+
+
+class ResolveOverrideItem(BaseModel):
+    question_id: str
+    correct_option: str = Field(..., pattern="^[A-D]$")
+
+
+class ResolveOverrideRequest(BaseModel):
+    answers: list[ResolveOverrideItem] = Field(..., min_length=1)
+    auto_finalize: bool = Field(default=False)
+
+
+@router.post(
+    "/contests/{contest_id}/resolve-override",
+    summary="Resolve contest questions with admin overrides"
+)
+async def resolve_with_override(
+    contest_id: str,
+    data: ResolveOverrideRequest,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Admin reviews AI answers, edits if needed, then submits final answers.
+    This resolves each question and optionally auto-finalizes the contest.
+    """
+    from services.settlement_engine import _resolve_question_internal, _auto_finalize_contest
+
+    contest = await db.contests.find_one({"id": contest_id}, {"_id": 0})
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+
+    match_id = contest.get("match_id", "")
+    resolved_count = 0
+    skipped_count = 0
+    results = []
+
+    for item in data.answers:
+        # Check if already resolved
+        existing = await db.question_results.find_one({
+            "match_id": match_id,
+            "question_id": item.question_id
+        })
+        if existing:
+            skipped_count += 1
+            results.append({"question_id": item.question_id, "status": "already_resolved", "answer": existing.get("correct_option")})
+            continue
+
+        # Get question
+        question = await db.questions.find_one({"id": item.question_id}, {"_id": 0})
+        if not question:
+            results.append({"question_id": item.question_id, "status": "not_found"})
+            continue
+
+        # Resolve using internal engine (handles scoring, streaks, socket events)
+        await _resolve_question_internal(db, contest_id, match_id, item.question_id, item.correct_option, question)
+        resolved_count += 1
+        results.append({"question_id": item.question_id, "status": "resolved", "answer": item.correct_option})
+
+    # Auto-finalize if requested and all questions resolved
+    finalized = False
+    if data.auto_finalize:
+        template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0, "question_ids": 1})
+        if template:
+            total_q = len(template.get("question_ids", []))
+            resolved_total = await db.question_results.count_documents({
+                "match_id": match_id,
+                "question_id": {"$in": template.get("question_ids", [])}
+            })
+            if resolved_total >= total_q:
+                fin_result = await _auto_finalize_contest(db, contest_id)
+                finalized = fin_result.get("finalized", False)
+
+    return {
+        "contest_id": contest_id,
+        "resolved": resolved_count,
+        "skipped": skipped_count,
+        "finalized": finalized,
+        "details": results,
+    }
+
+
+# ==================== ADMIN CONTEST LIST (enriched with template_type) ====================
+
+@router.get(
+    "/contests",
+    summary="Admin contest list with template_type badges"
+)
+async def admin_list_contests(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    match_id: Optional[str] = None,
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=50, ge=1, le=100)
+):
+    query = {}
+    if match_id:
+        query["match_id"] = match_id
+    if status_filter:
+        query["status"] = status_filter
+
+    skip = (page - 1) * limit
+    cursor = db.contests.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+    contests = await cursor.to_list(length=limit)
+    total = await db.contests.count_documents(query)
+
+    # Enrich with template_type and match info
+    template_ids = list(set(c.get("template_id", "") for c in contests if c.get("template_id")))
+    match_ids = list(set(c.get("match_id", "") for c in contests if c.get("match_id")))
+
+    templates_cursor = db.templates.find(
+        {"id": {"$in": template_ids}},
+        {"_id": 0, "id": 1, "template_type": 1, "phase_label": 1, "name": 1, "question_ids": 1}
+    )
+    templates_list = await templates_cursor.to_list(length=len(template_ids))
+    t_map = {t["id"]: t for t in templates_list}
+
+    matches_cursor = db.matches.find(
+        {"id": {"$in": match_ids}},
+        {"_id": 0, "id": 1, "team_a": 1, "team_b": 1, "status": 1, "start_time": 1}
+    )
+    matches_list = await matches_cursor.to_list(length=len(match_ids))
+    m_map = {m["id"]: m for m in matches_list}
+
+    enriched = []
+    for c in contests:
+        t = t_map.get(c.get("template_id", ""), {})
+        m = m_map.get(c.get("match_id", ""), {})
+        c["template_type"] = t.get("template_type", "full_match")
+        c["phase_label"] = t.get("phase_label", "")
+        c["template_name"] = t.get("name", "")
+        c["question_count"] = len(t.get("question_ids", []))
+        c["match_label"] = f"{m.get('team_a', {}).get('short_name', '?')} vs {m.get('team_b', {}).get('short_name', '?')}" if m else ""
+        c["match_status"] = m.get("status", "")
+        enriched.append(c)
+
+    return {
+        "contests": enriched,
+        "page": page, "limit": limit, "total": total,
+        "has_more": (page * limit) < total
+    }
+
+
+# ==================== DEFAULT TEMPLATES MANAGEMENT ====================
+
+@router.get(
+    "/default-templates",
+    summary="Get all 5 default templates"
+)
+async def get_default_templates(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    cursor = db.templates.find({"is_default": True}, {"_id": 0}).sort("created_at", 1)
+    defaults = await cursor.to_list(length=10)
+
+    # Enrich with question details
+    for t in defaults:
+        qids = t.get("question_ids", [])
+        if qids:
+            q_cursor = db.questions.find({"id": {"$in": qids}}, {"_id": 0, "id": 1, "question_text_en": 1, "points": 1, "category": 1})
+            qs = await q_cursor.to_list(length=len(qids))
+            t["questions"] = qs
+        else:
+            t["questions"] = []
+
+    return {
+        "default_templates": defaults,
+        "count": len(defaults),
+        "max_allowed": 5,
+        "slots_remaining": max(0, 5 - len(defaults))
+    }
+
+
+@router.post(
+    "/templates/{template_id}/toggle-default",
+    summary="Toggle a template's default status"
+)
+async def toggle_template_default(
+    template_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    template = await db.templates.find_one({"id": template_id}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    current_default = template.get("is_default", False)
+
+    if not current_default:
+        # Check if already 5 defaults
+        default_count = await db.templates.count_documents({"is_default": True})
+        if default_count >= 5:
+            raise HTTPException(status_code=400, detail="Maximum 5 default templates allowed. Remove one first.")
+
+    new_default = not current_default
+    await db.templates.update_one(
+        {"id": template_id},
+        {"$set": {"is_default": new_default, "updated_at": utc_now().isoformat()}}
+    )
+
+    return {
+        "template_id": template_id,
+        "is_default": new_default,
+        "message": f"Template {'set as' if new_default else 'removed from'} default"
+    }
+
+
 # ==================== QUESTION POOL SEEDER ====================
 
 @router.post(

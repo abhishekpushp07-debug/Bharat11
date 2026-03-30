@@ -1,20 +1,23 @@
 /**
- * Admin Templates Tab - One-click create + Edit (add/remove questions)
- * Templates always editable, whether auto-created or manual
+ * Admin Templates Tab - Full CRUD with Multi-Select Delete + Default Templates Section
  */
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
-import { Plus, Star, Trash2, ChevronDown, ChevronUp, Check, Edit2, Save, X, Zap } from 'lucide-react';
+import { Plus, Star, Trash2, ChevronDown, ChevronUp, Check, Edit2, Save, X, Zap, CheckSquare, Square, Shield, Loader2 } from 'lucide-react';
 
 export default function AdminTemplatesTab() {
   const [templates, setTemplates] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [defaultTemplates, setDefaultTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingT, setEditingT] = useState(null);
   const [expandedT, setExpandedT] = useState(null);
   const [msg, setMsg] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showDefaults, setShowDefaults] = useState(false);
 
   const [form, setForm] = useState({
     name: '', description: '', match_type: 'T20',
@@ -25,12 +28,14 @@ export default function AdminTemplatesTab() {
 
   const fetchAll = async () => {
     try {
-      const [tRes, qRes] = await Promise.all([
+      const [tRes, qRes, dRes] = await Promise.all([
         apiClient.get('/admin/templates?limit=50'),
-        apiClient.get('/admin/questions?limit=100')
+        apiClient.get('/admin/questions?limit=50'),
+        apiClient.get('/admin/default-templates')
       ]);
       setTemplates(tRes.data.templates || []);
       setQuestions(qRes.data.questions || []);
+      setDefaultTemplates(dRes.data.default_templates || []);
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
     finally { setLoading(false); }
   };
@@ -82,20 +87,42 @@ export default function AdminTemplatesTab() {
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
-  const handleSetDefault = async (id) => {
+  const handleToggleDefault = async (id) => {
     try {
-      await apiClient.post(`/admin/templates/${id}/set-default`);
-      setMsg('Default set!');
+      const res = await apiClient.post(`/admin/templates/${id}/toggle-default`);
+      setMsg(res.data.message);
       fetchAll();
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
   const handleDelete = async (id) => {
+    if (!window.confirm('Delete this template?')) return;
     try {
       await apiClient.delete(`/admin/templates/${id}`);
       setMsg('Deleted');
       fetchAll();
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected templates?`)) return;
+    setBulkDeleting(true);
+    try {
+      await apiClient.post('/admin/templates/bulk-delete', { ids: Array.from(selectedIds) });
+      setSelectedIds(new Set());
+      fetchAll();
+    } catch (e) {
+      alert('Bulk delete failed: ' + (e.response?.data?.detail || e.message));
+    } finally { setBulkDeleting(false); }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   const startEditing = (t) => {
@@ -120,7 +147,6 @@ export default function AdminTemplatesTab() {
       innings_range: [], over_start: null, over_end: null, answer_deadline_over: null, phase_label: '' });
   };
 
-  // One-click: select ALL auto-resolution questions
   const oneClickAutoTemplate = () => {
     const autoQs = questions.filter(q => q.auto_resolution?.metric);
     if (autoQs.length === 0) {
@@ -132,8 +158,10 @@ export default function AdminTemplatesTab() {
       description: `${autoQs.length} auto-resolvable questions`,
       match_type: 'T20',
       template_type: 'full_match',
-      question_ids: autoQs.map(q => q.id),
+      question_ids: autoQs.slice(0, 11).map(q => q.id),
       is_default: true,
+      innings_range: [], over_start: null, over_end: null,
+      answer_deadline_over: null, phase_label: '',
     });
     setShowForm(true);
     setEditingT(null);
@@ -147,7 +175,6 @@ export default function AdminTemplatesTab() {
   const isEditing = !!editingT;
   const formTitle = isEditing ? 'Edit Template' : 'Create Template';
 
-  // Question picker with category filter
   const QuestionPicker = () => {
     const [pickFilter, setPickFilter] = useState('');
     const filtered = pickFilter ? questions.filter(q => q.category === pickFilter) : questions;
@@ -198,13 +225,69 @@ export default function AdminTemplatesTab() {
 
   return (
     <div className="space-y-3">
-      {msg && <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{msg}</div>}
+      {msg && (
+        <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>
+          {msg}
+          <button onClick={() => setMsg('')} className="ml-2 opacity-50"><X size={10} /></button>
+        </div>
+      )}
 
-      <div className="flex gap-2">
+      {/* Default Templates Section */}
+      <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.accent.gold}33` }}>
+        <button onClick={() => setShowDefaults(!showDefaults)}
+          className="w-full flex items-center justify-between p-3">
+          <div className="flex items-center gap-2">
+            <Shield size={16} color={COLORS.accent.gold} />
+            <span className="text-sm font-bold" style={{ color: COLORS.accent.gold }}>Default Templates ({defaultTemplates.length}/5)</span>
+          </div>
+          {showDefaults ? <ChevronUp size={14} color={COLORS.text.tertiary} /> : <ChevronDown size={14} color={COLORS.text.tertiary} />}
+        </button>
+        {showDefaults && (
+          <div className="px-3 pb-3 border-t space-y-2" style={{ borderColor: COLORS.border.light }}>
+            <div className="text-[10px] mt-2" style={{ color: COLORS.text.secondary }}>
+              These 5 templates auto-attach to matches 24hrs before start if no manual contest exists.
+            </div>
+            {defaultTemplates.length === 0 ? (
+              <div className="text-xs text-center py-3" style={{ color: COLORS.text.tertiary }}>
+                No default templates yet. Create templates below and mark them as Default.
+              </div>
+            ) : (
+              defaultTemplates.map((t, idx) => (
+                <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: COLORS.background.tertiary }}>
+                  <Star size={14} color={COLORS.accent.gold} fill={COLORS.accent.gold} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-white">{t.name}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                        style={{ background: t.template_type === 'full_match' ? COLORS.primary.main + '22' : COLORS.warning.bg, color: t.template_type === 'full_match' ? COLORS.primary.main : COLORS.warning.main }}>
+                        {t.template_type === 'full_match' ? 'FULL MATCH' : 'IN-MATCH'}
+                      </span>
+                      <span className="text-[9px]" style={{ color: COLORS.text.tertiary }}>{t.question_ids?.length || 0} Qs</span>
+                      {t.phase_label && <span className="text-[9px]" style={{ color: '#818cf8' }}>{t.phase_label}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => handleToggleDefault(t.id)}
+                    className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: COLORS.error.bg, color: COLORS.error.main }}>
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+            {defaultTemplates.length < 5 && (
+              <div className="text-[10px] text-center" style={{ color: COLORS.text.tertiary }}>
+                {5 - defaultTemplates.length} slot(s) remaining. Mark templates as Default below.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-2 flex-wrap">
         <button data-testid="one-click-template" onClick={oneClickAutoTemplate}
           className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold"
           style={{ background: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b22' }}>
-          <Zap size={14} /> One-Click Auto Template
+          <Zap size={14} /> Auto Template
         </button>
         <button data-testid="add-template-btn" onClick={() => { setShowForm(!showForm); setEditingT(null); resetForm(); }}
           className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: COLORS.primary.main, color: '#fff' }}>
@@ -212,12 +295,26 @@ export default function AdminTemplatesTab() {
         </button>
       </div>
 
+      {/* Multi-Select Actions */}
+      {selectedIds.size > 0 && (
+        <div data-testid="bulk-actions-bar" className="flex items-center gap-3 p-2.5 rounded-xl"
+          style={{ background: COLORS.error.bg, border: `1px solid ${COLORS.error.main}33` }}>
+          <span className="text-xs font-bold" style={{ color: COLORS.error.main }}>{selectedIds.size} selected</span>
+          <button data-testid="bulk-delete-templates-btn" onClick={handleBulkDelete} disabled={bulkDeleting}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+            style={{ background: COLORS.error.main, color: '#fff' }}>
+            {bulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            Delete Selected
+          </button>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="px-2 py-1 rounded text-xs" style={{ color: COLORS.text.tertiary }}>Clear</button>
+        </div>
+      )}
+
       {/* Create/Edit Form */}
       {(showForm || isEditing) && (
         <div className="space-y-3 p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${isEditing ? COLORS.info.main + '44' : COLORS.border.light}` }}>
-          <div className="text-xs font-bold" style={{ color: isEditing ? COLORS.info.main : COLORS.text.secondary }}>
-            {formTitle}
-          </div>
+          <div className="text-xs font-bold" style={{ color: isEditing ? COLORS.info.main : COLORS.text.secondary }}>{formTitle}</div>
 
           <input data-testid="template-name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
             className="w-full p-2.5 rounded-lg text-sm text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
@@ -239,7 +336,7 @@ export default function AdminTemplatesTab() {
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.is_default} onChange={e => setForm({ ...form, is_default: e.target.checked })} className="accent-green-500" />
-                <span className="text-xs" style={{ color: COLORS.text.secondary }}>Default</span>
+                <span className="text-xs" style={{ color: COLORS.text.secondary }}>Default Template</span>
               </label>
             </div>
           </div>
@@ -316,9 +413,19 @@ export default function AdminTemplatesTab() {
             }).length;
 
             return (
-              <div key={t.id} className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${t.is_default ? COLORS.success.main + '44' : COLORS.border.light}` }}>
-                <div className="flex items-center gap-2 p-3 cursor-pointer" onClick={() => setExpandedT(expandedT === t.id ? null : t.id)}>
-                  <div className="flex-1 min-w-0">
+              <div key={t.id} className="rounded-xl overflow-hidden" style={{
+                background: selectedIds.has(t.id) ? `${COLORS.primary.main}11` : COLORS.background.card,
+                border: `1px solid ${t.is_default ? COLORS.accent.gold + '44' : selectedIds.has(t.id) ? COLORS.primary.main + '44' : COLORS.border.light}`
+              }}>
+                <div className="flex items-center gap-2 p-3">
+                  {/* Checkbox */}
+                  <button onClick={() => toggleSelect(t.id)} className="shrink-0">
+                    {selectedIds.has(t.id) ?
+                      <CheckSquare size={16} color={COLORS.primary.main} /> :
+                      <Square size={16} color={COLORS.text.tertiary} />
+                    }
+                  </button>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedT(expandedT === t.id ? null : t.id)}>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-white">{t.name}</span>
                       {t.is_default && <Star size={12} color={COLORS.accent.gold} fill={COLORS.accent.gold} />}
@@ -326,7 +433,7 @@ export default function AdminTemplatesTab() {
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
                         style={{ background: t.template_type === 'full_match' ? COLORS.primary.main + '22' : COLORS.warning.bg, color: t.template_type === 'full_match' ? COLORS.primary.main : COLORS.warning.main }}>
-                        {t.template_type === 'full_match' ? 'FULL' : 'IN-MATCH'}
+                        {t.template_type === 'full_match' ? 'FULL MATCH' : 'IN-MATCH'}
                       </span>
                       {t.phase_label && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#6366f115', color: '#818cf8' }}>
@@ -348,8 +455,6 @@ export default function AdminTemplatesTab() {
                 {expandedT === t.id && (
                   <div className="px-3 pb-3 border-t space-y-2" style={{ borderColor: COLORS.border.light }}>
                     {t.description && <div className="text-xs mt-2" style={{ color: COLORS.text.secondary }}>{t.description}</div>}
-
-                    {/* Show questions in template */}
                     <div className="space-y-1 mt-2">
                       {(t.question_ids || []).map((qid, qi) => {
                         const q = questions.find(qq => qq.id === qid);
@@ -363,18 +468,16 @@ export default function AdminTemplatesTab() {
                         );
                       })}
                     </div>
-
                     <div className="flex gap-2 mt-3 flex-wrap">
                       <button data-testid={`edit-template-${t.id}`} onClick={() => startEditing(t)}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: COLORS.info.bg, color: COLORS.info.main }}>
                         <Edit2 size={12} /> Edit
                       </button>
-                      {!t.is_default && (
-                        <button onClick={() => handleSetDefault(t.id)}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: COLORS.accent.gold + '22', color: COLORS.accent.gold }}>
-                          <Star size={12} /> Set Default
-                        </button>
-                      )}
+                      <button onClick={() => handleToggleDefault(t.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs"
+                        style={{ background: t.is_default ? COLORS.error.bg : COLORS.accent.gold + '22', color: t.is_default ? COLORS.error.main : COLORS.accent.gold }}>
+                        <Star size={12} /> {t.is_default ? 'Remove Default' : 'Set Default'}
+                      </button>
                       <button onClick={() => handleDelete(t.id)}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: COLORS.error.bg, color: COLORS.error.main }}>
                         <Trash2 size={12} /> Delete

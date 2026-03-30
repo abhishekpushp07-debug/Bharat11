@@ -146,10 +146,239 @@ export default function AdminResolvePage() {
     } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
+  // ==================== AI OVERRIDE STATE ====================
+  const [aiPreview, setAiPreview] = useState(null);
+  const [aiPreviewLoading, setAiPreviewLoading] = useState(false);
+  const [aiOverrides, setAiOverrides] = useState({});
+  const [aiResolving, setAiResolving] = useState(false);
+  const [aiSelectedContest, setAiSelectedContest] = useState(null);
+  const [aiContests, setAiContests] = useState([]);
+
+  const fetchAiContests = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/admin/contests?limit=100');
+      setAiContests(res.data.contests || []);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'aioverride') fetchAiContests();
+  }, [activeTab, fetchAiContests]);
+
+  const loadAiPreview = async (contestId) => {
+    setAiPreviewLoading(true);
+    setAiPreview(null);
+    setAiOverrides({});
+    try {
+      const res = await apiClient.get(`/admin/contests/${contestId}/ai-preview`);
+      setAiPreview(res.data);
+      setAiSelectedContest(contestId);
+      // Pre-fill with AI answers and resolved answers
+      const ov = {};
+      (res.data.questions || []).forEach(q => {
+        if (q.already_resolved && q.resolved_answer) ov[q.question_id] = q.resolved_answer;
+        else if (q.ai_predicted_answer) ov[q.question_id] = q.ai_predicted_answer;
+      });
+      setAiOverrides(ov);
+    } catch (e) { setActionMsg(`AI Preview Error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setAiPreviewLoading(false); }
+  };
+
+  const submitAiResolve = async (autoFinalize = false) => {
+    const answers = Object.entries(aiOverrides)
+      .filter(([qid]) => {
+        const q = aiPreview?.questions?.find(q => q.question_id === qid);
+        return !q?.already_resolved;
+      })
+      .map(([qid, opt]) => ({ question_id: qid, correct_option: opt }));
+
+    if (answers.length === 0) { setActionMsg('No new answers to submit.'); return; }
+    setAiResolving(true);
+    try {
+      const res = await apiClient.post(`/admin/contests/${aiSelectedContest}/resolve-override`, { answers, auto_finalize: autoFinalize });
+      let msg = `Resolved: ${res.data.resolved} | Skipped: ${res.data.skipped}`;
+      if (res.data.finalized) msg += ' | FINALIZED!';
+      setActionMsg(msg);
+      await loadAiPreview(aiSelectedContest);
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setAiResolving(false); }
+  };
+
   const resolvedCount = Object.keys(resolvedMap).length;
   const totalQuestions = questions.length;
   const allResolved = totalQuestions > 0 && resolvedCount >= totalQuestions;
   const progressPct = totalQuestions > 0 ? Math.round((resolvedCount / totalQuestions) * 100) : 0;
+
+  // ==================== TAB HEADER (moved up to avoid hoisting issue) ====================
+  const TabHeader = () => (
+    <div className="flex gap-1 p-1 rounded-xl mb-3" style={{ background: COLORS.background.tertiary }}>
+      {[
+        { key: 'settlement', label: 'Auto-Settle', icon: Zap },
+        { key: 'aioverride', label: 'AI Override', icon: Target },
+        { key: 'contests', label: 'Manual', icon: Eye },
+      ].map(tab => (
+        <button key={tab.key} data-testid={`tab-${tab.key}`}
+          onClick={() => { setActiveTab(tab.key); setSettlementResult(null); setActionMsg(''); }}
+          className="flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+          style={{
+            background: activeTab === tab.key ? COLORS.accent.gold : 'transparent',
+            color: activeTab === tab.key ? '#000' : COLORS.text.tertiary
+          }}>
+          <tab.icon size={14} />{tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ==================== AI OVERRIDE VIEW ====================
+  if (activeTab === 'aioverride' && aiSelectedContest && aiPreview) {
+    const aiResolvedCount = aiPreview.questions?.filter(q => q.already_resolved).length || 0;
+    const aiTotalQ = aiPreview.total_questions || 0;
+    const aiAnsweredCount = aiPreview.ai_answered_count || 0;
+    const aiAllResolved = aiResolvedCount >= aiTotalQ;
+
+    return (
+      <div data-testid="ai-override-detail" className="space-y-3">
+        <TabHeader />
+        <button onClick={() => { setAiSelectedContest(null); setAiPreview(null); }}
+          className="text-xs flex items-center gap-1" style={{ color: COLORS.text.secondary }}>
+          <ArrowLeft size={14} /> Back
+        </button>
+
+        <div className="p-3 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.primary.main}33` }}>
+          <div className="flex items-center gap-2">
+            <Target size={18} color={COLORS.primary.main} />
+            <div>
+              <div className="text-sm font-bold text-white">{aiPreview.contest_name}</div>
+              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
+                {aiPreview.match_label} | {aiPreview.match_status?.toUpperCase()} | {aiPreview.template_type === 'full_match' ? 'Full Match' : 'In-Match'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="text-center p-2 rounded-lg" style={{ background: COLORS.background.card }}>
+            <div className="text-sm font-bold" style={{ color: COLORS.info.main }}>{aiTotalQ}</div>
+            <div className="text-[9px]" style={{ color: COLORS.text.tertiary }}>Total Qs</div>
+          </div>
+          <div className="text-center p-2 rounded-lg" style={{ background: COLORS.background.card }}>
+            <div className="text-sm font-bold" style={{ color: COLORS.success.main }}>{aiResolvedCount}</div>
+            <div className="text-[9px]" style={{ color: COLORS.text.tertiary }}>Resolved</div>
+          </div>
+          <div className="text-center p-2 rounded-lg" style={{ background: COLORS.background.card }}>
+            <div className="text-sm font-bold" style={{ color: '#f59e0b' }}>{aiAnsweredCount}</div>
+            <div className="text-[9px]" style={{ color: COLORS.text.tertiary }}>AI Answers</div>
+          </div>
+        </div>
+
+        {/* Scorecard Status */}
+        <div className="p-2.5 rounded-lg text-xs" style={{
+          background: aiPreview.scorecard_available ? '#10b98115' : '#f59e0b15',
+          color: aiPreview.scorecard_available ? '#10b981' : '#f59e0b'
+        }}>
+          {aiPreview.scorecard_available ? (
+            <span>Scorecard OK | Runs: {aiPreview.key_metrics?.innings_1_runs || 'N/A'} / {aiPreview.key_metrics?.innings_2_runs || 'N/A'} | 6s: {aiPreview.key_metrics?.total_sixes || 'N/A'} | 4s: {aiPreview.key_metrics?.total_fours || 'N/A'}</span>
+          ) : (
+            <span>{aiPreview.scorecard_error || 'Scorecard unavailable'}</span>
+          )}
+        </div>
+
+        {actionMsg && <div className="text-xs text-center py-2 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>}
+
+        {/* Questions with AI Answers */}
+        <div className="space-y-2">
+          {(aiPreview.questions || []).map((q, i) => {
+            const isResolved = q.already_resolved;
+            const currentOverride = aiOverrides[q.question_id];
+            const aiAnswer = q.ai_predicted_answer;
+            const isEdited = currentOverride && currentOverride !== aiAnswer;
+
+            return (
+              <div key={q.question_id} data-testid={`ai-q-${i}`} className="rounded-xl p-3" style={{
+                background: COLORS.background.card,
+                border: `1px solid ${isResolved ? '#10b98144' : COLORS.border.light}`,
+                opacity: isResolved ? 0.65 : 1
+              }}>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-white">Q{i + 1}: {q.question_text_hi || q.question_text_en}</div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: COLORS.primary.bg, color: COLORS.primary.main }}>{q.category}</span>
+                      <span className="text-[9px] font-bold" style={{ color: COLORS.accent.gold }}>{q.points}pts</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{
+                        background: q.ai_confidence === 'high' ? '#10b98115' : q.ai_confidence === 'low' ? '#f59e0b15' : '#ef444415',
+                        color: q.ai_confidence === 'high' ? '#10b981' : q.ai_confidence === 'low' ? '#f59e0b' : '#ef4444'
+                      }}>AI: {q.ai_confidence?.toUpperCase()}</span>
+                    </div>
+                    {q.ai_reason && <div className="text-[9px] mt-1" style={{ color: COLORS.text.tertiary }}>{q.ai_reason}</div>}
+                  </div>
+                  {isResolved && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: '#10b98120', color: '#10b981' }}>DONE: {q.resolved_answer}</span>}
+                  {isEdited && !isResolved && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: '#f59e0b20', color: '#f59e0b' }}>EDITED</span>}
+                </div>
+
+                <div className="flex gap-1.5 flex-wrap">
+                  {(q.options || []).map(opt => {
+                    const optKey = opt.key;
+                    const isAiPick = aiAnswer === optKey;
+                    const isSelected = currentOverride === optKey;
+                    const isResolvedAns = isResolved && q.resolved_answer === optKey;
+
+                    let bg = COLORS.background.tertiary;
+                    let border = COLORS.border.light;
+                    if (isResolvedAns) { bg = '#10b981'; border = '#10b981'; }
+                    else if (isSelected && isAiPick) { bg = '#2196f333'; border = '#2196f3'; }
+                    else if (isSelected && !isAiPick) { bg = '#f59e0b33'; border = '#f59e0b'; }
+                    else if (isAiPick) { bg = '#2196f315'; border = '#2196f344'; }
+
+                    return (
+                      <button key={optKey} data-testid={`ai-resolve-${q.question_id}-${optKey}`}
+                        onClick={() => !isResolved && setAiOverrides(p => ({ ...p, [q.question_id]: optKey }))}
+                        disabled={isResolved}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:cursor-not-allowed transition-all relative"
+                        style={{ background: bg, color: '#fff', border: `1px solid ${border}` }}>
+                        {optKey}: {(opt.text_hi || opt.text_en || '').slice(0, 18)}
+                        {isAiPick && !isResolved && (
+                          <span className="absolute -top-1.5 -right-1.5 text-[7px] px-1 rounded-full font-bold" style={{ background: '#2196f3', color: '#fff' }}>AI</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Submit */}
+        <div className="space-y-2 pt-2">
+          <button onClick={() => submitAiResolve(false)} data-testid="ai-submit-btn"
+            disabled={aiResolving || aiAllResolved}
+            className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+            style={{ background: COLORS.primary.main, color: '#fff' }}>
+            {aiResolving ? <><RefreshCw size={14} className="animate-spin" /> Resolving...</> : `Submit ${Object.keys(aiOverrides).filter(k => !aiPreview?.questions?.find(q => q.question_id === k)?.already_resolved).length} Answers`}
+          </button>
+          <button onClick={() => submitAiResolve(true)} data-testid="ai-resolve-finalize-btn"
+            disabled={aiResolving}
+            className="w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+            style={{ background: COLORS.background.card, color: COLORS.info.main, border: `1px solid ${COLORS.info.main}33` }}>
+            <Zap size={12} /> Resolve + Auto-Finalize
+          </button>
+          {aiAllResolved && (
+            <button onClick={async () => {
+              try {
+                const res = await apiClient.post(`/contests/${aiSelectedContest}/finalize`);
+                setActionMsg(`FINALIZED! Prizes: ${res.data.prizes_distributed} coins`);
+              } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+            }} data-testid="ai-finalize-btn"
+            className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: COLORS.accent.gold, color: '#000' }}>
+              <Award size={14} className="inline mr-1" /> Finalize & Distribute Prizes
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ==================== SCORECARD VIEW ====================
   if (showScorecard && scorecardData) {
@@ -249,26 +478,6 @@ export default function AdminResolvePage() {
       </div>
     );
   }
-
-  // ==================== TAB HEADER ====================
-  const TabHeader = () => (
-    <div className="flex gap-1 p-1 rounded-xl mb-3" style={{ background: COLORS.background.tertiary }}>
-      {[
-        { key: 'settlement', label: 'Auto-Settle', icon: Zap },
-        { key: 'contests', label: 'Manual', icon: Target },
-      ].map(tab => (
-        <button key={tab.key} data-testid={`tab-${tab.key}`}
-          onClick={() => { setActiveTab(tab.key); setSettlementResult(null); setActionMsg(''); }}
-          className="flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-          style={{
-            background: activeTab === tab.key ? COLORS.accent.gold : 'transparent',
-            color: activeTab === tab.key ? '#000' : COLORS.text.tertiary
-          }}>
-          <tab.icon size={14} />{tab.label}
-        </button>
-      ))}
-    </div>
-  );
 
   // ==================== SETTLEMENT TAB ====================
   if (activeTab === 'settlement') {
@@ -447,6 +656,70 @@ export default function AdminResolvePage() {
               );
             })}
           </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==================== AI OVERRIDE TAB (Contest List) ====================
+  if (activeTab === 'aioverride' && !aiSelectedContest) {
+    return (
+      <div data-testid="ai-override-page" className="space-y-3">
+        <TabHeader />
+
+        <div className="p-3 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <Target size={16} color={COLORS.primary.main} />
+            <span className="text-sm font-bold text-white">AI Override</span>
+          </div>
+          <div className="text-[10px]" style={{ color: COLORS.text.secondary }}>
+            Contest par click karo — AI ka answer dikhega scorecard se. Galat ho toh EDIT karo, phir submit karo.
+          </div>
+        </div>
+
+        {actionMsg && <div className="text-xs text-center py-2 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>}
+
+        {aiPreviewLoading && (
+          <div className="flex justify-center py-4">
+            <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} />
+          </div>
+        )}
+
+        {aiContests.filter(c => c.status !== 'completed').map(c => {
+          const tType = c.template_type || 'full_match';
+          return (
+            <div key={c.id} className="rounded-xl p-3.5 flex items-center justify-between"
+              style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+              <div>
+                <div className="text-sm font-semibold text-white">{c.name}</div>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{c.current_participants || 0} players | {c.status}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{
+                    background: tType === 'full_match' ? COLORS.primary.main + '22' : '#f59e0b22',
+                    color: tType === 'full_match' ? COLORS.primary.main : '#f59e0b'
+                  }}>{tType === 'full_match' ? 'FULL' : 'IN-MATCH'}</span>
+                  {c.match_label && <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{c.match_label}</span>}
+                </div>
+              </div>
+              <button data-testid={`ai-resolve-${c.id}`} onClick={() => loadAiPreview(c.id)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
+                style={{ background: '#2196f320', color: '#2196f3' }}>
+                <Target size={12} /> Review AI
+              </button>
+            </div>
+          );
+        })}
+
+        {aiContests.filter(c => c.status === 'completed').length > 0 && (
+          <>
+            <div className="text-xs font-medium pt-2" style={{ color: COLORS.text.tertiary }}>Completed</div>
+            {aiContests.filter(c => c.status === 'completed').map(c => (
+              <div key={c.id} className="rounded-xl p-3.5 flex items-center justify-between opacity-50" style={{ background: COLORS.background.card }}>
+                <div className="text-sm text-white">{c.name}</div>
+                <CheckCircle size={14} color={COLORS.success.main} />
+              </div>
+            ))}
+          </>
         )}
       </div>
     );
