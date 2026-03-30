@@ -157,12 +157,14 @@ class CricbuzzScraper:
 # ==================== CRICKETDATA.ORG API ====================
 
 class CricketDataAPI:
-    """CricketData.org REST API. 100 calls/day free tier."""
+    """CricketData.org REST API. Premium tier (500 calls/day)."""
 
     BASE_URL = "https://api.cricapi.com/v1"
 
     def __init__(self):
         self.api_key = None
+        self._hits_today = 0
+        self._hits_limit = 500
 
     def _get_key(self):
         if self.api_key is None:
@@ -178,9 +180,13 @@ class CricketDataAPI:
             return None
         try:
             p = {"apikey": key, **(params or {})}
-            r = requests.get(f"{self.BASE_URL}/{endpoint}", params=p, timeout=10)
+            r = requests.get(f"{self.BASE_URL}/{endpoint}", params=p, timeout=15)
             r.raise_for_status()
             data = r.json()
+            # Track API usage
+            info = data.get("info", {})
+            self._hits_today = info.get("hitsToday", self._hits_today)
+            self._hits_limit = info.get("hitsLimit", self._hits_limit)
             if data.get("status") != "success":
                 logger.error(f"CricketData API error: {data}")
                 return None
@@ -211,13 +217,12 @@ class CricketDataAPI:
             match_ended = m.get("matchEnded", False)
 
             if match_ended:
-                status = "completed"
+                match_status = "completed"
             elif match_started:
-                status = "live"
+                match_status = "live"
             else:
-                status = "upcoming"
+                match_status = "upcoming"
 
-            # Parse scores
             scores = []
             for s in m.get("score", []):
                 scores.append({
@@ -235,7 +240,7 @@ class CricketDataAPI:
                 'source_id': m.get("id", ""),
                 'team_a': {'name': t1_name, 'short_name': t1_short},
                 'team_b': {'name': t2_name, 'short_name': t2_short},
-                'status': status,
+                'status': match_status,
                 'status_text': status_text,
                 'is_ipl': is_ipl,
                 'scores': scores,
@@ -247,12 +252,30 @@ class CricketDataAPI:
         logger.info(f"CricketData: fetched {len(matches)} matches (API call used)")
         return matches
 
+    def fetch_scorecard(self, cricapi_match_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch detailed scorecard for a match. PREMIUM API.
+        Returns full batting/bowling/catching/extras per innings.
+        """
+        data = self._call("match_scorecard", {"id": cricapi_match_id})
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_squad(self, cricapi_match_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch squad/player list for a match. PREMIUM API."""
+        data = self._call("match_squad", {"id": cricapi_match_id})
+        if not data:
+            return None
+        return data.get("data")
+
     def get_api_info(self) -> dict:
-        """Get API usage info."""
-        data = self._call("currentMatches")
-        if data:
-            return data.get("info", {})
-        return {}
+        """Get API usage info without wasting a call."""
+        return {
+            "hits_today": self._hits_today,
+            "hits_limit": self._hits_limit,
+            "remaining": self._hits_limit - self._hits_today,
+        }
 
 
 # ==================== UNIFIED SERVICE ====================
@@ -336,6 +359,30 @@ class UnifiedCricketService:
             self._set_cache(cache_key, score)
         return score
 
+    async def get_scorecard(self, cricapi_match_id: str) -> Optional[Dict]:
+        """Get detailed scorecard from CricketData.org Premium API."""
+        cache_key = f"scorecard_{cricapi_match_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_scorecard, cricapi_match_id)
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def get_squad(self, cricapi_match_id: str) -> Optional[Dict]:
+        """Get squad data from CricketData.org Premium API."""
+        cache_key = f"squad_{cricapi_match_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_squad, cricapi_match_id)
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
     @property
     def is_connected(self) -> bool:
         return self._last_source != "none"
@@ -345,11 +392,15 @@ class UnifiedCricketService:
         return self._last_source
 
     def get_status(self) -> dict:
+        api_info = self.cricketdata.get_api_info()
         return {
             "connected": self.is_connected,
             "last_source": self._last_source,
             "cache_size": len(self._cache),
             "cricketdata_key_set": bool(self.cricketdata._get_key()),
+            "api_hits_today": api_info.get("hits_today", 0),
+            "api_hits_limit": api_info.get("hits_limit", 500),
+            "api_hits_remaining": api_info.get("remaining", 0),
         }
 
 

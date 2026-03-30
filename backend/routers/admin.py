@@ -29,6 +29,17 @@ class QuestionOptionCreate(BaseModel):
     key: str = Field(..., pattern="^[A-D]$")
     text_en: str
     text_hi: str = ""
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+
+
+class AutoResolutionConfig(BaseModel):
+    """Config for auto-settlement using live scorecard data."""
+    metric: str = ""  # e.g., "innings_1_total_runs", "match_total_sixes", "match_winner"
+    trigger: str = "match_end"  # "innings_1_end", "innings_2_end", "match_end", "toss"
+    resolution_type: str = "range"  # "range", "text_match", "boolean"
+    threshold: Optional[float] = None  # For boolean type
+    comparator: Optional[str] = None  # ">=", ">", "<=", "<", "=="
 
 
 class EvaluationRulesCreate(BaseModel):
@@ -47,6 +58,7 @@ class QuestionCreate(BaseModel):
     options: list[QuestionOptionCreate] = Field(..., min_length=2, max_length=4)
     points: int = Field(default=10, ge=1, le=200)
     evaluation_rules: Optional[EvaluationRulesCreate] = None
+    auto_resolution: Optional[AutoResolutionConfig] = None
     is_active: bool = True
 
 
@@ -58,6 +70,7 @@ class QuestionUpdate(BaseModel):
     options: Optional[list[QuestionOptionCreate]] = None
     points: Optional[int] = None
     evaluation_rules: Optional[EvaluationRulesCreate] = None
+    auto_resolution: Optional[AutoResolutionConfig] = None
     is_active: Optional[bool] = None
 
 
@@ -161,6 +174,7 @@ async def create_question(
             "type": "exact_match", "source_field": "", "condition": "",
             "threshold": 0, "bonus_multiplier": 1.0
         },
+        "auto_resolution": data.auto_resolution.model_dump() if data.auto_resolution else None,
         "correct_option": None,
         "is_active": data.is_active,
         "created_at": now,
@@ -192,6 +206,8 @@ async def update_question(
             update_fields["options"] = [o.model_dump() if hasattr(o, 'model_dump') else o for o in value]
         elif key == "evaluation_rules":
             update_fields["evaluation_rules"] = value.model_dump() if hasattr(value, 'model_dump') else value
+        elif key == "auto_resolution":
+            update_fields["auto_resolution"] = value.model_dump() if hasattr(value, 'model_dump') else value
         elif key == "category":
             update_fields["category"] = value.value if hasattr(value, 'value') else value
         elif key == "difficulty":
@@ -247,6 +263,7 @@ async def bulk_import_questions(
                 "type": "exact_match", "source_field": "", "condition": "",
                 "threshold": 0, "bonus_multiplier": 1.0
             },
+            "auto_resolution": q.auto_resolution.model_dump() if q.auto_resolution else None,
             "correct_option": None,
             "is_active": q.is_active,
             "created_at": now,
@@ -655,4 +672,369 @@ async def get_admin_stats(
         "upcoming_matches": upcoming_matches,
         "open_contests": open_contests,
         "active_entries": active_entries
+    }
+
+
+
+# ==================== AUTO-SETTLEMENT ENGINE ====================
+
+@router.post(
+    "/settlement/{match_id}/run",
+    summary="Run auto-settlement for a match",
+    description="Fetch scorecard, evaluate questions, auto-resolve & auto-finalize"
+)
+async def run_auto_settlement(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.settlement_engine import run_settlement_for_match
+    result = await run_settlement_for_match(match_id, db)
+    return result
+
+
+@router.get(
+    "/settlement/{match_id}/metrics",
+    summary="Get parsed scorecard metrics for a match",
+    description="Fetches scorecard from CricketData.org and returns parsed metrics"
+)
+async def get_match_metrics(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.settlement_engine import fetch_match_metrics
+    return await fetch_match_metrics(match_id, db)
+
+
+@router.get(
+    "/settlement/{match_id}/scorecard",
+    summary="Get raw scorecard data from CricketData.org",
+    description="Returns full scorecard with batting/bowling/catching details"
+)
+async def get_match_scorecard(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.cricket_data import cricket_service
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    # Try cricketdata_id first, then external_match_id
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        raise HTTPException(status_code=400, detail="No CricketData ID linked. Sync or link match first.")
+
+    data = await cricket_service.get_scorecard(cd_id)
+    if not data:
+        raise HTTPException(status_code=502, detail="Could not fetch scorecard from API")
+
+    return {
+        "match_id": match_id,
+        "cricketdata_id": cd_id,
+        "scorecard": data
+    }
+
+
+class LinkCricketDataID(BaseModel):
+    cricketdata_id: str
+
+
+@router.post(
+    "/settlement/{match_id}/link",
+    summary="Manually link a CricketData.org match ID"
+)
+async def link_cricketdata_id(
+    match_id: str,
+    data: LinkCricketDataID,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    match = await db.matches.find_one({"id": match_id})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {"cricketdata_id": data.cricketdata_id, "updated_at": utc_now().isoformat()}}
+    )
+    return {"match_id": match_id, "cricketdata_id": data.cricketdata_id, "linked": True}
+
+
+@router.get(
+    "/settlement/status",
+    summary="Get settlement status for all active matches"
+)
+async def get_settlement_status(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    # Get matches with active contests
+    active_matches = await db.matches.find(
+        {"status": {"$in": ["live", "completed"]}},
+        {"_id": 0, "id": 1, "team_a": 1, "team_b": 1, "status": 1, "external_match_id": 1}
+    ).sort("updated_at", -1).to_list(length=20)
+
+    result = []
+    for match in active_matches:
+        mid = match["id"]
+        # Count contests and resolved questions
+        contests = await db.contests.find(
+            {"match_id": mid},
+            {"_id": 0, "id": 1, "status": 1, "template_id": 1}
+        ).to_list(length=10)
+
+        total_q = 0
+        resolved_q = 0
+        for c in contests:
+            tmpl = await db.templates.find_one({"id": c.get("template_id")}, {"_id": 0, "question_ids": 1})
+            if tmpl:
+                qids = tmpl.get("question_ids", [])
+                total_q += len(qids)
+                rcount = await db.question_results.count_documents({
+                    "match_id": mid, "question_id": {"$in": qids}
+                })
+                resolved_q += rcount
+
+        result.append({
+            "match_id": mid,
+            "team_a": match.get("team_a", {}),
+            "team_b": match.get("team_b", {}),
+            "match_status": match.get("status"),
+            "has_external_id": bool(match.get("external_match_id")),
+            "contests_count": len(contests),
+            "total_questions": total_q,
+            "resolved_questions": resolved_q,
+            "settlement_progress": f"{resolved_q}/{total_q}" if total_q > 0 else "N/A"
+        })
+
+    return {"matches": result}
+
+
+@router.post(
+    "/questions/bulk-import-with-auto",
+    status_code=201,
+    summary="Bulk import questions with auto-resolution rules (for auto-settlement)"
+)
+async def bulk_import_auto_questions(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Seed a standard set of auto-resolvable questions for IPL T20 matches.
+    These questions have auto_resolution rules that the settlement engine evaluates.
+    """
+    now = utc_now().isoformat()
+    questions = [
+        {
+            "question_text_en": "What will be the 1st innings total score?",
+            "question_text_hi": "Pehli innings ka total score kitna hoga?",
+            "category": "match",
+            "difficulty": "medium",
+            "points": 50,
+            "auto_resolution": {"metric": "innings_1_total_runs", "trigger": "innings_1_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-140 runs", "text_hi": "0-140 runs", "min_value": 0, "max_value": 140},
+                {"key": "B", "text_en": "141-170 runs", "text_hi": "141-170 runs", "min_value": 141, "max_value": 170},
+                {"key": "C", "text_en": "171-200 runs", "text_hi": "171-200 runs", "min_value": 171, "max_value": 200},
+                {"key": "D", "text_en": "200+ runs", "text_hi": "200+ runs", "min_value": 201, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "What will be the 2nd innings total score?",
+            "question_text_hi": "Doosri innings ka total score kitna hoga?",
+            "category": "match",
+            "difficulty": "medium",
+            "points": 50,
+            "auto_resolution": {"metric": "innings_2_total_runs", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-140 runs", "text_hi": "0-140 runs", "min_value": 0, "max_value": 140},
+                {"key": "B", "text_en": "141-170 runs", "text_hi": "141-170 runs", "min_value": 141, "max_value": 170},
+                {"key": "C", "text_en": "171-200 runs", "text_hi": "171-200 runs", "min_value": 171, "max_value": 200},
+                {"key": "D", "text_en": "200+ runs", "text_hi": "200+ runs", "min_value": 201, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "Total sixes in the match?",
+            "question_text_hi": "Match mein total kitne sixes lagenge?",
+            "category": "batting",
+            "difficulty": "medium",
+            "points": 40,
+            "auto_resolution": {"metric": "match_total_sixes", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-8 sixes", "text_hi": "0-8 sixes", "min_value": 0, "max_value": 8},
+                {"key": "B", "text_en": "9-14 sixes", "text_hi": "9-14 sixes", "min_value": 9, "max_value": 14},
+                {"key": "C", "text_en": "15-20 sixes", "text_hi": "15-20 sixes", "min_value": 15, "max_value": 20},
+                {"key": "D", "text_en": "21+ sixes", "text_hi": "21+ sixes", "min_value": 21, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "Total fours in the match?",
+            "question_text_hi": "Match mein total kitne fours lagenge?",
+            "category": "batting",
+            "difficulty": "medium",
+            "points": 40,
+            "auto_resolution": {"metric": "match_total_fours", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-16 fours", "text_hi": "0-16 fours", "min_value": 0, "max_value": 16},
+                {"key": "B", "text_en": "17-24 fours", "text_hi": "17-24 fours", "min_value": 17, "max_value": 24},
+                {"key": "C", "text_en": "25-32 fours", "text_hi": "25-32 fours", "min_value": 25, "max_value": 32},
+                {"key": "D", "text_en": "33+ fours", "text_hi": "33+ fours", "min_value": 33, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "1st innings wickets fallen?",
+            "question_text_hi": "Pehli innings mein kitne wicket girenge?",
+            "category": "bowling",
+            "difficulty": "easy",
+            "points": 30,
+            "auto_resolution": {"metric": "innings_1_total_wickets", "trigger": "innings_1_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-4 wickets", "text_hi": "0-4 wickets", "min_value": 0, "max_value": 4},
+                {"key": "B", "text_en": "5-6 wickets", "text_hi": "5-6 wickets", "min_value": 5, "max_value": 6},
+                {"key": "C", "text_en": "7-8 wickets", "text_hi": "7-8 wickets", "min_value": 7, "max_value": 8},
+                {"key": "D", "text_en": "9-10 wickets", "text_hi": "9-10 wickets", "min_value": 9, "max_value": 10},
+            ]
+        },
+        {
+            "question_text_en": "Total match runs (both innings combined)?",
+            "question_text_hi": "Dono innings ka total milake kitne runs honge?",
+            "category": "match",
+            "difficulty": "hard",
+            "points": 60,
+            "auto_resolution": {"metric": "match_total_runs", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-300 runs", "text_hi": "0-300 runs", "min_value": 0, "max_value": 300},
+                {"key": "B", "text_en": "301-340 runs", "text_hi": "301-340 runs", "min_value": 301, "max_value": 340},
+                {"key": "C", "text_en": "341-380 runs", "text_hi": "341-380 runs", "min_value": 341, "max_value": 380},
+                {"key": "D", "text_en": "381+ runs", "text_hi": "381+ runs", "min_value": 381, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "1st innings total sixes?",
+            "question_text_hi": "Pehli innings mein kitne sixes?",
+            "category": "batting",
+            "difficulty": "easy",
+            "points": 30,
+            "auto_resolution": {"metric": "innings_1_total_sixes", "trigger": "innings_1_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-4 sixes", "text_hi": "0-4 sixes", "min_value": 0, "max_value": 4},
+                {"key": "B", "text_en": "5-8 sixes", "text_hi": "5-8 sixes", "min_value": 5, "max_value": 8},
+                {"key": "C", "text_en": "9-12 sixes", "text_hi": "9-12 sixes", "min_value": 9, "max_value": 12},
+                {"key": "D", "text_en": "13+ sixes", "text_hi": "13+ sixes", "min_value": 13, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "Total extras in the match?",
+            "question_text_hi": "Match mein total kitne extras honge?",
+            "category": "special",
+            "difficulty": "hard",
+            "points": 40,
+            "auto_resolution": {"metric": "match_total_extras", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-10 extras", "text_hi": "0-10 extras", "min_value": 0, "max_value": 10},
+                {"key": "B", "text_en": "11-18 extras", "text_hi": "11-18 extras", "min_value": 11, "max_value": 18},
+                {"key": "C", "text_en": "19-25 extras", "text_hi": "19-25 extras", "min_value": 19, "max_value": 25},
+                {"key": "D", "text_en": "26+ extras", "text_hi": "26+ extras", "min_value": 26, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "Highest individual score in the match?",
+            "question_text_hi": "Match mein sabse zyada individual score kitna hoga?",
+            "category": "player_performance",
+            "difficulty": "hard",
+            "points": 50,
+            "auto_resolution": {"metric": "highest_run_scorer_runs", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-35 runs", "text_hi": "0-35 runs", "min_value": 0, "max_value": 35},
+                {"key": "B", "text_en": "36-60 runs", "text_hi": "36-60 runs", "min_value": 36, "max_value": 60},
+                {"key": "C", "text_en": "61-85 runs", "text_hi": "61-85 runs", "min_value": 61, "max_value": 85},
+                {"key": "D", "text_en": "86+ runs", "text_hi": "86+ runs", "min_value": 86, "max_value": 999},
+            ]
+        },
+        {
+            "question_text_en": "Best bowler wickets in match?",
+            "question_text_hi": "Match ke best bowler ke kitne wickets honge?",
+            "category": "bowling",
+            "difficulty": "medium",
+            "points": 40,
+            "auto_resolution": {"metric": "best_bowler_wickets", "trigger": "match_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "0-1 wickets", "text_hi": "0-1 wickets", "min_value": 0, "max_value": 1},
+                {"key": "B", "text_en": "2-3 wickets", "text_hi": "2-3 wickets", "min_value": 2, "max_value": 3},
+                {"key": "C", "text_en": "4-5 wickets", "text_hi": "4-5 wickets", "min_value": 4, "max_value": 5},
+                {"key": "D", "text_en": "6+ wickets", "text_hi": "6+ wickets", "min_value": 6, "max_value": 10},
+            ]
+        },
+        {
+            "question_text_en": "1st innings run rate?",
+            "question_text_hi": "Pehli innings ka run rate kitna hoga?",
+            "category": "match",
+            "difficulty": "medium",
+            "points": 35,
+            "auto_resolution": {"metric": "innings_1_run_rate", "trigger": "innings_1_end", "resolution_type": "range"},
+            "options": [
+                {"key": "A", "text_en": "Below 7.0", "text_hi": "7.0 se kam", "min_value": 0, "max_value": 6.99},
+                {"key": "B", "text_en": "7.0 - 8.5", "text_hi": "7.0 - 8.5", "min_value": 7.0, "max_value": 8.5},
+                {"key": "C", "text_en": "8.6 - 10.0", "text_hi": "8.6 - 10.0", "min_value": 8.6, "max_value": 10.0},
+                {"key": "D", "text_en": "Above 10.0", "text_hi": "10.0 se zyada", "min_value": 10.01, "max_value": 99},
+            ]
+        },
+    ]
+
+    docs = []
+    for q in questions:
+        doc = {
+            "id": generate_id(),
+            "question_text_en": q["question_text_en"],
+            "question_text_hi": q["question_text_hi"],
+            "category": q["category"],
+            "difficulty": q["difficulty"],
+            "options": q["options"],
+            "points": q["points"],
+            "evaluation_rules": {"type": "exact_match", "source_field": "", "condition": "", "threshold": 0, "bonus_multiplier": 1.0},
+            "auto_resolution": q["auto_resolution"],
+            "correct_option": None,
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now
+        }
+        docs.append(doc)
+
+    if docs:
+        await db.questions.insert_many(docs)
+
+    # Auto-create default template with these questions
+    q_ids = [d["id"] for d in docs]
+    total_pts = sum(d["points"] for d in docs)
+    template = {
+        "id": generate_id(),
+        "name": "Auto-Settlement T20 Template",
+        "description": "11 questions with auto-resolution rules for T20 matches",
+        "match_type": "T20",
+        "template_type": "full_match",
+        "question_ids": q_ids,
+        "total_points": total_pts,
+        "question_count": len(q_ids),
+        "is_active": True,
+        "is_default": True,
+        "created_at": now,
+        "updated_at": now
+    }
+    # Unset previous defaults
+    await db.templates.update_many(
+        {"template_type": "full_match", "is_default": True},
+        {"$set": {"is_default": False}}
+    )
+    await db.templates.insert_one(template)
+
+    return {
+        "imported": len(docs),
+        "template_id": template["id"],
+        "template_name": template["name"],
+        "total_points": total_pts,
+        "message": f"{len(docs)} auto-resolvable questions + 1 default template created!"
     }
