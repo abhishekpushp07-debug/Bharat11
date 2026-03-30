@@ -90,7 +90,7 @@ const PlayerApp = () => {
       case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} />;
       case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
       case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
-      case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} onBack={handleBackFromLeaderboard} />;
+      case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
       case 'wallet': return <WalletPage />;
       case 'profile': return <ProfilePage />;
       default: return <HomePage onMatchClick={handleMatchClick} />;

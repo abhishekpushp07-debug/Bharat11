@@ -204,12 +204,15 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
       </button>
 
       {/* Header */}
-      <div className="text-center">
-        <Trophy size={32} color={COLORS.accent.gold} className="mx-auto mb-2" />
-        <h1 className="text-lg font-bold text-white">{data?.contest_name || 'Leaderboard'}</h1>
-        <div className="flex items-center justify-center gap-4 mt-2">
-          <span className="text-xs" style={{ color: COLORS.text.secondary }}>{data?.total_participants || 0} Players</span>
-          <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(data?.prize_pool || 0).toLocaleString()}</span>
+      <div className="text-center relative">
+        <div className="absolute inset-0 -top-4 opacity-10" style={{ background: 'radial-gradient(circle at 50% 30%, #FFD700, transparent 60%)' }} />
+        <div className="relative">
+          <Trophy size={36} color={COLORS.accent.gold} className="mx-auto mb-2 animate-float" />
+          <h1 className="text-lg font-black text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{data?.contest_name || 'Leaderboard'}</h1>
+          <div className="flex items-center justify-center gap-4 mt-2">
+            <span className="text-xs" style={{ color: COLORS.text.secondary }}>{data?.total_participants || 0} Players</span>
+            <span className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>Pool: {(data?.prize_pool || 0).toLocaleString()}</span>
+          </div>
         </div>
       </div>
 

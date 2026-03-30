@@ -739,16 +739,20 @@ async def get_match_bbb(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db
 
 @router.get(
     "/{match_id}/ai-commentary",
-    summary="AI-powered cricket commentary from scorecard"
+    summary="AI-powered structured cricket commentary from scorecard"
 )
-async def get_ai_commentary(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Generates exciting AI commentary from scorecard data. Cached per match."""
+async def get_ai_commentary(match_id: str, force: bool = False, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Generates structured AI commentary. Returns match_pulse, key_moments, star_performers, turning_point, verdict."""
     from services.ai_commentary import generate_ai_commentary
 
-    # Check cache first
-    cached = await db.commentary_cache.find_one({"match_id": match_id}, {"_id": 0})
-    if cached and cached.get("items"):
-        return {"match_id": match_id, "commentary": cached["items"], "cached": True}
+    # Check cache first (unless force refresh)
+    if not force:
+        cached = await db.commentary_cache.find_one({"match_id": match_id}, {"_id": 0})
+        if cached and cached.get("data"):
+            return {"match_id": match_id, "cached": True, **cached["data"]}
+        # Backwards compat: old cache format
+        if cached and cached.get("items"):
+            return {"match_id": match_id, "commentary": cached["items"], "cached": True}
 
     # Get scorecard
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -770,18 +774,22 @@ async def get_ai_commentary(match_id: str, db: AsyncIOMotorDatabase = Depends(ge
         from services.cricket_data import cricket_service
         match_info = await cricket_service.get_match_info(cd_id)
 
-    # Generate AI commentary
-    items = await generate_ai_commentary(scorecard, match_info)
+    # Generate structured AI commentary
+    result = await generate_ai_commentary(scorecard, match_info)
 
-    # Cache it
-    if items:
+    # Cache structured result
+    if result:
         await db.commentary_cache.update_one(
             {"match_id": match_id},
-            {"$set": {"match_id": match_id, "items": items, "generated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {
+                "match_id": match_id,
+                "data": result,
+                "generated_at": datetime.now(timezone.utc).isoformat()
+            }},
             upsert=True
         )
 
-    return {"match_id": match_id, "commentary": items, "cached": False}
+    return {"match_id": match_id, "cached": False, **result}
 
 
 

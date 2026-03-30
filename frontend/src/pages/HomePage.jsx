@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_CARD_IMAGES, getTeamLogo, getTeamGradient, getTeamCardImage, normalizeTeam } from '../constants/teams';
-import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft } from 'lucide-react';
+import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin } from 'lucide-react';
 
 const getTeamGrad = (short) => getTeamGradient(short);
 
@@ -117,25 +117,31 @@ export default function HomePage({ onMatchClick }) {
         </div>
       </div>
 
-      {/* Dual Points Banner */}
+      {/* Dual Points Banner - Vibrant */}
       <div data-testid="dual-banner" className="grid grid-cols-2 gap-2.5">
-        <div className="p-3.5 rounded-2xl relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px #10b98133' }}>
-          <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-10" style={{ background: '#fff', transform: 'translate(30%, -30%)' }} />
-          <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#ffffffaa' }}>Fantasy Points</div>
-          <div className="text-2xl font-black text-white mt-0.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-            {(user?.total_fantasy_points || 0).toLocaleString()}
+        <div className="p-3.5 rounded-2xl relative overflow-hidden animate-gradient-shift"
+          style={{ background: 'linear-gradient(135deg, #10b981, #059669, #10b981)', backgroundSize: '200% 200%', boxShadow: '0 4px 24px #10b98133' }}>
+          <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #fff, transparent)' }} />
+          <div className="absolute bottom-0 left-0 w-full h-[1px] opacity-20" style={{ background: 'linear-gradient(90deg, transparent, #fff, transparent)' }} />
+          <div className="relative">
+            <div className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#ffffffbb' }}>Fantasy Points</div>
+            <div className="text-2xl font-black text-white mt-0.5 animate-count" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+              {(user?.total_fantasy_points || 0).toLocaleString()}
+            </div>
+            <div className="text-[9px] mt-0.5" style={{ color: '#ffffff88' }}>From correct predictions</div>
           </div>
-          <div className="text-[9px] mt-0.5" style={{ color: '#ffffffaa' }}>From correct predictions</div>
         </div>
-        <div className="p-3.5 rounded-2xl relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 20px #f59e0b33' }}>
-          <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-10" style={{ background: '#fff', transform: 'translate(30%, -30%)' }} />
-          <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#ffffffaa' }}>Contest Coins</div>
-          <div className="text-2xl font-black text-white mt-0.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-            {(user?.coins_balance || 0).toLocaleString()}
+        <div className="p-3.5 rounded-2xl relative overflow-hidden animate-gradient-shift"
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706, #f59e0b)', backgroundSize: '200% 200%', boxShadow: '0 4px 24px #f59e0b33', animationDelay: '1.5s' }}>
+          <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #fff, transparent)' }} />
+          <div className="absolute bottom-0 left-0 w-full h-[1px] opacity-20" style={{ background: 'linear-gradient(90deg, transparent, #fff, transparent)' }} />
+          <div className="relative">
+            <div className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#ffffffbb' }}>Contest Coins</div>
+            <div className="text-2xl font-black text-white mt-0.5 animate-count" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+              {(user?.coins_balance || 0).toLocaleString()}
+            </div>
+            <div className="text-[9px] mt-0.5" style={{ color: '#ffffff88' }}>Win by playing contests</div>
           </div>
-          <div className="text-[9px] mt-0.5" style={{ color: '#ffffffaa' }}>Win by playing contests</div>
         </div>
       </div>
 
@@ -298,66 +304,105 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
   const teamB = match.team_b || {};
   const score = match.live_score;
   const scores = score?.scores || [];
+  const cardImg = getTeamCardImage(teamA.short_name) || getTeamCardImage(teamB.short_name);
 
   return (
     <div data-testid={`match-card-${match.id}`}
-      className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
-      style={{ background: COLORS.background.card, border: `1px solid ${isLive ? COLORS.primary.main + '44' : COLORS.border.light}`, boxShadow: isLive ? `0 0 12px ${COLORS.primary.main}22` : 'none', opacity: isCompleted ? 0.7 : 1 }}
+      className={`rounded-2xl overflow-hidden cursor-pointer transition-all active:scale-[0.97] ${isLive ? 'animate-border-glow' : 'card-hover'}`}
+      style={{
+        background: COLORS.background.card,
+        border: `1px solid ${isLive ? COLORS.primary.main + '55' : COLORS.border.light}`,
+        opacity: isCompleted ? 0.75 : 1
+      }}
       onClick={() => onClick?.(match)}>
-      <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border.light}` }}>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match.tournament || match.venue || 'Cricket'}</span>
-          {isLive && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white animate-pulse" style={{ background: COLORS.primary.main }}>LIVE</span>}
-          {isCompleted && <span className="text-[10px] font-semibold" style={{ color: COLORS.text.tertiary }}>ENDED</span>}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Clock size={12} color={isLive ? COLORS.primary.main : COLORS.warning.main} />
-          <span className="text-xs font-semibold" style={{ color: isLive ? COLORS.primary.main : COLORS.warning.main }}>
-            {isLive ? 'In Progress' : isCompleted ? 'Finished' : <Countdown time={match.start_time} />}
-          </span>
-        </div>
-      </div>
 
-      <div className="px-4 py-4 flex items-center justify-between">
+      {/* Team Card Image Hero (if available) */}
+      {cardImg && !isCompleted && (
+        <div className="relative h-20 overflow-hidden">
+          <img src={cardImg} alt="" className="w-full h-full object-cover" style={{ filter: 'brightness(0.4) saturate(1.2)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, #0D0D0D 100%)' }} />
+          <div className="absolute top-2 left-3 flex items-center gap-2">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded glass" style={{ color: '#fff' }}>
+              {match.tournament || 'IPL 2026'}
+            </span>
+            {isLive && (
+              <span className="px-2 py-0.5 rounded text-[9px] font-black text-white flex items-center gap-1" style={{ background: COLORS.primary.main }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-live-pulse" /> LIVE
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Fallback header if no image or completed */}
+      {(!cardImg || isCompleted) && (
+        <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border.light}` }}>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match.tournament || match.venue || 'IPL 2026'}</span>
+            {isLive && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white flex items-center gap-1" style={{ background: COLORS.primary.main }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-live-pulse" /> LIVE
+              </span>
+            )}
+            {isCompleted && <span className="text-[10px] font-semibold" style={{ color: COLORS.text.tertiary }}>ENDED</span>}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Clock size={12} color={isLive ? COLORS.primary.main : COLORS.warning.main} />
+            <span className="text-xs font-semibold" style={{ color: isLive ? COLORS.primary.main : COLORS.warning.main }}>
+              {isLive ? 'In Progress' : isCompleted ? 'Finished' : <Countdown time={match.start_time} />}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className={`px-4 ${cardImg && !isCompleted ? 'pt-0 -mt-4 relative z-10' : 'pt-4'} pb-4 flex items-center justify-between`}>
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white overflow-hidden" style={{ background: getTeamGrad(teamA.short_name) }}>
-            {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-8 h-8 object-contain" /> : (teamA.short_name || '?')}
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-lg"
+            style={{ background: getTeamGrad(teamA.short_name) }}>
+            {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-9 h-9 object-contain" /> : (teamA.short_name || '?')}
           </div>
           <div>
             <div className="text-sm font-bold text-white">{teamA.short_name || 'TBD'}</div>
             {scores[0] ? (
-              <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{scores[0].runs}/{scores[0].wickets} ({scores[0].overs})</div>
+              <div className="text-sm font-bold animate-count" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
+                {scores[0].r || scores[0].runs}/{scores[0].w || scores[0].wickets} <span className="text-[10px]">({scores[0].o || scores[0].overs})</span>
+              </div>
             ) : (
-              <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{teamA.name || ''}</div>
+              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamA.name || ''}</div>
             )}
           </div>
         </div>
 
-        <div className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: isLive ? COLORS.primary.gradient : `${COLORS.primary.main}22`, color: isLive ? '#fff' : COLORS.primary.main }}>
+        <div className={`px-3 py-1.5 rounded-xl text-xs font-black ${isLive ? 'animate-live-pulse' : ''}`}
+          style={{ background: isLive ? COLORS.primary.gradient : `${COLORS.primary.main}15`, color: isLive ? '#fff' : COLORS.primary.main }}>
           VS
         </div>
 
         <div className="flex items-center gap-3 flex-row-reverse">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white overflow-hidden" style={{ background: getTeamGrad(teamB.short_name) }}>
-            {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-8 h-8 object-contain" /> : (teamB.short_name || '?')}
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-lg"
+            style={{ background: getTeamGrad(teamB.short_name) }}>
+            {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-9 h-9 object-contain" /> : (teamB.short_name || '?')}
           </div>
           <div className="text-right">
             <div className="text-sm font-bold text-white">{teamB.short_name || 'TBD'}</div>
             {scores[1] ? (
-              <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{scores[1].runs}/{scores[1].wickets} ({scores[1].overs})</div>
+              <div className="text-sm font-bold animate-count" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
+                {scores[1].r || scores[1].runs}/{scores[1].w || scores[1].wickets} <span className="text-[10px]">({scores[1].o || scores[1].overs})</span>
+              </div>
             ) : (
-              <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{teamB.name || ''}</div>
+              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamB.name || ''}</div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary }}>
-        <div className="flex items-center gap-1">
-          <Trophy size={12} color={COLORS.accent.gold} />
-          <span className="text-xs" style={{ color: COLORS.text.secondary }}>{match.venue || match.tournament || ''}</span>
+      {/* Bottom action strip */}
+      <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary, borderTop: `1px solid ${COLORS.border.light}` }}>
+        <div className="flex items-center gap-1.5">
+          <MapPin size={11} color={COLORS.text.tertiary} />
+          <span className="text-[10px] truncate max-w-[150px]" style={{ color: COLORS.text.tertiary }}>{match.venue || ''}</span>
         </div>
-        <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: COLORS.primary.main }}>
+        <div className="flex items-center gap-1 text-xs font-bold" style={{ color: COLORS.primary.main }}>
           {isLive ? 'Live Score' : isCompleted ? 'View Results' : 'Predict Now'} <ChevronRight size={14} />
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { getTeamLogo, getTeamGradient, getTeamCardImage } from '../constants/teams';
+import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS } from '../constants/teams';
 import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X } from 'lucide-react';
 import ScorecardView from '../components/ScorecardView';
 
@@ -162,86 +162,105 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         <ArrowLeft size={16} /> Back
       </button>
 
-      {/* Match Hero Card */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${isLive ? COLORS.primary.main + '44' : COLORS.border.light}` }}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{ background: isLive ? `${COLORS.primary.main}15` : COLORS.background.tertiary }}>
-          <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match?.tournament || 'IPL 2026'}</span>
-          {isLive && <span className="px-2 py-0.5 rounded text-xs font-bold text-white animate-pulse" style={{ background: COLORS.primary.main }}>LIVE</span>}
-          {isCompleted && <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ color: COLORS.text.tertiary, background: COLORS.background.tertiary }}>COMPLETED</span>}
-        </div>
-        <div className="px-6 py-5 flex items-center justify-between">
-          <div className="flex flex-col items-center gap-2 flex-1">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamA.short_name) }}>
-              {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-12 h-12 object-contain" /> : teamA.short_name || '?'}
-            </div>
-            <div className="text-center">
-              <div className="text-sm font-bold text-white">{teamA.short_name}</div>
-              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamA.name}</div>
-              {(isLive || isCompleted) && score?.scores?.[0] && (
-                <div className="text-base font-bold mt-0.5" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
-                  {score.scores[0].runs}/{score.scores[0].wickets} ({score.scores[0].overs})
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="text-xs font-bold px-3 py-1 rounded-lg" style={{ background: `${COLORS.primary.main}22`, color: COLORS.primary.main }}>VS</div>
-          </div>
-          <div className="flex flex-col items-center gap-2 flex-1">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamB.short_name) }}>
-              {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-12 h-12 object-contain" /> : teamB.short_name || '?'}
-            </div>
-            <div className="text-center">
-              <div className="text-sm font-bold text-white">{teamB.short_name}</div>
-              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamB.name}</div>
-              {(isLive || isCompleted) && score?.scores?.[1] && (
-                <div className="text-base font-bold mt-0.5" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
-                  {score.scores[1].runs}/{score.scores[1].wickets} ({score.scores[1].overs})
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Toss + Status Info */}
-        <div className="px-4 py-2.5 flex items-center justify-around text-center" style={{ borderTop: `1px solid ${COLORS.border.light}`, background: COLORS.background.tertiary }}>
-          {matchInfo?.toss_winner ? (
-            <div className="flex items-center gap-1.5">
-              <Coins size={12} color={COLORS.accent.gold} />
-              <span className="text-[10px]" style={{ color: COLORS.text.secondary }}>
-                Toss: <b style={{ color: COLORS.accent.gold }}>{matchInfo.toss_winner}</b> chose to <b>{matchInfo.toss_choice}</b>
-              </span>
+      {/* Match Hero Card - Immersive */}
+      <div className={`rounded-2xl overflow-hidden relative ${isLive ? 'animate-border-glow' : ''}`} style={{ border: `1px solid ${isLive ? COLORS.primary.main + '44' : COLORS.border.light}` }}>
+        {/* Background image */}
+        {(() => {
+          const heroImg = getTeamCardImage(teamA.short_name) || getTeamCardImage(teamB.short_name);
+          return heroImg ? (
+            <div className="absolute inset-0">
+              <img src={heroImg} alt="" className="w-full h-full object-cover" style={{ filter: 'brightness(0.2) saturate(1.3)' }} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(13,13,13,0.4) 0%, rgba(13,13,13,0.95) 100%)' }} />
             </div>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <MapPin size={12} color={COLORS.text.tertiary} />
-              <span className="text-[10px]" style={{ color: COLORS.text.secondary }}>{match?.venue || 'TBD'}</span>
+            <div className="absolute inset-0" style={{ background: COLORS.background.card }} />
+          );
+        })()}
+
+        <div className="relative">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <span className="text-[10px] font-semibold glass px-2 py-0.5 rounded-full" style={{ color: '#fff' }}>{match?.tournament || 'IPL 2026'}</span>
+            {isLive && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black text-white flex items-center gap-1.5" style={{ background: COLORS.primary.main }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-live-pulse" /> LIVE
+              </span>
+            )}
+            {isCompleted && <span className="px-2 py-0.5 rounded text-[10px] font-bold glass" style={{ color: COLORS.text.tertiary }}>COMPLETED</span>}
+          </div>
+          <div className="px-6 py-5 flex items-center justify-between">
+            <div className="flex flex-col items-center gap-2 flex-1">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamA.short_name), boxShadow: `0 4px 20px ${(TEAM_COLORS[teamA.short_name] || ['#555'])[0]}44` }}>
+                {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-12 h-12 object-contain" /> : teamA.short_name || '?'}
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-white">{teamA.short_name}</div>
+                <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamA.name}</div>
+                {(isLive || isCompleted) && score?.scores?.[0] && (
+                  <div className="text-lg font-black mt-0.5 animate-count" style={{ color: '#fff', fontFamily: "'Rajdhani', sans-serif", textShadow: `0 0 20px ${COLORS.primary.main}66` }}>
+                    {score.scores[0].r || score.scores[0].runs}/{score.scores[0].w || score.scores[0].wickets} <span className="text-xs opacity-70">({score.scores[0].o || score.scores[0].overs})</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <Clock size={12} color={COLORS.warning.main} />
-            <span className="text-[10px]" style={{ color: COLORS.warning.main }}>
-              {isLive ? 'In Progress' : isCompleted ? matchInfo?.status || 'Completed' : new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-            </span>
+            <div className="flex flex-col items-center">
+              <div className={`text-xs font-black px-3 py-1.5 rounded-xl ${isLive ? 'animate-live-pulse' : ''}`} style={{ background: `${COLORS.primary.main}22`, color: COLORS.primary.main }}>VS</div>
+            </div>
+            <div className="flex flex-col items-center gap-2 flex-1">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamB.short_name), boxShadow: `0 4px 20px ${(TEAM_COLORS[teamB.short_name] || ['#555'])[0]}44` }}>
+                {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-12 h-12 object-contain" /> : teamB.short_name || '?'}
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-white">{teamB.short_name}</div>
+                <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamB.name}</div>
+                {(isLive || isCompleted) && score?.scores?.[1] && (
+                  <div className="text-lg font-black mt-0.5 animate-count" style={{ color: '#fff', fontFamily: "'Rajdhani', sans-serif", textShadow: `0 0 20px ${COLORS.primary.main}66` }}>
+                    {score.scores[1].r || score.scores[1].runs}/{score.scores[1].w || score.scores[1].wickets} <span className="text-xs opacity-70">({score.scores[1].o || score.scores[1].overs})</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Toss + Status Info */}
+          <div className="px-4 py-2.5 flex items-center justify-around text-center" style={{ borderTop: `1px solid ${COLORS.border.light}`, background: 'rgba(0,0,0,0.3)' }}>
+            {matchInfo?.toss_winner ? (
+              <div className="flex items-center gap-1.5">
+                <Coins size={12} color={COLORS.accent.gold} />
+                <span className="text-[10px]" style={{ color: COLORS.text.secondary }}>
+                  Toss: <b style={{ color: COLORS.accent.gold }}>{matchInfo.toss_winner}</b> chose to <b>{matchInfo.toss_choice}</b>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <MapPin size={12} color={COLORS.text.tertiary} />
+                <span className="text-[10px]" style={{ color: COLORS.text.secondary }}>{match?.venue || 'TBD'}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <Clock size={12} color={COLORS.warning.main} />
+              <span className="text-[10px]" style={{ color: COLORS.warning.main }}>
+                {isLive ? 'In Progress' : isCompleted ? matchInfo?.status || 'Completed' : new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+      {/* Tab Bar - Glass morphism */}
+      <div className="flex rounded-xl overflow-hidden glass" style={{ border: `1px solid ${COLORS.border.light}` }}>
         {TABS.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.key;
           return (
             <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setActiveTab(tab.key)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-semibold transition-all"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-bold transition-all relative"
               style={{
-                color: active ? COLORS.primary.main : COLORS.text.tertiary,
-                background: active ? `${COLORS.primary.main}15` : 'transparent',
-                borderBottom: active ? `2px solid ${COLORS.primary.main}` : '2px solid transparent'
+                color: active ? '#fff' : COLORS.text.tertiary,
+                background: active ? `${COLORS.primary.main}20` : 'transparent',
               }}>
               <Icon size={14} />
               {tab.label}
+              {active && <div className="absolute bottom-0 left-1/4 right-1/4 h-[2px] rounded-full" style={{ background: COLORS.primary.main }} />}
             </button>
           );
         })}
@@ -528,110 +547,374 @@ function FantasyPointsTab({ data, loading, onPlayerClick }) {
 }
 
 
-// ========== LIVE TAB (AI-Powered Commentary) ==========
+// ========== LIVE TAB (Instagram-Level AI Commentary) ==========
+
+const EVENT_ICONS = {
+  six: { emoji: '6', color: '#F59E0B', bg: 'linear-gradient(135deg, #F59E0B22, #FFD70011)', label: 'SIX' },
+  four: { emoji: '4', color: '#3B82F6', bg: 'linear-gradient(135deg, #3B82F622, #60A5FA11)', label: 'FOUR' },
+  wicket: { emoji: 'W', color: '#EF4444', bg: 'linear-gradient(135deg, #EF444422, #F8717111)', label: 'WICKET' },
+  milestone: { emoji: '★', color: '#10B981', bg: 'linear-gradient(135deg, #10B98122, #34D39911)', label: 'MILESTONE' },
+  bowling: { emoji: '●', color: '#8B5CF6', bg: 'linear-gradient(135deg, #8B5CF622, #A78BFA11)', label: 'BOWLING' },
+  dramatic: { emoji: '!', color: '#A855F7', bg: 'linear-gradient(135deg, #A855F722, #C084FC11)', label: 'KEY' },
+};
+
+const MOOD_COLORS = {
+  thriller: { primary: '#A855F7', bg: 'linear-gradient(160deg, #1a0a2e, #2d1b4e, #1a0a2e)' },
+  domination: { primary: '#3B82F6', bg: 'linear-gradient(160deg, #0a1628, #1a2744, #0a1628)' },
+  upset: { primary: '#EF4444', bg: 'linear-gradient(160deg, #2a0a0a, #3d1515, #2a0a0a)' },
+  classic: { primary: '#10B981', bg: 'linear-gradient(160deg, #0a1a0a, #152d15, #0a1a0a)' },
+  heartbreak: { primary: '#6366F1', bg: 'linear-gradient(160deg, #1a1a2e, #2e2e4e, #1a1a2e)' },
+};
+
 function LiveTab({ data, loading }) {
+  const [activeSection, setActiveSection] = useState('story');
+
   if (loading) return <LoadingSpinner />;
 
-  const aiCommentary = data?.ai?.commentary || [];
+  // New structured format
+  const ai = data?.ai || {};
+  const matchPulse = ai.match_pulse;
+  const keyMoments = ai.key_moments || [];
+  const starPerformers = ai.star_performers || [];
+  const turningPoint = ai.turning_point;
+  const verdict = ai.verdict;
+  const rawCommentary = ai.raw_commentary || ai.commentary || [];
   const scorecard = data?.scorecard?.scorecard || [];
 
-  // If AI commentary available, show it beautifully
-  if (aiCommentary.length > 0) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-1">
-          <Radio size={14} className="animate-pulse" color={COLORS.primary.main} />
-          <span className="text-xs font-bold" style={{ color: COLORS.primary.main }}>AI COMMENTARY</span>
-        </div>
-        {aiCommentary.map((item, i) => {
-          const colors = {
-            six: { bg: '#F59E0B15', border: '#F59E0B44', accent: '#F59E0B' },
-            four: { bg: '#3B82F615', border: '#3B82F644', accent: '#3B82F6' },
-            wicket: { bg: '#EF444415', border: '#EF444444', accent: '#EF4444' },
-            milestone: { bg: '#10B98115', border: '#10B98144', accent: '#10B981' },
-            bowling: { bg: '#8B5CF615', border: '#8B5CF644', accent: '#8B5CF6' },
-            result: { bg: '#F59E0B20', border: '#F59E0B66', accent: '#FFD700' },
-            header: { bg: COLORS.background.tertiary, border: COLORS.border.light, accent: COLORS.text.secondary },
-            general: { bg: COLORS.background.card, border: COLORS.border.light, accent: COLORS.text.secondary },
-          };
-          const c = colors[item.type] || colors.general;
-          const isHighlight = ['six', 'wicket', 'milestone', 'result'].includes(item.type);
+  const hasStructured = matchPulse || keyMoments.length > 0;
+  const hasAnyData = hasStructured || rawCommentary.length > 0 || scorecard.length > 0;
 
-          return (
-            <div key={i} className={`px-3 py-2.5 rounded-xl transition-all ${isHighlight ? 'animate-[slideUp_0.3s_ease]' : ''}`}
-              style={{
-                background: c.bg,
-                border: `1px solid ${c.border}`,
-                animationDelay: `${i * 0.05}s`,
-                animationFillMode: 'backwards',
-              }}>
-              <p className="text-xs leading-relaxed" style={{ color: isHighlight ? '#fff' : COLORS.text.secondary }}>
-                {item.text}
-              </p>
-            </div>
-          );
-        })}
+  if (!hasAnyData) {
+    return (
+      <div className="text-center py-14 rounded-2xl relative overflow-hidden" style={{ background: COLORS.background.card }}>
+        <div className="absolute inset-0 opacity-5" style={{ background: 'radial-gradient(circle at 50% 30%, #FF3B3B, transparent 70%)' }} />
+        <Radio size={36} color={COLORS.text.tertiary} className="mx-auto mb-3 animate-float" />
+        <p className="text-sm font-semibold text-white">Commentary Coming Soon</p>
+        <p className="text-xs mt-1" style={{ color: COLORS.text.tertiary }}>Available once the match starts</p>
       </div>
     );
   }
 
-  // Fallback: Build from scorecard
-  if (scorecard.length > 0) {
-    const items = [];
-    for (let idx = 0; idx < scorecard.length; idx++) {
-      const inn = scorecard[idx];
-      const batting = inn?.batting || [];
-      const bowling = inn?.bowling || [];
-      items.push({ type: 'header', text: `🏏 ${inn?.inning || `Innings ${idx + 1}`}` });
-
-      for (const b of batting) {
-        const runs = parseInt(b.r) || 0;
-        const sixes = parseInt(b['6s']) || 0;
-        const fours = parseInt(b['4s']) || 0;
-        const balls = parseInt(b.b) || 0;
-
-        if (runs >= 100) items.push({ type: 'milestone', text: `💯 CENTURY! ${b.batsman} smashes ${runs} off ${balls}! (${fours}x4 ${sixes}x6)` });
-        else if (runs >= 50) items.push({ type: 'milestone', text: `⭐ FIFTY! ${b.batsman} scores ${runs}(${balls}) with ${fours} fours!` });
-        if (sixes >= 3) items.push({ type: 'six', text: `🔥 ${b.batsman} hammers ${sixes} MASSIVE SIXES!` });
-        if (b.dismissal && b.dismissal !== 'not out') items.push({ type: 'wicket', text: `❌ OUT! ${b.batsman} ${runs}(${balls}) — ${b.dismissal}` });
-      }
-
-      for (const bw of bowling) {
-        if ((parseInt(bw.w) || 0) >= 3) items.push({ type: 'bowling', text: `🎯 ${bw.bowler} destroys with ${bw.w}/${bw.r} in ${bw.o} overs!` });
-      }
-    }
-
+  // If we have structured AI data, show the immersive experience
+  if (hasStructured) {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-1">
-          <Radio size={14} color={COLORS.text.tertiary} />
-          <span className="text-xs font-bold" style={{ color: COLORS.text.tertiary }}>MATCH HIGHLIGHTS</span>
+      <div className="space-y-4">
+        {/* Section Switcher */}
+        <div className="flex rounded-xl overflow-hidden glass" style={{ border: `1px solid ${COLORS.border.light}` }}>
+          {[
+            { key: 'story', label: 'Match Story' },
+            { key: 'moments', label: `Moments (${keyMoments.length})` },
+            { key: 'stars', label: 'Stars' },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => setActiveSection(tab.key)}
+              className="flex-1 py-2.5 text-[11px] font-bold transition-all"
+              style={{
+                color: activeSection === tab.key ? '#fff' : COLORS.text.tertiary,
+                background: activeSection === tab.key ? `${COLORS.primary.main}25` : 'transparent',
+                borderBottom: activeSection === tab.key ? `2px solid ${COLORS.primary.main}` : '2px solid transparent'
+              }}>
+              {tab.label}
+            </button>
+          ))}
         </div>
-        {items.map((item, i) => {
-          const isHeader = item.type === 'header';
-          const c = item.type === 'wicket' ? '#EF4444' : item.type === 'six' ? '#F59E0B' : item.type === 'milestone' ? '#10B981' : item.type === 'bowling' ? '#8B5CF6' : COLORS.text.secondary;
-          return (
-            <div key={i} className={isHeader ? 'mt-3' : ''}>
-              {isHeader ? (
-                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.primary.main }}>{item.text}</div>
-              ) : (
-                <div className="px-3 py-2 rounded-xl" style={{ background: `${c}12`, border: `1px solid ${c}33` }}>
-                  <p className="text-xs" style={{ color: '#fff' }}>{item.text}</p>
+
+        {/* MATCH STORY VIEW */}
+        {activeSection === 'story' && (
+          <div className="space-y-3">
+            {/* Match Pulse Hero */}
+            {matchPulse && (
+              <div data-testid="match-pulse" className="rounded-2xl overflow-hidden relative animate-card-enter">
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg, #0d1117 0%, #161b22 50%, #0d1117 100%)' }} />
+                <div className="absolute inset-0 opacity-10" style={{ background: 'radial-gradient(ellipse at 30% 20%, #FF3B3B, transparent 50%), radial-gradient(ellipse at 70% 80%, #3B82F6, transparent 50%)' }} />
+                <div className="relative p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full animate-live-pulse" style={{ background: COLORS.primary.main }} />
+                    <span className="text-[9px] font-black tracking-[0.2em] uppercase" style={{ color: COLORS.primary.main }}>MATCH PULSE</span>
+                  </div>
+                  <h2 className="text-lg font-black text-white leading-tight" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                    {matchPulse.headline}
+                  </h2>
+                  <p className="text-xs leading-relaxed" style={{ color: COLORS.text.secondary }}>
+                    {matchPulse.sub}
+                  </p>
+                  {(matchPulse.team_a_score || matchPulse.team_b_score) && (
+                    <div className="flex items-center gap-3 pt-1">
+                      {matchPulse.team_a_score && (
+                        <div className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                          {matchPulse.team_a_score}
+                        </div>
+                      )}
+                      <span className="text-[10px] font-bold" style={{ color: COLORS.text.tertiary }}>vs</span>
+                      {matchPulse.team_b_score && (
+                        <div className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                          {matchPulse.team_b_score}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            )}
+
+            {/* Top 5 Key Moments as Story Cards */}
+            {keyMoments.slice(0, 5).map((moment, i) => {
+              const ev = EVENT_ICONS[moment.event_type] || EVENT_ICONS.dramatic;
+              const isHigh = moment.impact === 'high';
+              const animClass = moment.event_type === 'six' ? 'animate-six' :
+                moment.event_type === 'wicket' ? 'animate-wicket' :
+                moment.event_type === 'four' ? 'animate-four' :
+                moment.event_type === 'milestone' ? 'animate-milestone' : 'animate-card-enter';
+
+              return (
+                <div key={i} data-testid={`story-moment-${i}`}
+                  className={`rounded-2xl overflow-hidden relative event-${moment.event_type} stagger-${i + 1}`}
+                  style={{ opacity: 0, animationFillMode: 'forwards', animation: `cardEntrance 0.5s ease ${i * 0.08}s forwards` }}>
+                  <div className="p-4 flex gap-3">
+                    {/* Event Badge */}
+                    <div className="shrink-0 flex flex-col items-center gap-1">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black relative ${isHigh ? animClass : ''}`}
+                        style={{ background: `${ev.color}20`, color: ev.color, border: `1.5px solid ${ev.color}40` }}>
+                        {ev.emoji}
+                        {moment.event_type === 'six' && isHigh && (
+                          <div className="absolute inset-0 rounded-xl six-particles" />
+                        )}
+                      </div>
+                      {moment.over && moment.over !== '?' && (
+                        <span className="text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>
+                          Ov {moment.over}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[9px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded"
+                          style={{ background: `${ev.color}20`, color: ev.color }}>
+                          {ev.label}
+                        </span>
+                        {isHigh && (
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: '#FF3B3B22', color: '#FF3B3B' }}>
+                            HIGH IMPACT
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm font-bold text-white leading-tight mb-0.5">{moment.title}</h3>
+                      <p className="text-xs leading-relaxed" style={{ color: COLORS.text.secondary }}>
+                        {moment.description}
+                      </p>
+                      {moment.player && (
+                        <span className="inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.06)', color: COLORS.text.secondary }}>
+                          {moment.player}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Turning Point */}
+            {turningPoint && (
+              <div data-testid="turning-point" className="rounded-2xl overflow-hidden relative animate-card-enter"
+                style={{ background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(139, 92, 246, 0.06))', border: '1px solid rgba(168, 85, 247, 0.25)' }}>
+                <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #A855F7, transparent)', transform: 'translate(30%, -30%)' }} />
+                <div className="p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black tracking-[0.15em] uppercase" style={{ color: '#A855F7' }}>TURNING POINT</span>
+                    {turningPoint.over && turningPoint.over !== '?' && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#A855F722', color: '#A855F7' }}>Ov {turningPoint.over}</span>
+                    )}
+                  </div>
+                  <h3 className="text-sm font-bold text-white">{turningPoint.title}</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: COLORS.text.secondary }}>{turningPoint.description}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Verdict */}
+            {verdict && (
+              <div data-testid="match-verdict" className={`rounded-2xl overflow-hidden relative verdict-${verdict.mood || 'classic'} animate-verdict`}>
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black tracking-[0.2em] uppercase"
+                      style={{ color: (MOOD_COLORS[verdict.mood] || MOOD_COLORS.classic).primary }}>
+                      VERDICT
+                    </span>
+                    {verdict.mood && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase"
+                        style={{ background: `${(MOOD_COLORS[verdict.mood] || MOOD_COLORS.classic).primary}22`, color: (MOOD_COLORS[verdict.mood] || MOOD_COLORS.classic).primary }}>
+                        {verdict.mood}
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-base font-black text-white leading-tight animate-text-glow" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                    {verdict.headline}
+                  </h2>
+                  <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                    {verdict.description}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MOMENTS VIEW - Full timeline */}
+        {activeSection === 'moments' && (
+          <div className="space-y-2">
+            {keyMoments.map((moment, i) => {
+              const ev = EVENT_ICONS[moment.event_type] || EVENT_ICONS.dramatic;
+              const isHigh = moment.impact === 'high';
+              return (
+                <div key={i} data-testid={`moment-${i}`}
+                  className={`event-${moment.event_type} rounded-xl p-3 flex items-start gap-3`}
+                  style={{ opacity: 0, animation: `cardEntrance 0.3s ease ${i * 0.04}s forwards` }}>
+                  <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black"
+                    style={{ background: `${ev.color}20`, color: ev.color }}>
+                    {ev.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-bold text-white">{moment.title}</span>
+                      {moment.over && moment.over !== '?' && (
+                        <span className="text-[9px] font-mono" style={{ color: COLORS.text.tertiary }}>Ov {moment.over}</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] leading-relaxed" style={{ color: COLORS.text.secondary }}>
+                      {moment.description}
+                    </p>
+                  </div>
+                  {isHigh && (
+                    <div className="shrink-0 w-1.5 h-1.5 rounded-full mt-2" style={{ background: '#FF3B3B' }} />
+                  )}
+                </div>
+              );
+            })}
+            {keyMoments.length === 0 && (
+              <div className="text-center py-8 text-sm" style={{ color: COLORS.text.tertiary }}>No moments recorded yet</div>
+            )}
+          </div>
+        )}
+
+        {/* STARS VIEW */}
+        {activeSection === 'stars' && (
+          <div className="space-y-3">
+            {starPerformers.map((star, i) => {
+              const ratingPct = Math.min(100, (star.rating || 0) * 10);
+              const ratingColor = ratingPct >= 85 ? '#FFD700' : ratingPct >= 70 ? '#10B981' : ratingPct >= 50 ? '#3B82F6' : COLORS.text.secondary;
+              return (
+                <div key={i} data-testid={`star-${i}`}
+                  className="rounded-2xl overflow-hidden glass-heavy"
+                  style={{ opacity: 0, animation: `cardEntrance 0.4s ease ${i * 0.1}s forwards` }}>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-black"
+                          style={{
+                            background: i === 0 ? 'linear-gradient(135deg, #FFD700, #FFA500)' : i === 1 ? 'linear-gradient(135deg, #C0C0C0, #A0A0A0)' : 'rgba(255,255,255,0.08)',
+                            color: i < 2 ? '#000' : '#fff'
+                          }}>
+                          {star.name?.[0] || '?'}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">{star.name}</h3>
+                          <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded"
+                            style={{
+                              background: star.role === 'batting' ? '#F59E0B18' : star.role === 'bowling' ? '#8B5CF618' : '#10B98118',
+                              color: star.role === 'batting' ? '#F59E0B' : star.role === 'bowling' ? '#8B5CF6' : '#10B981'
+                            }}>
+                            {star.role || 'player'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black" style={{ color: ratingColor, fontFamily: "'Rajdhani', sans-serif" }}>
+                          {star.rating?.toFixed(1) || '—'}
+                        </div>
+                        <div className="text-[8px] uppercase" style={{ color: COLORS.text.tertiary }}>Rating</div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs italic" style={{ color: COLORS.text.secondary }}>"{star.headline}"</p>
+
+                    {star.stats && (
+                      <div className="px-3 py-2 rounded-lg text-xs font-mono font-semibold text-center"
+                        style={{ background: 'rgba(255,255,255,0.04)', color: '#fff', letterSpacing: '0.05em' }}>
+                        {star.stats}
+                      </div>
+                    )}
+
+                    {/* Rating Bar */}
+                    <div className="rating-bar">
+                      <div className="rating-bar-fill" style={{ '--fill-width': `${ratingPct}%`, background: `linear-gradient(90deg, ${ratingColor}88, ${ratingColor})` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {starPerformers.length === 0 && (
+              <div className="text-center py-8 text-sm" style={{ color: COLORS.text.tertiary }}>Star performers will appear here</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Fallback: raw commentary or scorecard-based
+  const items = rawCommentary.length > 0 ? rawCommentary : _buildFromScorecard(scorecard);
+
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-14 rounded-2xl" style={{ background: COLORS.background.card }}>
+        <Radio size={36} color={COLORS.text.tertiary} className="mx-auto mb-3 animate-float" />
+        <p className="text-sm font-semibold text-white">Commentary Coming Soon</p>
+        <p className="text-xs mt-1" style={{ color: COLORS.text.tertiary }}>Available once the match starts</p>
       </div>
     );
   }
 
   return (
-    <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
-      <Radio size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
-      <p className="text-sm" style={{ color: COLORS.text.secondary }}>Commentary available after match starts</p>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 mb-2">
+        <Radio size={14} className="animate-live-pulse" color={COLORS.primary.main} />
+        <span className="text-[10px] font-black tracking-[0.15em] uppercase" style={{ color: COLORS.primary.main }}>MATCH HIGHLIGHTS</span>
+      </div>
+      {items.map((item, i) => {
+        const ev = EVENT_ICONS[item.type] || { color: COLORS.text.secondary, emoji: '•' };
+        return (
+          <div key={i} className={`event-${item.type || 'dramatic'} rounded-xl px-3.5 py-2.5`}
+            style={{ opacity: 0, animation: `cardEntrance 0.3s ease ${i * 0.04}s forwards` }}>
+            <p className="text-xs leading-relaxed" style={{ color: '#fff' }}>{item.text}</p>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+function _buildFromScorecard(scorecard) {
+  const items = [];
+  for (const inn of scorecard) {
+    const batting = inn?.batting || [];
+    const bowling = inn?.bowling || [];
+    for (const b of batting) {
+      const runs = parseInt(b.r) || 0;
+      const sixes = parseInt(b['6s']) || 0;
+      const fours = parseInt(b['4s']) || 0;
+      const balls = parseInt(b.b) || 0;
+      if (runs >= 100) items.push({ type: 'milestone', text: `CENTURY! ${b.batsman} smashes ${runs} off ${balls} balls! (${fours}x4, ${sixes}x6)` });
+      else if (runs >= 50) items.push({ type: 'milestone', text: `FIFTY! ${b.batsman} scores ${runs}(${balls}) — ${fours} fours, ${sixes} sixes!` });
+      if (sixes >= 3) items.push({ type: 'six', text: `${b.batsman} hammers ${sixes} MASSIVE SIXES in his innings of ${runs}!` });
+      if (b.dismissal && b.dismissal !== 'not out') items.push({ type: 'wicket', text: `OUT! ${b.batsman} ${runs}(${balls}) — ${b.dismissal}` });
+    }
+    for (const bw of bowling) {
+      if ((parseInt(bw.w) || 0) >= 3) items.push({ type: 'bowling', text: `${bw.bowler} picks up ${bw.w}/${bw.r} in ${bw.o} overs! Lethal spell!` });
+    }
+  }
+  return items;
 }
 
 
