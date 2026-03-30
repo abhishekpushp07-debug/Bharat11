@@ -1,0 +1,326 @@
+import { useState, useEffect, useCallback } from 'react';
+import apiClient from '../api/client';
+import { COLORS } from '../constants/design';
+import { ArrowLeft, Users, Trophy, Coins, Play, CheckCircle, AlertCircle, Plus, RefreshCw, Settings, ChevronRight, ChevronDown, Award } from 'lucide-react';
+
+// ====== Dashboard Tab ======
+function DashboardTab() {
+  const [stats, setStats] = useState(null);
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const [mRes, cRes] = await Promise.allSettled([
+          apiClient.get('/matches?limit=50'),
+          apiClient.get('/contests?limit=50')
+        ]);
+        const matches = mRes.status === 'fulfilled' ? mRes.value.data.matches || [] : [];
+        const contests = cRes.status === 'fulfilled' ? cRes.value.data.contests || [] : [];
+        setStats({
+          totalMatches: matches.length,
+          liveMatches: matches.filter(m => m.status === 'live').length,
+          upcomingMatches: matches.filter(m => m.status === 'upcoming').length,
+          totalContests: contests.length,
+          openContests: contests.filter(c => c.status === 'open').length,
+          completedContests: contests.filter(c => c.status === 'completed').length,
+        });
+      } catch (_) { /* silent */ }
+    };
+    fetch();
+  }, []);
+
+  if (!stats) return <div className="py-10 text-center"><div className="w-6 h-6 border-2 rounded-full animate-spin mx-auto" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} /></div>;
+
+  const cards = [
+    { label: 'Total Matches', val: stats.totalMatches, icon: Play, color: COLORS.info.main },
+    { label: 'Live', val: stats.liveMatches, icon: Play, color: COLORS.primary.main },
+    { label: 'Upcoming', val: stats.upcomingMatches, icon: Play, color: COLORS.warning.main },
+    { label: 'Total Contests', val: stats.totalContests, icon: Trophy, color: COLORS.accent.gold },
+    { label: 'Open', val: stats.openContests, icon: Trophy, color: COLORS.success.main },
+    { label: 'Completed', val: stats.completedContests, icon: CheckCircle, color: COLORS.text.tertiary },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-2.5">
+      {cards.map((c, i) => (
+        <div key={i} className="rounded-xl p-3.5" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+          <c.icon size={16} color={c.color} />
+          <div className="text-2xl font-bold mt-1" style={{ color: c.color, fontFamily: "'Rajdhani', sans-serif" }}>{c.val}</div>
+          <div className="text-xs" style={{ color: COLORS.text.secondary }}>{c.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====== Match Manager Tab ======
+function MatchManagerTab() {
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [expandedMatch, setExpandedMatch] = useState(null);
+  const [actionMsg, setActionMsg] = useState('');
+
+  const fetchMatches = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/matches?limit=50');
+      setMatches(res.data.matches || []);
+    } catch (_) { /* silent */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchMatches(); }, [fetchMatches]);
+
+  const syncCricbuzz = async () => {
+    setSyncing(true);
+    try {
+      const res = await apiClient.post('/matches/live/sync');
+      if (res.data.message) {
+        setActionMsg(res.data.message);
+      } else {
+        setActionMsg(`Synced: ${res.data.created || 0} new, ${res.data.updated || 0} updated`);
+      }
+      fetchMatches();
+    } catch (e) {
+      setActionMsg(`Sync failed: ${e?.response?.data?.detail || e.message}`);
+    } finally { setSyncing(false); }
+  };
+
+  const updateStatus = async (matchId, newStatus) => {
+    try {
+      await apiClient.put(`/matches/${matchId}/status`, { status: newStatus });
+      setActionMsg(`Match status -> ${newStatus}`);
+      fetchMatches();
+    } catch (e) {
+      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <button data-testid="sync-cricbuzz-btn" onClick={syncCricbuzz} disabled={syncing}
+        className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+        style={{ background: COLORS.primary.gradient, color: '#fff' }}>
+        <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+        {syncing ? 'Syncing...' : 'Sync from Cricbuzz'}
+      </button>
+
+      {actionMsg && <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>}
+
+      {loading ? (
+        <div className="py-10 text-center"><div className="w-6 h-6 border-2 rounded-full animate-spin mx-auto" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} /></div>
+      ) : matches.map(m => (
+        <div key={m.id} className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+          <div className="p-3.5 flex items-center justify-between cursor-pointer" onClick={() => setExpandedMatch(expandedMatch === m.id ? null : m.id)}>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-white">{m.team_a?.short_name} vs {m.team_b?.short_name}</div>
+              <div className="text-xs mt-0.5" style={{ color: COLORS.text.tertiary }}>{m.tournament} | {m.status}</div>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{
+              color: m.status === 'live' ? COLORS.primary.main : m.status === 'completed' ? COLORS.text.tertiary : COLORS.success.main,
+              background: m.status === 'live' ? COLORS.primary.main + '22' : m.status === 'completed' ? COLORS.background.tertiary : COLORS.success.bg
+            }}>{m.status.toUpperCase()}</span>
+            <ChevronDown size={14} color={COLORS.text.secondary} className="ml-2" />
+          </div>
+
+          {expandedMatch === m.id && (
+            <div className="px-3.5 pb-3.5 space-y-2" style={{ borderTop: `1px solid ${COLORS.border.light}` }}>
+              <div className="text-xs pt-2" style={{ color: COLORS.text.tertiary }}>ID: {m.id}</div>
+              <div className="flex gap-2 flex-wrap">
+                {['upcoming', 'live', 'completed', 'abandoned'].map(s => (
+                  <button key={s} onClick={() => updateStatus(m.id, s)}
+                    disabled={m.status === s}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:opacity-30"
+                    style={{ background: COLORS.background.tertiary, color: COLORS.text.secondary, border: `1px solid ${COLORS.border.light}` }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====== Contest Resolution Tab ======
+function ContestResolveTab() {
+  const [contests, setContests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionMsg, setActionMsg] = useState('');
+  const [resolvingQ, setResolvingQ] = useState(null);
+  const [selectedContest, setSelectedContest] = useState(null);
+  const [questions, setQuestions] = useState([]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await apiClient.get('/contests?limit=50');
+        setContests(res.data.contests || []);
+      } catch (_) { /* silent */ }
+      finally { setLoading(false); }
+    };
+    fetch();
+  }, []);
+
+  const loadQuestions = async (contestId) => {
+    setActionMsg('Loading questions...');
+    try {
+      const res = await apiClient.get(`/contests/${contestId}/questions`);
+      const qs = res.data.questions || [];
+      setQuestions(qs);
+      setSelectedContest(contestId);
+      setActionMsg(qs.length > 0 ? '' : 'No questions found');
+    } catch (e) {
+      setActionMsg(`Error loading questions: ${e?.response?.data?.detail || e.message}`);
+      console.error('Load questions error:', e);
+    }
+  };
+
+  const resolveQuestion = async (contestId, questionId, correctOption) => {
+    setResolvingQ(questionId);
+    try {
+      await apiClient.post(`/contests/${contestId}/resolve`, {
+        question_id: questionId,
+        correct_option: correctOption
+      });
+      setActionMsg(`Q resolved with answer ${correctOption}`);
+      loadQuestions(contestId);
+    } catch (e) {
+      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
+    } finally { setResolvingQ(null); }
+  };
+
+  const finalizeContest = async (contestId) => {
+    try {
+      const res = await apiClient.post(`/contests/${contestId}/finalize`);
+      setActionMsg(`Contest finalized! Top: ${res.data.top_3?.map(t => t.username).join(', ')}`);
+      setSelectedContest(null);
+      // Refresh
+      const cRes = await apiClient.get('/contests?limit=50');
+      setContests(cRes.data.contests || []);
+    } catch (e) {
+      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
+    }
+  };
+
+  if (selectedContest) {
+    const contest = contests.find(c => c.id === selectedContest);
+    return (
+      <div className="space-y-3">
+        <button onClick={() => setSelectedContest(null)} className="text-xs flex items-center gap-1" style={{ color: COLORS.text.secondary }}>
+          <ArrowLeft size={14} /> Back to Contests
+        </button>
+
+        <div className="text-sm font-semibold text-white">{contest?.name} - Resolve Questions</div>
+
+        {actionMsg && <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>}
+
+        <div className="space-y-2">
+          {questions.map((q, i) => (
+            <div key={q.id} className="rounded-xl p-3" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+              <div className="text-xs font-medium text-white mb-2">Q{i + 1}: {q.question_text_hi || q.question_text_en}</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {(q.options || []).map(opt => (
+                  <button key={opt.key}
+                    data-testid={`resolve-${q.id}-${opt.key}`}
+                    onClick={() => resolveQuestion(selectedContest, q.id, opt.key)}
+                    disabled={resolvingQ === q.id}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    style={{ background: COLORS.background.tertiary, color: '#fff', border: `1px solid ${COLORS.border.light}` }}>
+                    {opt.key}: {(opt.text_hi || opt.text_en || '').slice(0, 15)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={() => finalizeContest(selectedContest)}
+          data-testid="finalize-contest-btn"
+          className="w-full py-3 rounded-xl text-sm font-bold"
+          style={{ background: COLORS.accent.gold, color: '#000' }}>
+          <Award size={14} className="inline mr-1" /> Finalize & Distribute Prizes
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {actionMsg && <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>}
+
+      {loading ? (
+        <div className="py-10 text-center"><div className="w-6 h-6 border-2 rounded-full animate-spin mx-auto" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} /></div>
+      ) : contests.filter(c => c.status !== 'completed').map(c => (
+        <div key={c.id} className="rounded-xl p-3.5 flex items-center justify-between" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+          <div>
+            <div className="text-sm font-semibold text-white">{c.name}</div>
+            <div className="text-xs mt-0.5" style={{ color: COLORS.text.tertiary }}>
+              {c.current_participants || 0} players | {c.status}
+            </div>
+          </div>
+          <button onClick={() => loadQuestions(c.id)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: COLORS.warning.bg, color: COLORS.warning.main }}>
+            Resolve
+          </button>
+        </div>
+      ))}
+
+      {contests.filter(c => c.status === 'completed').length > 0 && (
+        <>
+          <div className="text-xs font-medium pt-2" style={{ color: COLORS.text.tertiary }}>Completed</div>
+          {contests.filter(c => c.status === 'completed').map(c => (
+            <div key={c.id} className="rounded-xl p-3.5 flex items-center justify-between opacity-60" style={{ background: COLORS.background.card }}>
+              <div className="text-sm text-white">{c.name}</div>
+              <CheckCircle size={14} color={COLORS.success.main} />
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ====== Main Admin Page ======
+export default function AdminPage({ onBack }) {
+  const [tab, setTab] = useState('dashboard');
+
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: Settings },
+    { id: 'matches', label: 'Matches', icon: Play },
+    { id: 'resolve', label: 'Resolve', icon: Award },
+  ];
+
+  return (
+    <div data-testid="admin-page" className="pb-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <button data-testid="admin-back-btn" onClick={onBack} className="p-1.5 rounded-lg" style={{ background: COLORS.background.card }}>
+          <ArrowLeft size={16} color={COLORS.text.secondary} />
+        </button>
+        <h1 className="text-lg font-bold text-white">Admin Panel</h1>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {tabs.map(t => (
+          <button key={t.id} data-testid={`admin-tab-${t.id}`} onClick={() => setTab(t.id)}
+            className="flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            style={{
+              background: tab === t.id ? COLORS.primary.main : COLORS.background.card,
+              color: tab === t.id ? '#fff' : COLORS.text.secondary,
+              border: `1px solid ${tab === t.id ? COLORS.primary.main : COLORS.border.light}`
+            }}>
+            <t.icon size={13} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {tab === 'dashboard' && <DashboardTab />}
+      {tab === 'matches' && <MatchManagerTab />}
+      {tab === 'resolve' && <ContestResolveTab />}
+    </div>
+  );
+}

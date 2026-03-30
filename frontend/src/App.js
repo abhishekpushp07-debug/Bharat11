@@ -14,6 +14,7 @@ import MatchDetailPage from "@/pages/MatchDetailPage";
 import MyContestsPage from "@/pages/MyContestsPage";
 import PredictionPage from "@/pages/PredictionPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
+import AdminPage from "@/pages/AdminPage";
 import { COLORS } from "@/constants/design";
 
 // Splash Screen
@@ -90,8 +91,9 @@ const AppShell = () => {
       case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
       case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
       case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} onBack={handleBackFromLeaderboard} />;
+      case 'admin': return <AdminPage onBack={() => setActiveTab('profile')} />;
       case 'wallet': return <WalletPage />;
-      case 'profile': return <ProfilePage />;
+      case 'profile': return <ProfilePage onAdminClick={() => setActiveTab('admin')} />;
       default: return <HomePage onMatchClick={handleMatchClick} />;
     }
   };
@@ -102,7 +104,7 @@ const AppShell = () => {
     setActiveTab(tab);
   };
 
-  const hiddenNavTabs = ['matchDetail', 'prediction', 'leaderboard'];
+  const hiddenNavTabs = ['matchDetail', 'prediction', 'leaderboard', 'admin'];
 
   return (
     <div className="min-h-screen" style={{ background: COLORS.background.primary }}>

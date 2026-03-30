@@ -254,3 +254,130 @@ async def assign_template(
         {"$addToSet": {"templates_assigned": template_id}, "$set": {"updated_at": utc_now().isoformat()}}
     )
     return {"match_id": match_id, "template_id": template_id, "assigned": True}
+
+
+
+# ==================== LIVE CRICKET DATA (Cricbuzz) ====================
+
+@router.get(
+    "/live/cricbuzz",
+    summary="Fetch live matches from Cricbuzz",
+    description="Returns real-time match data from Cricbuzz. Free, 2-ball delay."
+)
+async def get_cricbuzz_live():
+    from services.cricket_data import cricket_data_service
+    matches = await cricket_data_service.fetch_live_matches()
+    return {
+        "source": "cricbuzz",
+        "connected": cricket_data_service.is_connected,
+        "matches": matches,
+        "total": len(matches)
+    }
+
+
+@router.post(
+    "/live/sync",
+    summary="Sync live matches from Cricbuzz to DB (Admin)",
+    description="Fetch matches from Cricbuzz and create/update them in our database"
+)
+async def sync_cricbuzz_matches(
+    current_user: CurrentUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.cricket_data import cricket_data_service
+
+    cb_matches = await cricket_data_service.fetch_live_matches()
+    if not cb_matches:
+        return {"synced": 0, "message": "No matches from Cricbuzz (might be offline)"}
+
+    created = 0
+    updated = 0
+    now = utc_now().isoformat()
+
+    for cb in cb_matches:
+        cricbuzz_id = cb.get("cricbuzz_id", "")
+        if not cricbuzz_id:
+            continue
+
+        existing = await db.matches.find_one(
+            {"external_match_id": cricbuzz_id},
+            {"_id": 0, "id": 1}
+        )
+
+        if existing:
+            # Update status
+            await db.matches.update_one(
+                {"external_match_id": cricbuzz_id},
+                {"$set": {
+                    "status": cb["status"],
+                    "updated_at": now
+                }}
+            )
+            updated += 1
+        else:
+            # Create new match
+            match = {
+                "id": generate_id(),
+                "external_match_id": cricbuzz_id,
+                "team_a": cb["team_a"],
+                "team_b": cb["team_b"],
+                "match_type": cb.get("match_type", "T20"),
+                "venue": cb.get("venue", ""),
+                "start_time": now,
+                "tournament": cb.get("series", ""),
+                "status": cb["status"],
+                "live_score": None,
+                "templates_assigned": [],
+                "created_at": now,
+                "updated_at": now
+            }
+            await db.matches.insert_one(match)
+            created += 1
+
+    return {
+        "synced": created + updated,
+        "created": created,
+        "updated": updated,
+        "source_matches": len(cb_matches),
+        "connected": cricket_data_service.is_connected
+    }
+
+
+@router.post(
+    "/{match_id}/sync-score",
+    summary="Sync live score from Cricbuzz for a match",
+    description="Pull latest score from Cricbuzz and update match live_score"
+)
+async def sync_match_score(
+    match_id: str,
+    current_user: CurrentUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.cricket_data import cricket_data_service
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cricbuzz_id = match.get("external_match_id")
+    if not cricbuzz_id:
+        raise HTTPException(status_code=400, detail="No Cricbuzz ID linked to this match")
+
+    score = await cricket_data_service.fetch_live_score(cricbuzz_id)
+    if not score:
+        return {"match_id": match_id, "updated": False, "message": "Could not fetch score"}
+
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {
+            "live_score": score,
+            "status": "live",
+            "updated_at": utc_now().isoformat()
+        }}
+    )
+
+    return {
+        "match_id": match_id,
+        "updated": True,
+        "score": score
+    }

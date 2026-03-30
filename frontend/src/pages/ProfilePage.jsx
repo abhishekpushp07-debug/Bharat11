@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import apiClient from '../api/client';
 import { COLORS, RANKS } from '../constants/design';
-import { User, Wallet, Trophy, Gift, ChevronRight, Copy, Check, LogOut } from 'lucide-react';
+import { User, Wallet, Trophy, Gift, ChevronRight, Copy, Check, LogOut, Shield } from 'lucide-react';
 
-export default function ProfilePage() {
+export default function ProfilePage({ onAdminClick }) {
   const { user, logout } = useAuthStore();
   const [rankProgress, setRankProgress] = useState(null);
   const [referralStats, setReferralStats] = useState(null);
@@ -111,6 +111,11 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Admin Panel */}
+      <button data-testid="admin-btn" onClick={onAdminClick} className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors" style={{ background: COLORS.background.card, color: COLORS.warning.main, border: `1px solid ${COLORS.warning.main}33` }}>
+        <Shield size={16} /> Admin Panel
+      </button>
 
       {/* Logout */}
       <button data-testid="logout-btn" onClick={logout} className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors" style={{ background: COLORS.error.bg, color: COLORS.error.main, border: `1px solid ${COLORS.error.main}33` }}>

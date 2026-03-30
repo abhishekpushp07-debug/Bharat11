@@ -735,3 +735,83 @@ async def get_my_leaderboard_position(
         "predictions_count": len(entry.get("predictions", [])),
         "prize_won": entry.get("prize_won", 0)
     }
+
+
+
+# ==================== USER ANSWER DETAIL ====================
+
+@router.get(
+    "/{contest_id}/leaderboard/{user_id}",
+    summary="View user's answers in a contest",
+    description="Get a user's predictions with question details for leaderboard drill-down"
+)
+async def get_user_answers(
+    contest_id: str,
+    user_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    entry = await db.contest_entries.find_one(
+        {"contest_id": contest_id, "user_id": user_id},
+        {"_id": 0}
+    )
+    if not entry:
+        raise HTTPException(status_code=404, detail="User entry not found")
+
+    # Get user info
+    user = await db.users.find_one(
+        {"id": user_id},
+        {"_id": 0, "username": 1, "avatar_url": 1, "rank_title": 1}
+    )
+
+    # Get question details for each prediction
+    qids = [p["question_id"] for p in entry.get("predictions", [])]
+    questions = []
+    if qids:
+        q_cursor = db.questions.find(
+            {"id": {"$in": qids}},
+            {"_id": 0, "id": 1, "question_text_en": 1, "question_text_hi": 1, "category": 1, "points": 1, "options": 1}
+        )
+        q_list = await q_cursor.to_list(length=len(qids))
+        q_map = {q["id"]: q for q in q_list}
+
+        for pred in entry.get("predictions", []):
+            q = q_map.get(pred["question_id"], {})
+            questions.append({
+                "question_text_hi": q.get("question_text_hi", ""),
+                "question_text_en": q.get("question_text_en", ""),
+                "category": q.get("category", ""),
+                "points": q.get("points", 0),
+                "selected_option": pred.get("selected_option", ""),
+                "is_correct": pred.get("is_correct"),
+                "points_earned": pred.get("points_earned", 0),
+                "options": q.get("options", [])
+            })
+
+    # Get question results for this contest's match
+    contest = await db.contests.find_one({"id": contest_id}, {"_id": 0, "match_id": 1, "name": 1})
+    results_map = {}
+    if contest:
+        result_cursor = db.question_results.find(
+            {"match_id": contest["match_id"]},
+            {"_id": 0, "question_id": 1, "correct_option": 1}
+        )
+        results = await result_cursor.to_list(length=100)
+        results_map = {r["question_id"]: r["correct_option"] for r in results}
+
+    # Enrich with correct option
+    for i, pred in enumerate(entry.get("predictions", [])):
+        if pred["question_id"] in results_map:
+            questions[i]["correct_option"] = results_map[pred["question_id"]]
+
+    return {
+        "user_id": user_id,
+        "username": user.get("username", "Unknown") if user else "Unknown",
+        "avatar_url": user.get("avatar_url") if user else None,
+        "rank_title": user.get("rank_title", "Rookie") if user else "Rookie",
+        "team_name": entry.get("team_name", ""),
+        "total_points": entry.get("total_points", 0),
+        "final_rank": entry.get("final_rank"),
+        "prize_won": entry.get("prize_won", 0),
+        "predictions": questions,
+        "contest_name": contest.get("name", "") if contest else ""
+    }
