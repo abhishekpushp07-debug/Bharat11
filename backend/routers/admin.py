@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from core.database import get_db
-from core.dependencies import CurrentUser
+from core.dependencies import CurrentUser, AdminUser
 from core.exceptions import CrickPredictException
 from models.schemas import (
     Question, QuestionOption, EvaluationRules,
@@ -141,7 +141,7 @@ async def get_question(
 )
 async def create_question(
     data: QuestionCreate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     now = utc_now().isoformat()
@@ -174,7 +174,7 @@ async def create_question(
 async def update_question(
     question_id: str,
     data: QuestionUpdate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     existing = await db.questions.find_one({"id": question_id})
@@ -209,7 +209,7 @@ async def update_question(
 )
 async def delete_question(
     question_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     result = await db.questions.delete_one({"id": question_id})
@@ -225,7 +225,7 @@ async def delete_question(
 )
 async def bulk_import_questions(
     data: BulkQuestionImport,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     now = utc_now().isoformat()
@@ -324,7 +324,7 @@ async def get_template(
 )
 async def create_template(
     data: TemplateCreate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     # Validate question IDs exist
@@ -362,7 +362,7 @@ async def create_template(
 async def update_template(
     template_id: str,
     data: TemplateUpdate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     existing = await db.templates.find_one({"id": template_id})
@@ -396,7 +396,7 @@ async def update_template(
 )
 async def delete_template(
     template_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     result = await db.templates.delete_one({"id": template_id})
@@ -412,7 +412,7 @@ async def delete_template(
 )
 async def clone_template(
     template_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     original = await db.templates.find_one({"id": template_id}, {"_id": 0})

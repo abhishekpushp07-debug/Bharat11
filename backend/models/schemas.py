@@ -151,6 +151,7 @@ class User(TimestampMixin):
     daily_streak: int = Field(default=0, ge=0)
     last_daily_claim: Optional[datetime] = Field(default=None)
     is_banned: bool = Field(default=False)
+    is_admin: bool = Field(default=False)
     failed_login_attempts: int = Field(default=0)
     locked_until: Optional[datetime] = Field(default=None)
     

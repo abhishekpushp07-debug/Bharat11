@@ -4,7 +4,7 @@ Dependency injection for authentication, database, and rate limiting.
 """
 from typing import Optional, Annotated
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from core.database import db_manager, get_db, get_redis
@@ -203,3 +203,19 @@ OptionalUser = Annotated[Optional[User], Depends(get_current_user_optional)]
 Database = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 Redis = Annotated[RedisManager, Depends(get_redis_manager)]
 RateLimited = Annotated[None, Depends(rate_limit_dependency)]
+
+
+async def require_admin(current_user: CurrentUser) -> User:
+    """
+    Admin role guard. Raises 403 if user is not admin.
+    For now: first registered user (phone 9876543210) is auto-admin.
+    Future: proper role management.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
+    return current_user
+
+AdminUser = Annotated[User, Depends(require_admin)]

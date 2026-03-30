@@ -46,14 +46,22 @@ class UserService:
     async def update_profile(
         self, user_id: str, update_data: UserProfileUpdate
     ) -> UserResponse:
-        """Update user profile (username, avatar)."""
+        """Update user profile (username, avatar) with updated_at."""
         update_fields = {}
         if update_data.username is not None:
-            update_fields["username"] = update_data.username
+            # Validate username
+            if len(update_data.username.strip()) < 3:
+                from core.exceptions import ValidationError
+                raise ValidationError("Username must be at least 3 characters")
+            if len(update_data.username) > 20:
+                from core.exceptions import ValidationError
+                raise ValidationError("Username must be 20 characters or less")
+            update_fields["username"] = update_data.username.strip()
         if update_data.avatar_url is not None:
             update_fields["avatar_url"] = update_data.avatar_url
         
         if update_fields:
+            update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
             await self.user_repo.update_by_id(user_id, {"$set": update_fields})
         
         return await self.get_profile(user_id)

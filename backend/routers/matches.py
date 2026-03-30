@@ -198,9 +198,26 @@ async def update_match_status(
     if not existing:
         raise HTTPException(status_code=404, detail="Match not found")
 
+    # Validate status transitions
+    VALID_TRANSITIONS = {
+        "upcoming": ["live", "cancelled", "abandoned"],
+        "live": ["completed", "abandoned"],
+        "completed": [],  # Terminal state
+        "cancelled": [],  # Terminal state
+        "abandoned": [],  # Terminal state
+    }
+    current_status = existing.get("status", "upcoming")
+    new_status = data.status.value
+    allowed = VALID_TRANSITIONS.get(current_status, [])
+    if new_status not in allowed and current_status != new_status:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid transition: {current_status} -> {new_status}. Allowed: {allowed}"
+        )
+
     await db.matches.update_one(
         {"id": match_id},
-        {"$set": {"status": data.status.value, "updated_at": utc_now().isoformat()}}
+        {"$set": {"status": new_status, "updated_at": utc_now().isoformat()}}
     )
     updated = await db.matches.find_one({"id": match_id}, {"_id": 0})
     return updated
