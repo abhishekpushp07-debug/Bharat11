@@ -4,7 +4,7 @@ import { COLORS } from '../constants/design';
 import { getTeamLogo, getTeamGradient, getTeamCardImage } from '../constants/teams';
 import { Share2, X } from 'lucide-react';
 
-export default function ShareCard({ match, rank, totalPlayers, score, totalPoints, correctAnswers, totalQuestions, onClose }) {
+export default function ShareCard({ match, rank, totalPlayers, score, totalPoints, correctAnswers, totalQuestions, onClose, moodData }) {
   const cardRef = useRef(null);
   const [sharing, setSharing] = useState(false);
 
@@ -127,6 +127,28 @@ export default function ShareCard({ match, rank, totalPlayers, score, totalPoint
                 <div className="text-[8px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>Accuracy</div>
               </div>
             </div>
+
+            {/* Mood Meter in card */}
+            {moodData && moodData.total_votes > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[8px] font-black uppercase tracking-[0.15em] text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>MATCH MOOD</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold text-white">{moodData.team_a}</span>
+                  <div className="flex-1 h-2.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <div className="h-full rounded-l-full flex items-center justify-end pr-0.5"
+                      style={{ width: `${moodData.team_a_pct}%`, background: getTeamGradient(moodData.team_a) }}>
+                      {moodData.team_a_pct > 20 && <span className="text-[7px] font-black text-white">{moodData.team_a_pct}%</span>}
+                    </div>
+                    <div className="h-full rounded-r-full flex items-center pl-0.5"
+                      style={{ width: `${moodData.team_b_pct}%`, background: getTeamGradient(moodData.team_b) }}>
+                      {moodData.team_b_pct > 20 && <span className="text-[7px] font-black text-white">{moodData.team_b_pct}%</span>}
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-bold text-white">{moodData.team_b}</span>
+                </div>
+                <div className="text-center text-[8px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{moodData.total_votes} votes</div>
+              </div>
+            )}
 
             {/* Footer */}
             <div className="text-center">

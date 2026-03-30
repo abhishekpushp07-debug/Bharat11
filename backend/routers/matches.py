@@ -7,7 +7,7 @@ Auto-contest creation on match create / go-live.
 import logging
 from datetime import timedelta, datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from typing import Annotated, Optional
 from pydantic import BaseModel, Field
 
@@ -846,4 +846,117 @@ async def get_template_deadlines(match_id: str, db: AsyncIOMotorDatabase = Depen
         "match_id": match_id,
         "current_state": state,
         "templates": results
+    }
+
+
+
+# ==================== MOOD METER (Live Poll) ====================
+
+class MoodVoteRequest(BaseModel):
+    team: str = Field(..., description="Team short_name to vote for (e.g. CSK, MI)")
+
+@router.post("/{match_id}/mood-vote", summary="Cast a mood vote for which team will win")
+async def cast_mood_vote(
+    match_id: str,
+    body: MoodVoteRequest,
+    user: CurrentUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Users vote for which team they think will win. One vote per user per match."""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0, "team_a": 1, "team_b": 1, "status": 1})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    team_a_short = match.get("team_a", {}).get("short_name", "")
+    team_b_short = match.get("team_b", {}).get("short_name", "")
+    valid_teams = [team_a_short, team_b_short]
+
+    if body.team not in valid_teams:
+        raise HTTPException(status_code=400, detail=f"Invalid team. Choose from: {valid_teams}")
+
+    user_id = user.id
+
+    # Upsert: one vote per user per match
+    await db.mood_votes.update_one(
+        {"match_id": match_id, "user_id": user_id},
+        {"$set": {
+            "match_id": match_id,
+            "user_id": user_id,
+            "team": body.team,
+            "voted_at": utc_now(),
+        }},
+        upsert=True
+    )
+
+    # Get updated counts
+    pipeline = [
+        {"$match": {"match_id": match_id}},
+        {"$group": {"_id": "$team", "count": {"$sum": 1}}}
+    ]
+    agg = await db.mood_votes.aggregate(pipeline).to_list(10)
+    counts = {r["_id"]: r["count"] for r in agg}
+    total = sum(counts.values()) or 1
+
+    return {
+        "success": True,
+        "your_vote": body.team,
+        "team_a": team_a_short,
+        "team_b": team_b_short,
+        "team_a_votes": counts.get(team_a_short, 0),
+        "team_b_votes": counts.get(team_b_short, 0),
+        "team_a_pct": round(counts.get(team_a_short, 0) / total * 100),
+        "team_b_pct": round(counts.get(team_b_short, 0) / total * 100),
+        "total_votes": total,
+    }
+
+
+@router.get("/{match_id}/mood-meter", summary="Get current mood meter results")
+async def get_mood_meter(
+    match_id: str,
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Get live mood meter votes for a match. Public endpoint."""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0, "team_a": 1, "team_b": 1})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    team_a_short = match.get("team_a", {}).get("short_name", "")
+    team_b_short = match.get("team_b", {}).get("short_name", "")
+
+    pipeline = [
+        {"$match": {"match_id": match_id}},
+        {"$group": {"_id": "$team", "count": {"$sum": 1}}}
+    ]
+    agg = await db.mood_votes.aggregate(pipeline).to_list(10)
+    counts = {r["_id"]: r["count"] for r in agg}
+    total = sum(counts.values()) or 1
+
+    # Try to check if current user has voted (optional auth)
+    user_vote = None
+    try:
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Bearer "):
+            from core.security import JWTManager
+            token = auth.split(" ", 1)[1]
+            payload = JWTManager.decode_token(token)
+            if payload:
+                user_id = payload.get("sub", "")
+                if user_id:
+                    vote_doc = await db.mood_votes.find_one({"match_id": match_id, "user_id": user_id}, {"_id": 0, "team": 1})
+                    if vote_doc:
+                        user_vote = vote_doc["team"]
+    except Exception as e:
+        logger.warning(f"Mood meter user check failed: {e}")
+
+    return {
+        "match_id": match_id,
+        "team_a": team_a_short,
+        "team_b": team_b_short,
+        "team_a_votes": counts.get(team_a_short, 0),
+        "team_b_votes": counts.get(team_b_short, 0),
+        "team_a_pct": round(counts.get(team_a_short, 0) / total * 100),
+        "team_b_pct": round(counts.get(team_b_short, 0) / total * 100),
+        "total_votes": total,
+        "user_vote": user_vote,
     }

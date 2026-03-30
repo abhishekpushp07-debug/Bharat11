@@ -50,10 +50,10 @@ export default function ScorecardView({ data, compact = false }) {
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-3 gap-1.5">
         {keyMetrics.map((km, i) => (
-          <div key={i} className="p-2.5 rounded-xl text-center" style={{ background: COLORS.background.card, border: `1px solid ${km.color}15` }}>
-            <div className="text-[9px] uppercase tracking-wider font-bold" style={{ color: km.color + 'aa' }}>{km.label}</div>
+          <div key={i} className="p-2.5 rounded-xl text-center" style={{ background: COLORS.background.card, border: `1px solid ${km.color}20` }}>
+            <div className="text-[9px] uppercase tracking-[0.1em] font-black" style={{ color: km.color + 'cc' }}>{km.label}</div>
             <div className="text-lg font-black mt-0.5" style={{ color: km.color, fontFamily: "'Rajdhani', sans-serif" }}>{km.value}</div>
-            <div className="text-[9px]" style={{ color: COLORS.text.tertiary }}>{km.sub}</div>
+            <div className="text-[9px] font-medium" style={{ color: COLORS.text.secondary }}>{km.sub}</div>
           </div>
         ))}
       </div>

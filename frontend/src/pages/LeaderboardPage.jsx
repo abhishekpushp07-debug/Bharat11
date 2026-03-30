@@ -165,6 +165,7 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showShare, setShowShare] = useState(false);
+  const [moodData, setMoodData] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -174,9 +175,17 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
       ]);
       if (lbRes.status === 'fulfilled') setData(lbRes.value.data);
       if (meRes.status === 'fulfilled') setMyPos(meRes.value.data);
+
+      // Fetch mood data for ShareCard
+      if (match?.id) {
+        try {
+          const moodRes = await apiClient.get(`/matches/${match.id}/mood-meter`);
+          setMoodData(moodRes.data);
+        } catch (_) {}
+      }
     } catch (_) { /* silent */ }
     finally { setLoading(false); }
-  }, [contestId]);
+  }, [contestId, match?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -225,21 +234,23 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
 
       {/* My Position */}
       {myPos && (
-        <div data-testid="my-position" className="rounded-xl p-4 flex items-center justify-between" style={{ background: `${COLORS.primary.main}15`, border: `1px solid ${COLORS.primary.main}33` }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: COLORS.primary.gradient }}>
+        <div data-testid="my-position" className="rounded-2xl p-4 flex items-center justify-between relative overflow-hidden"
+          style={{ background: `${COLORS.primary.main}10`, border: `1px solid ${COLORS.primary.main}25` }}>
+          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-10" style={{ background: `radial-gradient(circle, ${COLORS.primary.main}, transparent)` }} />
+          <div className="flex items-center gap-3 relative">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg" style={{ background: COLORS.primary.gradient }}>
               <Star size={18} color="#fff" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-white">Your Position</div>
-              <div className="text-xs" style={{ color: COLORS.text.secondary }}>{myPos.team_name} - {myPos.predictions_count} predictions</div>
+              <div className="text-sm font-bold text-white">Your Position</div>
+              <div className="text-[10px] font-medium" style={{ color: COLORS.text.secondary }}>{myPos.team_name} - {myPos.predictions_count} predictions</div>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-xl font-bold" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
+          <div className="text-right relative">
+            <div className="text-2xl font-black" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
               #{myPos.rank}
             </div>
-            <div className="text-xs font-semibold" style={{ color: COLORS.accent.gold }}>{myPos.total_points} pts</div>
+            <div className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>{myPos.total_points} pts</div>
           </div>
         </div>
       )}
@@ -247,38 +258,38 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
       {/* Share Button */}
       {myPos && (
         <button data-testid="share-result-btn" onClick={() => setShowShare(true)}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm text-white"
-          style={{ background: '#25D366' }}>
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm text-white transition-transform active:scale-[0.97]"
+          style={{ background: 'linear-gradient(135deg, #25D366, #128C7E)', boxShadow: '0 4px 20px rgba(37,211,102,0.25)' }}>
           <Share2 size={16} /> Share Result on WhatsApp
         </button>
       )}
 
       {/* Leaderboard List */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+      <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
         {displayList.map((entry, i) => (
           <div
             key={entry.user_id}
             data-testid={`lb-entry-${i}`}
-            className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors active:opacity-80"
+            className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:opacity-80"
             style={{
               background: rankBg(entry.rank),
-              borderBottom: i < displayList.length - 1 ? `1px solid ${COLORS.border.light}` : 'none'
+              borderBottom: i < displayList.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none'
             }}
             onClick={() => setSelectedUserId(entry.user_id)}>
             <div className="w-8 flex justify-center">{rankIcon(entry.rank)}</div>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: COLORS.primary.main + '44' }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black text-white shadow" style={{ background: entry.rank <= 3 ? COLORS.primary.gradient : 'rgba(255,255,255,0.06)' }}>
               {(entry.username || 'U')[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white truncate">{entry.username}</div>
-              <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{entry.team_name}</div>
+              <div className="text-sm font-bold text-white truncate">{entry.username}</div>
+              <div className="text-[10px] font-medium" style={{ color: COLORS.text.tertiary }}>{entry.team_name}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm font-bold" style={{ fontFamily: "'Rajdhani', sans-serif", color: entry.rank <= 3 ? COLORS.accent.gold : '#fff' }}>
+              <div className="text-base font-black" style={{ fontFamily: "'Rajdhani', sans-serif", color: entry.rank <= 3 ? COLORS.accent.gold : '#fff' }}>
                 {entry.total_points}
               </div>
               {entry.prize_won > 0 && (
-                <div className="text-[10px] font-semibold" style={{ color: COLORS.success.main }}>+{entry.prize_won}</div>
+                <div className="text-[10px] font-bold" style={{ color: COLORS.success.main }}>+{entry.prize_won}</div>
               )}
             </div>
           </div>
@@ -319,6 +330,7 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
           totalPoints={myPos.total_points + 100}
           correctAnswers={myPos.correct_count || 0}
           totalQuestions={myPos.predictions_count || 0}
+          moodData={moodData}
           onClose={() => setShowShare(false)}
         />
       )}

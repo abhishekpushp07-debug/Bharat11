@@ -24,8 +24,8 @@ export const COLORS = {
   // Text colors
   text: {
     primary: '#FFFFFF',
-    secondary: '#B0B0B0',
-    tertiary: '#707070',
+    secondary: '#C8C8C8',
+    tertiary: '#808080',
     disabled: '#505050',
   },
   
@@ -82,8 +82,8 @@ export const COLORS = {
   
   // Borders
   border: {
-    light: 'rgba(255, 255, 255, 0.1)',
-    medium: 'rgba(255, 255, 255, 0.2)',
+    light: 'rgba(255, 255, 255, 0.08)',
+    medium: 'rgba(255, 255, 255, 0.15)',
     focus: '#FF3B3B',
   },
 };

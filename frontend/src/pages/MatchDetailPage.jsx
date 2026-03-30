@@ -4,6 +4,7 @@ import { COLORS } from '../constants/design';
 import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS } from '../constants/teams';
 import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X } from 'lucide-react';
 import ScorecardView from '../components/ScorecardView';
+import MoodMeter from '../components/MoodMeter';
 
 const getGrad = (s) => getTeamGradient(s);
 
@@ -246,6 +247,9 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         </div>
       </div>
 
+      {/* Mood Meter — Instagram-style live poll */}
+      <MoodMeter matchId={match?.id} teamA={teamA} teamB={teamB} />
+
       {/* Tab Bar - Glass morphism */}
       <div className="flex rounded-xl overflow-hidden glass" style={{ border: `1px solid ${COLORS.border.light}` }}>
         {TABS.map(tab => {
@@ -301,19 +305,19 @@ function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPr
       {/* Template Deadline Status */}
       {deadlines.length > 0 && (
         <div data-testid="deadline-status" className="space-y-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.text.tertiary }}>Template Status</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: COLORS.text.tertiary }}>Template Status</div>
           {deadlines.map(d => (
-            <div key={d.template_id} className="flex items-center justify-between px-3 py-2 rounded-lg"
-              style={{ background: COLORS.background.card, border: `1px solid ${d.is_locked ? COLORS.error.main + '33' : COLORS.success.main + '33'}` }}>
+            <div key={d.template_id} className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+              style={{ background: d.is_locked ? 'rgba(239,68,68,0.06)' : 'rgba(0,200,83,0.06)', border: `1px solid ${d.is_locked ? 'rgba(239,68,68,0.15)' : 'rgba(0,200,83,0.15)'}` }}>
               <div className="flex items-center gap-2">
                 {d.is_locked ? <Lock size={12} color={COLORS.error.main} /> : <Unlock size={12} color={COLORS.success.main} />}
-                <span className="text-xs font-semibold text-white">{d.phase_label || d.template_type}</span>
+                <span className="text-xs font-bold text-white">{d.phase_label || d.template_type}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
-                  Deadline: Inn {d.deadline_innings} Ov {d.deadline_over}
+                <span className="text-[10px] font-medium" style={{ color: COLORS.text.secondary }}>
+                  Inn {d.deadline_innings} Ov {d.deadline_over}
                 </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold"
                   style={{ background: d.is_locked ? COLORS.error.bg : COLORS.success.bg, color: d.is_locked ? COLORS.error.main : COLORS.success.main }}>
                   {d.status}
                 </span>
@@ -333,42 +337,58 @@ function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPr
         const isJoined = joinedIds.has(c.id);
         const isJoining = joiningId === c.id;
         const done = c.status === 'completed';
+        const participantPct = c.max_participants > 0 ? Math.min(100, Math.round((c.current_participants || 0) / c.max_participants * 100)) : 0;
         return (
-          <div key={c.id} data-testid={`contest-${c.id}`} className="p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${isJoined ? COLORS.success.main + '33' : COLORS.border.light}` }}>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white">{c.name}</div>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="flex items-center gap-1 text-xs" style={{ color: COLORS.text.secondary }}>
-                    <Coins size={11} color="#FFD700" /> {c.entry_fee}
-                  </span>
-                  <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(c.prize_pool || c.entry_fee * (c.current_participants || 0)).toLocaleString()}</span>
+          <div key={c.id} data-testid={`contest-${c.id}`} className="rounded-2xl overflow-hidden"
+            style={{ background: COLORS.background.card, border: `1px solid ${isJoined ? COLORS.success.main + '30' : 'rgba(255,255,255,0.06)'}` }}>
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-white tracking-tight">{c.name}</div>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: COLORS.accent.gold }}>
+                      <Coins size={12} color="#FFD700" /> {c.entry_fee} coins
+                    </span>
+                    <span className="text-xs font-bold" style={{ color: '#10B981' }}>Pool {(c.prize_pool || c.entry_fee * (c.current_participants || 0)).toLocaleString()}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 mt-1">
-                  <Users size={12} color={COLORS.info.main} />
-                  <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{c.current_participants || 0}/{c.max_participants || 0}</span>
-                  <span className="text-xs font-medium ml-2 px-1.5 py-0.5 rounded" style={{ color: c.status === 'open' ? COLORS.success.main : COLORS.text.tertiary, background: c.status === 'open' ? COLORS.success.bg : COLORS.background.tertiary }}>{c.status?.toUpperCase()}</span>
+                <div className="ml-3 shrink-0">
+                  {done ? (
+                    <button data-testid={`leaderboard-btn-${c.id}`} onClick={() => onOpenLeaderboard?.(c.id)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95"
+                      style={{ background: `${COLORS.accent.gold}15`, color: COLORS.accent.gold, border: `1px solid ${COLORS.accent.gold}30` }}>
+                      <Trophy size={13} /> Results
+                    </button>
+                  ) : isJoined ? (
+                    <button data-testid={`predict-btn-${c.id}`} onClick={() => onOpenPrediction?.(c.id)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95"
+                      style={{ background: `${COLORS.success.main}15`, color: COLORS.success.main, border: `1px solid ${COLORS.success.main}30` }}>
+                      <Check size={13} /> Predict
+                    </button>
+                  ) : (
+                    <button data-testid={`join-btn-${c.id}`} onClick={() => onJoin(c.id)}
+                      disabled={isJoining || c.status !== 'open'}
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 transition-transform active:scale-95"
+                      style={{ background: COLORS.primary.gradient, color: '#fff', boxShadow: '0 4px 12px rgba(255,59,59,0.25)' }}>
+                      {isJoining ? <Loader2 size={13} className="animate-spin" /> : null}
+                      {isJoining ? 'Joining...' : 'Join'} {!isJoining && <ChevronRight size={13} />}
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="ml-3 shrink-0">
-                {done ? (
-                  <button data-testid={`leaderboard-btn-${c.id}`} onClick={() => onOpenLeaderboard?.(c.id)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1" style={{ background: COLORS.background.tertiary, color: COLORS.accent.gold, border: `1px solid ${COLORS.accent.gold}33` }}>
-                    <Trophy size={13} /> Results
-                  </button>
-                ) : isJoined ? (
-                  <button data-testid={`predict-btn-${c.id}`} onClick={() => onOpenPrediction?.(c.id)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1" style={{ background: COLORS.success.bg, color: COLORS.success.main, border: `1px solid ${COLORS.success.main}33` }}>
-                    <Check size={13} /> Predict
-                  </button>
-                ) : (
-                  <button data-testid={`join-btn-${c.id}`} onClick={() => onJoin(c.id)}
-                    disabled={isJoining || c.status !== 'open'}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1 disabled:opacity-50" style={{ background: COLORS.primary.gradient, color: '#fff' }}>
-                    {isJoining ? <Loader2 size={13} className="animate-spin" /> : null}
-                    {isJoining ? 'Joining...' : 'Join'} {!isJoining && <ChevronRight size={13} />}
-                  </button>
-                )}
+              {/* Participant progress bar */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${participantPct}%`, background: participantPct > 80 ? COLORS.error.main : COLORS.info.main }} />
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Users size={10} color={COLORS.text.tertiary} />
+                  <span className="text-[10px] font-semibold" style={{ color: COLORS.text.secondary }}>{c.current_participants || 0}/{c.max_participants || 0}</span>
+                </div>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                  style={{ color: c.status === 'open' ? COLORS.success.main : COLORS.text.tertiary, background: c.status === 'open' ? COLORS.success.bg : 'rgba(255,255,255,0.04)' }}>
+                  {c.status?.toUpperCase()}
+                </span>
               </div>
             </div>
           </div>
@@ -417,13 +437,13 @@ function SquadTab({ squads, loading, onPlayerClick }) {
   return (
     <div className="space-y-3">
       {/* Team Selector */}
-      <div className="flex rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+      <div className="flex rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
         {squads.map((t, i) => (
           <button key={i} data-testid={`squad-team-${i}`} onClick={() => setActiveTeam(i)}
             className="flex-1 py-2.5 text-xs font-bold text-center transition-all"
-            style={{ color: activeTeam === i ? '#fff' : COLORS.text.tertiary, background: activeTeam === i ? COLORS.primary.main : 'transparent' }}>
+            style={{ color: activeTeam === i ? '#fff' : COLORS.text.tertiary, background: activeTeam === i ? COLORS.primary.main : 'transparent', boxShadow: activeTeam === i ? '0 2px 8px rgba(255,59,59,0.3)' : 'none' }}>
             {t.shortname || t.teamName?.split(' ')[0]}
-            <span className="text-[9px] ml-1 opacity-70">({(t.players || []).length})</span>
+            <span className="text-[9px] ml-1 opacity-60">({(t.players || []).length})</span>
           </button>
         ))}
       </div>
@@ -485,9 +505,9 @@ function FantasyPointsTab({ data, loading, onPlayerClick }) {
   return (
     <div className="space-y-3">
       {/* View Toggle */}
-      <div className="flex rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-        <button onClick={() => setView('totals')} className="flex-1 py-2 text-xs font-bold"
-          style={{ color: view === 'totals' ? '#fff' : COLORS.text.tertiary, background: view === 'totals' ? COLORS.primary.main : 'transparent' }}>
+      <div className="flex rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
+        <button onClick={() => setView('totals')} className="flex-1 py-2.5 text-xs font-bold transition-all"
+          style={{ color: view === 'totals' ? '#fff' : COLORS.text.tertiary, background: view === 'totals' ? COLORS.primary.main : 'transparent', boxShadow: view === 'totals' ? '0 2px 8px rgba(255,59,59,0.3)' : 'none' }}>
           Top Performers
         </button>
         {innings.map((inn, i) => (
@@ -500,18 +520,18 @@ function FantasyPointsTab({ data, loading, onPlayerClick }) {
 
       {/* Totals View */}
       {view === 'totals' && (
-        <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+        <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
           {totals.slice(0, 15).map((p, i) => (
-            <div key={p.id || i} className="flex items-center gap-3 px-3 py-2.5"
-              style={{ borderBottom: i < Math.min(totals.length, 15) - 1 ? `1px solid ${COLORS.border.light}` : 'none',
-                background: i < 3 ? `${COLORS.accent.gold}08` : 'transparent' }}>
-              <div className="w-6 text-center text-xs font-bold" style={{ color: i < 3 ? COLORS.accent.gold : COLORS.text.tertiary }}>
+            <div key={p.id || i} className="flex items-center gap-3 px-3 py-3"
+              style={{ borderBottom: i < Math.min(totals.length, 15) - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none',
+                background: i < 3 ? `${COLORS.accent.gold}06` : 'transparent' }}>
+              <div className="w-7 text-center text-xs font-black" style={{ color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : COLORS.text.tertiary }}>
                 {i + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-white truncate">{p.name}</div>
+                <div className="text-xs font-bold text-white truncate">{p.name}</div>
               </div>
-              <div className="text-sm font-bold" style={{ color: (p.points || 0) >= 0 ? COLORS.success.main : COLORS.error.main, fontFamily: "'Rajdhani', sans-serif" }}>
+              <div className="text-sm font-black" style={{ color: (p.points || 0) >= 0 ? COLORS.success.main : COLORS.error.main, fontFamily: "'Rajdhani', sans-serif" }}>
                 {p.points}
               </div>
             </div>
@@ -934,15 +954,15 @@ function PlayerProfileModal({ player, loading, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}>
       <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-t-3xl p-5 space-y-4"
-        style={{ background: COLORS.background.primary, animation: 'slideUp 0.3s ease' }}
+        style={{ background: COLORS.background.primary, animation: 'slideUp 0.3s ease', boxShadow: '0 -4px 30px rgba(0,0,0,0.5)' }}
         onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Player Profile</h3>
-          <button onClick={onClose} className="p-1 rounded-full" style={{ background: COLORS.background.tertiary }}>
+          <h3 className="text-base font-black text-white tracking-tight">Player Profile</h3>
+          <button onClick={onClose} className="p-1.5 rounded-full transition-colors" style={{ background: 'rgba(255,255,255,0.06)' }}>
             <X size={16} color={COLORS.text.secondary} />
           </button>
         </div>
@@ -953,15 +973,15 @@ function PlayerProfileModal({ player, loading, onClose }) {
           <>
             {/* Player Header */}
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0" style={{ background: COLORS.background.tertiary }}>
+              <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-lg" style={{ background: COLORS.background.tertiary }}>
                 {p.playerImg && !p.playerImg.includes('icon512') && (
                   <img src={p.playerImg} alt={p.name} className="w-full h-full object-cover" />
                 )}
               </div>
               <div>
-                <div className="text-lg font-bold text-white">{p.name}</div>
-                <div className="text-xs" style={{ color: COLORS.text.secondary }}>{p.role} | {p.country}</div>
-                <div className="text-[10px] mt-0.5" style={{ color: COLORS.text.tertiary }}>
+                <div className="text-lg font-black text-white">{p.name}</div>
+                <div className="text-xs font-semibold" style={{ color: COLORS.text.secondary }}>{p.role} | {p.country}</div>
+                <div className="text-[10px] mt-0.5 font-medium" style={{ color: COLORS.text.tertiary }}>
                   {p.battingStyle}{p.bowlingStyle ? ` | ${p.bowlingStyle}` : ''}
                 </div>
                 {p.placeOfBirth && <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Born: {p.placeOfBirth}</div>}
@@ -971,13 +991,13 @@ function PlayerProfileModal({ player, loading, onClose }) {
             {/* Stats by Format */}
             {Object.entries(formats).map(([fmt, fmtStats]) => (
               <div key={fmt}>
-                <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: COLORS.primary.main }}>{fmt}</div>
-                <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+                <div className="text-[10px] font-black uppercase tracking-[0.12em] mb-1.5" style={{ color: COLORS.primary.main }}>{fmt}</div>
+                <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
                   {fmtStats.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between px-3 py-1.5"
-                      style={{ borderBottom: i < fmtStats.length - 1 ? `1px solid ${COLORS.border.light}` : 'none' }}>
-                      <span className="text-xs" style={{ color: COLORS.text.secondary }}>{s.fn}</span>
-                      <span className="text-xs font-semibold text-white">{s.value}</span>
+                    <div key={i} className="flex items-center justify-between px-3 py-2"
+                      style={{ borderBottom: i < fmtStats.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none' }}>
+                      <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{s.fn}</span>
+                      <span className="text-xs font-bold text-white">{s.value}</span>
                     </div>
                   ))}
                 </div>

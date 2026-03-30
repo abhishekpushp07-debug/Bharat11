@@ -205,13 +205,13 @@ export default function HomePage({ onMatchClick }) {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Trophy size={16} color={COLORS.accent.gold} />
-              <h2 className="text-base font-semibold text-white">IPL 2026 Standings</h2>
+              <h2 className="text-base font-black text-white tracking-tight">IPL 2026 Standings</h2>
             </div>
             <button onClick={() => setShowFullTable(f => !f)} className="text-[10px] font-semibold" style={{ color: COLORS.primary.main }}>
               {showFullTable ? 'Show Less' : 'View All'}
             </button>
           </div>
-          <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
             {/* Header */}
             <div className="flex items-center px-3 py-2" style={{ background: COLORS.background.tertiary }}>
               <span className="w-6 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
@@ -246,7 +246,7 @@ export default function HomePage({ onMatchClick }) {
       ) : upcomingMatches.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-white">Upcoming Matches</h2>
+            <h2 className="text-base font-black text-white tracking-tight">Upcoming Matches</h2>
             <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{upcomingMatches.length} matches</span>
           </div>
           <div className="space-y-3">
