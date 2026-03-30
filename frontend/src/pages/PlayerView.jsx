@@ -13,6 +13,7 @@ import MatchDetailPage from '@/pages/MatchDetailPage';
 import MyContestsPage from '@/pages/MyContestsPage';
 import PredictionPage from '@/pages/PredictionPage';
 import LeaderboardPage from '@/pages/LeaderboardPage';
+import SearchPage from '@/pages/SearchPage';
 import { Shield } from 'lucide-react';
 
 export default function PlayerView({ onBackToAdmin }) {
@@ -45,6 +46,7 @@ export default function PlayerView({ onBackToAdmin }) {
       case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
       case 'wallet': return <WalletPage />;
       case 'profile': return <ProfilePage />;
+      case 'search': return <SearchPage onMatchClick={handleMatchClick} onBack={() => setActiveTab('home')} />;
       default: return <HomePage onMatchClick={handleMatchClick} />;
     }
   };

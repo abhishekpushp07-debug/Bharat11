@@ -16,6 +16,7 @@ import MyContestsPage from "@/pages/MyContestsPage";
 import PredictionPage from "@/pages/PredictionPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import AdminApp from "@/pages/AdminApp";
+import SearchPage from "@/pages/SearchPage";
 import { COLORS } from "@/constants/design";
 
 // Splash Screen
@@ -101,6 +102,7 @@ const PlayerApp = () => {
       case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
       case 'wallet': return <WalletPage />;
       case 'profile': return <ProfilePage />;
+      case 'search': return <SearchPage onMatchClick={handleMatchClick} onBack={() => setActiveTab('home')} />;
       default: return <HomePage onMatchClick={handleMatchClick} />;
     }
   };
