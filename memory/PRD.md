@@ -11,6 +11,7 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 7. Admin features: Dashboard with auto/manual template building, clickable KPIs
 8. IPL-ONLY matches enforced
 9. Global Prediction Accuracy Badge system
+10. Prediction Streak with multiplier bonus
 
 ## Tech Stack
 - Frontend: React.js (PWA), Tailwind CSS, Shadcn/UI
@@ -37,42 +38,42 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 - Squads, Standings, Fantasy Points, Ball-by-Ball, IPL-only filtering
 
 ### Phase 7: AI Commentary + Animations (DONE - March 30, 2026)
-- GPT-5.2 structured JSON commentary (match_pulse, key_moments, star_performers, turning_point, verdict)
+- GPT-5.2 structured JSON commentary
 - LiveTab 3 sub-tabs (Match Story / Moments / Stars)
 - Event animations (SIX golden glow, WICKET red shake, FOUR blue wave)
-- Team card image backgrounds, glass morphism
 
 ### Phase 8: Match Mood Meter (DONE - March 30, 2026)
 - Instagram-style live poll ("Who's winning today?")
-- Backend: POST /api/matches/{id}/mood-vote, GET /api/matches/{id}/mood-meter
-- Frontend: MoodMeter component with team logos, progress bar, VOTED badge
-- Integrated into ShareCard for WhatsApp sharing
+- Backend + Frontend MoodMeter component
 
 ### Phase 9: HD Polish Stage 1-6 (DONE - March 30, 2026)
-- Glass morphism clarity: darker backgrounds for readability
-- Text contrast boost, contest card progress bars
-- Tab bar glass morphism, leaderboard polish
+- Glass morphism, text contrast, contest card progress bars
 
 ### Phase 10: Global Prediction Accuracy Badge (DONE - March 30, 2026)
-- Ranks users by total correct answers across ALL contests (not contest wins)
-- Rank 1 = Pink Diamond, Rank 2 = Gold, Rank 3 = Silver, Rank 4+ = Blue Crystal
-- Badge shows: diamond SVG icon, rank, correct/attempted, accuracy bar, percentage
-- Displayed on: HomePage (between greeting and banner), ShareCard (WhatsApp)
-- Backend: GET /api/contests/global/my-badge, GET /api/contests/global/prediction-leaderboard
+- Ranks users by total correct answers across ALL contests
+- Pink Diamond #1, Gold #2, Silver #3, Blue Crystal #4+
 
 ### Phase 11: Admin Dashboard Enhancement (DONE - March 30, 2026)
-- All KPI stat cards clickable → navigate to relevant tabs
-- Quick Actions with icons, labels, chevron arrows
-- Workflow steps all clickable with step numbers and navigation
-- Alert cards clickable for contest resolution and match prep
+- Clickable KPIs, Quick Actions, Workflow steps
+
+### Phase 12: Prediction Streak (DONE - March 31, 2026)
+- Global streak tracking across all contests
+- Streak tiers: BUILD IT (0-2), WARMING UP (3-4), HOT STREAK (5-9, 2x), LEGENDARY (10+, 4x)
+- Settlement engine auto-updates streaks on question resolution
+- Bonus multiplier applied during auto-settlement (2x at 5+, 4x at 10+)
+- "Streak King" banner on HomePage showing top streak holder
+- Fire particles, glowing borders, pulsing animations
+- Backend: GET /api/contests/global/top-streak, GET /api/contests/global/my-streak
+- User model: prediction_streak, max_prediction_streak fields
 
 ## Prioritized Backlog
 
 ### P0 (Next Up)
+- Stage 2-4 Rigorous Verification (Contest Auto-Live, Default Template Fallback, Answer Deadline)
 - Socket.IO integration for real-time leaderboard and live score push
-- Push notifications (match start, results)
 
 ### P1
+- Push notifications (match start, results)
 - PWA polish (service worker, offline mode, install prompt)
 - User Management tab in Admin Dashboard
 
@@ -89,7 +90,7 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 /app/frontend/src/
   pages/ (HomePage.jsx, MatchDetailPage.jsx, LeaderboardPage.jsx, PlayerView.jsx)
   pages/admin/ (AdminDashboard.jsx, AdminApp.jsx)
-  components/ (ShareCard.jsx, ScorecardView.jsx, MoodMeter.jsx, PredictionBadge.jsx)
+  components/ (ShareCard.jsx, ScorecardView.jsx, MoodMeter.jsx, PredictionBadge.jsx, StreakBanner.jsx)
   constants/ (design.js, teams.js)
   App.css, App.js
 ```
@@ -97,6 +98,8 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 ## Key API Endpoints
 - /api/contests/global/my-badge (GET, auth required)
 - /api/contests/global/prediction-leaderboard (GET, public)
+- /api/contests/global/top-streak (GET, public)
+- /api/contests/global/my-streak (GET, auth required)
 - /api/matches/{id}/mood-vote (POST, auth required)
 - /api/matches/{id}/mood-meter (GET, public)
 - /api/matches/{id}/ai-commentary (GET)
