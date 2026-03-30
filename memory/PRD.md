@@ -41,6 +41,19 @@ Fantasy Cricket Prediction PWA (IPL-only). "World's Best" standard with zero com
 7. **API Rate Limit Handling**: Graceful 429 errors, usage tracking
 - Testing: 100% pass (iteration_19, 17/17 backend + all frontend)
 
+### 200-Question Pool + 5-Template Auto-Engine (2026-03-30) - DONE
+1. **200-Question Pool**: Seeded 200 bilingual T20 prediction questions across 7 categories (batting:40, bowling:35, powerplay:25, death_overs:25, match:30, player_performance:25, special:20). Each question has EN+HI text, 4 options with min/max ranges, auto_resolution config.
+2. **Template Schema Upgrade**: Added in-match routing fields to Template model: `innings_range`, `over_start`, `over_end`, `answer_deadline_over`, `phase_label`.
+3. **5-Template Auto-Engine**: Auto-generates 5 templates per match:
+   - Full Match Predictions (15 questions, match_end + toss triggers)
+   - Innings 1 Powerplay (10 questions, overs 1-6)
+   - Innings 1 Death Overs (10 questions, overs 16-20)
+   - Innings 2 Powerplay (8-10 questions, overs 1-6)
+   - Innings 2 Death Overs (10 questions, overs 16-20)
+4. **Admin UI**: Seed 200 button, Auto 5 Templates button per match, In-Match Routing Config in template form.
+5. **Idempotent**: Both seed and auto-template endpoints skip if data already exists.
+- Testing: 100% pass (iteration_20, 8/8 backend + 16/16 frontend)
+
 ## Key API Endpoints
 
 ### Auth
@@ -70,10 +83,29 @@ Fantasy Cricket Prediction PWA (IPL-only). "World's Best" standard with zero com
 ### Questions & Templates
 - CRUD /api/admin/questions (with auto_resolution, min/max on options)
 - CRUD /api/admin/templates (with one-click create, edit add/remove questions)
+- POST /api/admin/seed-200-questions (idempotent seed)
+- POST /api/admin/matches/{match_id}/auto-templates (5-template auto-engine)
+- POST /api/admin/auto-templates-all (bulk auto-template for all upcoming matches)
 
 ## Backlog
 
-### P1 - Stage 15: Final PWA Polish
+### P0 - Phase 4: Points & Leaderboard Upgrade
+- Points = correct_answer x question_points (use question's point value)
+- Real-time leaderboard calculation
+
+### P1 - Phase 5: Socket.IO Integration
+- Live score push, resolution events, leaderboard rank changes
+
+### P1 - Phase 6: UX Enhancements
+- Dual points banner (Fantasy + Contest), AI ball-by-ball commentary
+
+### P2 - Phase 7: WhatsApp Sharing
+- HTML-to-Canvas aesthetic card generation with rank and score
+
+### P2 - Phase 8: UI Animations
+- Heavy visual feedback (sixes, wickets, prize winners)
+
+### P2 - Final PWA Polish
 - PWA manifest tuning, offline caching, service worker
 - Performance optimization, Lighthouse audit
 
