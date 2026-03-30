@@ -138,17 +138,12 @@ export default function StreakBanner() {
 
         <div className="relative p-3.5 flex items-center gap-3.5">
           {/* Streak Fire Icon */}
-          <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${isHot ? 'streak-icon-glow' : ''}`}
-            style={{ background: isHot ? 'rgba(160,32,240,0.2)' : 'rgba(160,32,240,0.12)' }}>
+          <div className={`shrink-0 w-14 h-14 rounded-xl flex items-center justify-center streak-fire-box`}
+            style={{ background: 'linear-gradient(135deg, rgba(255,69,0,0.2), rgba(255,165,0,0.15), rgba(255,0,0,0.12))' }}>
             <FireIcon
-              size={isHot ? 28 : 22}
-              className={`transition-all ${isHot ? 'streak-fire-icon' : ''}`}
+              size={30}
+              className="streak-fire-icon-bold"
             />
-            {currentStreak >= 10 && (
-              <div className="absolute inset-0 rounded-xl animate-live-pulse" style={{
-                background: 'radial-gradient(circle, rgba(224,64,255,0.25), transparent 70%)'
-              }} />
-            )}
           </div>
 
           {/* Streak Info */}
@@ -166,16 +161,18 @@ export default function StreakBanner() {
 
             <div className="flex items-center gap-3">
               {/* Current Streak Number */}
-              <div className="flex items-baseline gap-1">
-                <span className={`text-2xl font-black ${isHot ? 'streak-number-glow' : ''}`}
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-black streak-count-glow"
                   style={{
-                    color: currentStreak >= 1 ? tier.color : COLORS.text.tertiary,
+                    color: '#FF2020',
                     fontFamily: "'Rajdhani', sans-serif",
-                    textShadow: isHot ? `0 0 12px ${tier.color}55` : 'none',
+                    textShadow: '0 0 10px rgba(255,32,32,0.5), 0 0 20px rgba(255,69,0,0.3)',
+                    letterSpacing: '-0.5px',
+                    WebkitTextStroke: '0.5px rgba(255,69,0,0.3)',
                   }}>
                   {currentStreak}
                 </span>
-                <span className="text-[10px] font-medium" style={{ color: COLORS.text.tertiary }}>
+                <span className="text-xs font-black uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   streak
                 </span>
               </div>

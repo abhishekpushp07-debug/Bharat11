@@ -628,6 +628,52 @@
   filter: drop-shadow(0 0 5px rgba(193,52,234,0.6)) !important;
 }
 
+/* BOLD fire icon - orange/yellow/red gradient */
+.streak-fire-icon-bold {
+  color: #FF6B00;
+  filter: drop-shadow(0 0 6px rgba(255,69,0,0.7)) drop-shadow(0 0 12px rgba(255,165,0,0.4));
+  animation: fireIconPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes fireIconPulse {
+  0%, 100% {
+    transform: scale(1);
+    color: #FF4500;
+    filter: drop-shadow(0 0 6px rgba(255,69,0,0.7)) drop-shadow(0 0 12px rgba(255,165,0,0.4));
+  }
+  33% {
+    transform: scale(1.1);
+    color: #FF8C00;
+    filter: drop-shadow(0 0 10px rgba(255,140,0,0.8)) drop-shadow(0 0 18px rgba(255,200,0,0.5));
+  }
+  66% {
+    transform: scale(1.05);
+    color: #FF2020;
+    filter: drop-shadow(0 0 8px rgba(255,32,32,0.8)) drop-shadow(0 0 16px rgba(255,69,0,0.5));
+  }
+}
+
+/* Fire icon box glow */
+.streak-fire-box {
+  animation: fireBoxGlow 2s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(255,69,0,0.2), 0 0 24px rgba(255,165,0,0.1);
+}
+
+@keyframes fireBoxGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,69,0,0.2), 0 0 16px rgba(255,165,0,0.08); }
+  50% { box-shadow: 0 0 16px rgba(255,69,0,0.35), 0 0 32px rgba(255,165,0,0.15); }
+}
+
+/* Sparkling red streak count */
+.streak-count-glow {
+  animation: streakCountSpark 2s ease-in-out infinite;
+}
+
+@keyframes streakCountSpark {
+  0%, 100% { text-shadow: 0 0 8px rgba(255,32,32,0.5), 0 0 16px rgba(255,69,0,0.2); }
+  50% { text-shadow: 0 0 14px rgba(255,32,32,0.7), 0 0 28px rgba(255,69,0,0.4), 0 0 40px rgba(255,140,0,0.2); }
+}
+
 /* Update streak number glow for purple */
 .streak-number-glow {
   animation: diamondNumGlow 2s ease-in-out infinite !important;

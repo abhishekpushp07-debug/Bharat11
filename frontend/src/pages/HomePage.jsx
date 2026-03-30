@@ -231,8 +231,15 @@ export default function HomePage({ onMatchClick }) {
               const isLive = s.ms === 'result' || s.t1s;
               return (
                 <div key={s.id || i} data-testid={`ticker-${i}`}
-                  className="shrink-0 rounded-xl p-2.5 min-w-[170px]"
-                  style={{ background: COLORS.background.card, border: `1px solid ${s.ms === 'result' ? COLORS.success.main + '33' : COLORS.border.light}` }}>
+                  className="shrink-0 rounded-xl p-2.5 min-w-[170px] relative overflow-hidden"
+                  style={{
+                    background: s.ms === 'live' ? 'linear-gradient(135deg, #1a0505, #2a0a0a, #1a0508)' : 'linear-gradient(135deg, #0d0d14, #12121c, #0d0d14)',
+                    border: `1px solid ${s.ms === 'result' ? 'rgba(34,197,94,0.3)' : s.ms === 'live' ? 'rgba(220,40,60,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    boxShadow: s.ms === 'live' ? '0 0 12px rgba(220,40,60,0.1)' : 'none',
+                  }}>
+                  {s.ms === 'live' && <div className="absolute inset-0 pointer-events-none" style={{
+                    background: 'radial-gradient(ellipse at 50% 0%, rgba(220,40,60,0.08), transparent 70%)',
+                  }} />}
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
                       {s.t1img && <img src={s.t1img} alt="" className="w-4 h-4 rounded-sm" />}
@@ -296,23 +303,28 @@ export default function HomePage({ onMatchClick }) {
               const teamShort = (team.shortname || '').toUpperCase();
               const tc = TEAM_COLORS[teamShort] || TEAM_COLORS[teamShort.replace('SH', 'SRH')] || {};
               const teamPrimary = tc.primary || '#ffffff';
+              const teamSecondary = tc.secondary || teamPrimary;
               return (
               <div key={team.shortname || i} data-testid={`pt-row-${team.shortname}`}
                 className="flex items-center px-3 py-2.5 relative overflow-hidden"
                 style={{
-                  borderTop: `1px solid rgba(255,255,255,0.04)`,
-                  background: `linear-gradient(90deg, ${teamPrimary}12, ${teamPrimary}06, transparent)`,
-                  borderLeft: `3px solid ${teamPrimary}88`,
+                  borderTop: '1px solid rgba(0,0,0,0.25)',
+                  background: `linear-gradient(90deg, ${teamPrimary}30, ${teamPrimary}18, ${teamSecondary}0a)`,
+                  borderLeft: `3px solid ${teamPrimary}`,
                 }}>
-                <span className="w-6 text-[10px] font-black" style={{ color: i < 4 ? teamPrimary : COLORS.text.tertiary }}>{i + 1}</span>
-                <div className="flex-1 flex items-center gap-2">
-                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" />}
-                  <span className="text-xs font-bold" style={{ color: teamPrimary }}>{team.shortname}</span>
+                {/* Subtle team glow */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: `radial-gradient(ellipse at 0% 50%, ${teamPrimary}15, transparent 60%)`,
+                }} />
+                <span className="w-6 text-[11px] font-black relative" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}88` }}>{i + 1}</span>
+                <div className="flex-1 flex items-center gap-2 relative">
+                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
+                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 6px ${teamPrimary}55` }}>{team.shortname}</span>
                 </div>
-                <span className="w-7 text-center text-xs" style={{ color: COLORS.text.secondary }}>{team.matches}</span>
-                <span className="w-7 text-center text-xs font-bold" style={{ color: COLORS.success.main }}>{team.wins}</span>
-                <span className="w-7 text-center text-xs" style={{ color: COLORS.error.main }}>{team.loss}</span>
-                <span className="w-7 text-center text-xs" style={{ color: COLORS.text.tertiary }}>{team.nr}</span>
+                <span className="w-7 text-center text-xs font-bold relative" style={{ color: 'rgba(255,255,255,0.85)' }}>{team.matches}</span>
+                <span className="w-7 text-center text-xs font-black relative" style={{ color: '#4ade80' }}>{team.wins}</span>
+                <span className="w-7 text-center text-xs font-bold relative" style={{ color: '#f87171' }}>{team.loss}</span>
+                <span className="w-7 text-center text-xs font-medium relative" style={{ color: 'rgba(255,255,255,0.5)' }}>{team.nr}</span>
               </div>
               );
             })}
