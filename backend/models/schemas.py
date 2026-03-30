@@ -102,8 +102,19 @@ def generate_id() -> str:
 
 
 def generate_referral_code() -> str:
-    """Generate a unique referral code (6 alphanumeric chars)."""
+    """Generate a unique referral code (6 alphanumeric chars). Collision-resistant."""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+
+async def generate_unique_referral_code(db) -> str:
+    """Generate referral code with DB uniqueness check (max 5 retries)."""
+    for _ in range(5):
+        code = generate_referral_code()
+        existing = await db.users.find_one({"referral_code": code}, {"_id": 0, "id": 1})
+        if not existing:
+            return code
+    # Fallback: longer code
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 
 def utc_now() -> datetime:

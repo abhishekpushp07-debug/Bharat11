@@ -13,7 +13,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.schemas import (
     User, UserCreate, UserLogin, UserResponse, 
     TokenResponse, AuthResponse, UserRank,
-    WalletTransaction, TransactionType, TransactionReason
+    WalletTransaction, TransactionType, TransactionReason,
+    generate_unique_referral_code
 )
 from repositories.user_repository import UserRepository
 from repositories.wallet_repository import WalletTransactionRepository
@@ -39,17 +40,25 @@ class AuthService:
         self.wallet_repo = WalletTransactionRepository(db)
     
     def _validate_phone(self, phone: str) -> str:
-        """Validate and clean phone number."""
+        """
+        Validate and clean phone number.
+        Indian mobile: 10 digits starting with 6-9.
+        """
+        import re
         # Remove all non-digits
         cleaned = ''.join(c for c in phone if c.isdigit())
         
-        # Validate length (10 digits for India)
-        if len(cleaned) < 10:
-            raise InvalidPhoneError()
-        
-        # Take last 10 digits if longer (remove country code)
+        # Handle country code prefix (+91, 91, 0)
         if len(cleaned) > 10:
             cleaned = cleaned[-10:]
+        
+        # Must be exactly 10 digits
+        if len(cleaned) != 10:
+            raise InvalidPhoneError()
+        
+        # Indian mobile numbers start with 6, 7, 8, or 9
+        if not re.match(r'^[6-9]\d{9}$', cleaned):
+            raise InvalidPhoneError()
         
         return cleaned
     
@@ -146,6 +155,10 @@ class AuthService:
             referred_by=referrer_id
         )
         
+        # Generate collision-safe referral code
+        unique_code = await generate_unique_referral_code(self.db)
+        user.referral_code = unique_code
+        
         # Save user
         await self.user_repo.create(user)
         
@@ -215,6 +228,9 @@ class AuthService:
             if datetime.now(timezone.utc) < lock_time:
                 remaining = (lock_time - datetime.now(timezone.utc)).total_seconds() / 60
                 raise AccountLockedError(int(remaining) + 1)
+            else:
+                # Lockout expired - auto-reset failed attempts
+                await self.user_repo.reset_failed_login(user.id)
         
         # Check if banned
         if user.is_banned:
@@ -245,12 +261,8 @@ class AuthService:
     async def refresh_token(self, refresh_token: str) -> TokenResponse:
         """
         Refresh access token using refresh token.
-        
-        Args:
-            refresh_token: Valid refresh token
-        
-        Returns:
-            New TokenResponse
+        Validates pin_changed_at for token revocation.
+        Returns rotated tokens (new refresh token too).
         """
         payload = jwt_manager.decode_token(refresh_token)
         
@@ -268,6 +280,24 @@ class AuthService:
             from core.exceptions import InvalidTokenError
             raise InvalidTokenError()
         
+        # Check if token was issued before PIN change
+        pin_changed_at = getattr(user, 'pin_changed_at', None)
+        if pin_changed_at is None:
+            # Check raw doc
+            raw = await self.db.users.find_one({"id": user_id}, {"_id": 0, "pin_changed_at": 1})
+            pin_changed_at = raw.get("pin_changed_at") if raw else None
+        
+        if pin_changed_at and payload.get("iat"):
+            if isinstance(pin_changed_at, str):
+                pca = datetime.fromisoformat(pin_changed_at.replace('Z', '+00:00'))
+            else:
+                pca = pin_changed_at
+            token_issued = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
+            if token_issued < pca:
+                from core.exceptions import InvalidTokenError
+                raise InvalidTokenError()
+        
+        # Rotate: issue both new access AND new refresh
         return self._create_tokens(user)
     
     async def get_current_user(self, user_id: str) -> UserResponse:
@@ -284,31 +314,32 @@ class AuthService:
         new_pin: str
     ) -> bool:
         """
-        Change user's PIN.
-        
-        Args:
-            user_id: User ID
-            old_pin: Current PIN
-            new_pin: New PIN
-        
-        Returns:
-            True if changed successfully
+        Change user's PIN and invalidate old tokens via pin_changed_at.
         """
         user = await self.user_repo.find_by_id(user_id)
         if not user:
             raise UserNotFoundError()
         
-        # Validate PINs
         self._validate_pin(old_pin)
         self._validate_pin(new_pin)
         
-        # Verify old PIN
         if not password_hasher.verify(old_pin, user.pin_hash):
             raise InvalidCredentialsError("Current PIN is incorrect")
         
-        # Update to new PIN
         new_hash = password_hasher.hash(new_pin)
+        now = datetime.now(timezone.utc).isoformat()
         return await self.user_repo.update_by_id(
             user_id,
-            {"$set": {"pin_hash": new_hash}}
+            {"$set": {"pin_hash": new_hash, "pin_changed_at": now, "updated_at": now}}
         )
+
+    async def generate_new_tokens(self, user_id: str, phone: str) -> dict:
+        """Generate new access+refresh tokens for a user after PIN change."""
+        user = await self.user_repo.find_by_id(user_id)
+        if not user:
+            raise UserNotFoundError()
+        tokens = self._create_tokens(user)
+        return {
+            "access_token": tokens.access_token,
+            "refresh_token": tokens.refresh_token
+        }

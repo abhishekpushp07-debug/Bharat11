@@ -49,7 +49,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     """Inject unique request ID for distributed tracing."""
     
     async def dispatch(self, request: Request, call_next):
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
@@ -72,7 +72,7 @@ class ResponseTimingMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add security headers to all responses."""
+    """Add comprehensive security headers to all responses."""
     
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -81,6 +81,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'"
         if not settings.DEBUG:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
@@ -96,6 +97,21 @@ class RateLimitHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["X-RateLimit-Remaining"] = str(request.state.rate_limit_remaining)
             response.headers["X-RateLimit-Window"] = str(request.state.rate_limit_window)
         return response
+
+
+class RequestBodyLimitMiddleware(BaseHTTPMiddleware):
+    """Reject request bodies larger than MAX_BODY_SIZE to prevent DoS."""
+    MAX_BODY_SIZE = 1 * 1024 * 1024  # 1 MB
+    
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.MAX_BODY_SIZE:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=413,
+                content={"error": "PAYLOAD_TOO_LARGE", "message": f"Request body exceeds {self.MAX_BODY_SIZE // 1024}KB limit"}
+            )
+        return await call_next(request)
 
 
 @asynccontextmanager
@@ -253,6 +269,9 @@ app.add_middleware(
 
 # GZip Compression (min 500 bytes)
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# Request body size limit (1MB)
+app.add_middleware(RequestBodyLimitMiddleware)
 
 # Security headers (CSP, X-Frame-Options, etc.)
 app.add_middleware(SecurityHeadersMiddleware)

@@ -97,6 +97,19 @@ async def get_current_user(
         if user.is_banned:
             raise InvalidTokenError()
         
+        # Check if token was issued before PIN change (token invalidation)
+        pin_changed_at = user_doc.get("pin_changed_at")
+        token_iat = payload.get("iat")
+        if pin_changed_at and token_iat:
+            from datetime import datetime, timezone
+            if isinstance(pin_changed_at, str):
+                pca = datetime.fromisoformat(pin_changed_at.replace('Z', '+00:00'))
+            else:
+                pca = pin_changed_at
+            token_issued = datetime.fromtimestamp(token_iat, tz=timezone.utc)
+            if token_issued < pca:
+                raise InvalidTokenError()
+        
         return user
     
     except (TokenExpiredError, InvalidTokenError) as e:
@@ -140,31 +153,48 @@ async def rate_limit_dependency(
         raise RateLimitExceededError(window).to_http_exception()
 
 
-# In-memory rate limit fallback (simple, per-process)
+# In-memory rate limit fallback with automatic cleanup
 import time as _time
+import threading as _threading
+
 _rate_limit_store: dict = {}  # {identifier: [timestamps]}
+_rate_limit_lock = _threading.Lock()
+_last_cleanup = 0.0
+_CLEANUP_INTERVAL = 300  # Cleanup every 5 minutes
+
+def _cleanup_rate_limit_store(now: float, window_seconds: int) -> None:
+    """Remove stale entries older than window to prevent memory leak."""
+    global _last_cleanup
+    if now - _last_cleanup < _CLEANUP_INTERVAL:
+        return
+    _last_cleanup = now
+    cutoff = now - window_seconds
+    stale_keys = [k for k, v in _rate_limit_store.items() if not v or v[-1] < cutoff]
+    for k in stale_keys:
+        del _rate_limit_store[k]
 
 def _memory_rate_limit(identifier: str, max_requests: int, window_seconds: int) -> tuple:
-    """Simple in-memory rate limiting fallback."""
+    """In-memory rate limiting fallback with periodic cleanup."""
     now = _time.time()
     cutoff = now - window_seconds
     
-    # Get or create entry
-    if identifier not in _rate_limit_store:
-        _rate_limit_store[identifier] = []
-    
-    # Clean old entries
-    _rate_limit_store[identifier] = [
-        ts for ts in _rate_limit_store[identifier] if ts > cutoff
-    ]
-    
-    current_count = len(_rate_limit_store[identifier])
-    
-    if current_count >= max_requests:
-        return False, 0
-    
-    _rate_limit_store[identifier].append(now)
-    return True, max_requests - current_count - 1
+    with _rate_limit_lock:
+        _cleanup_rate_limit_store(now, window_seconds)
+        
+        if identifier not in _rate_limit_store:
+            _rate_limit_store[identifier] = []
+        
+        _rate_limit_store[identifier] = [
+            ts for ts in _rate_limit_store[identifier] if ts > cutoff
+        ]
+        
+        current_count = len(_rate_limit_store[identifier])
+        
+        if current_count >= max_requests:
+            return False, 0
+        
+        _rate_limit_store[identifier].append(now)
+        return True, max_requests - current_count - 1
 
 
 # Type aliases for cleaner function signatures

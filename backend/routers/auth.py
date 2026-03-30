@@ -139,7 +139,8 @@ async def get_me(
 @router.put(
     "/change-pin",
     summary="Change PIN",
-    description="Change user's PIN. Requires current PIN verification."
+    description="Change user's PIN. Requires current PIN verification. Invalidates all existing tokens.",
+    dependencies=[Depends(rate_limit_dependency)]
 )
 async def change_pin(
     data: ChangePinBody,
@@ -152,7 +153,8 @@ async def change_pin(
     - **old_pin**: Current 4-digit PIN
     - **new_pin**: New 4-digit PIN
     
-    Returns success status.
+    After PIN change, old tokens become invalid (pin_changed_at check).
+    Returns success status with new tokens.
     """
     try:
         success = await auth_service.change_pin(
@@ -160,6 +162,16 @@ async def change_pin(
             old_pin=data.old_pin,
             new_pin=data.new_pin
         )
-        return {"success": success, "message": "PIN changed successfully"}
+        # Issue new tokens after PIN change (old ones will be invalid)
+        new_tokens = await auth_service.generate_new_tokens(current_user.id, current_user.phone)
+        return {
+            "success": success,
+            "message": "PIN changed successfully. Old sessions invalidated.",
+            "token": {
+                "access_token": new_tokens["access_token"],
+                "refresh_token": new_tokens["refresh_token"],
+                "token_type": "bearer"
+            }
+        }
     except CrickPredictException as e:
         raise e.to_http_exception()

@@ -200,13 +200,16 @@ async def join_contest(
 
     now = utc_now().isoformat()
 
-    # 4. Deduct entry fee (atomic)
+    # 4. Deduct entry fee (atomic with $gte guard)
     if entry_fee > 0:
-        new_balance = user["coins_balance"] - entry_fee
-        await db.users.update_one(
+        debit_result = await db.users.update_one(
             {"id": current_user.id, "coins_balance": {"$gte": entry_fee}},
-            {"$inc": {"coins_balance": -entry_fee}}
+            {"$inc": {"coins_balance": -entry_fee}, "$set": {"updated_at": now}}
         )
+        if debit_result.modified_count == 0:
+            raise HTTPException(status_code=400, detail="Insufficient balance (race condition guard)")
+        
+        new_balance = user["coins_balance"] - entry_fee
         # Create transaction
         await db.wallet_transactions.insert_one({
             "id": generate_id(),
@@ -237,7 +240,16 @@ async def join_contest(
         "created_at": now,
         "updated_at": now
     }
-    await db.contest_entries.insert_one(entry)
+    try:
+        await db.contest_entries.insert_one(entry)
+    except Exception:
+        # Rollback: refund if entry creation fails
+        if entry_fee > 0:
+            await db.users.update_one(
+                {"id": current_user.id},
+                {"$inc": {"coins_balance": entry_fee}}
+            )
+        raise HTTPException(status_code=500, detail="Failed to create entry. Fee refunded.")
 
     # 6. Increment participant count
     await db.contests.update_one(

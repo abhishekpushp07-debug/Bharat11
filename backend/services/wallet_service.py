@@ -44,11 +44,17 @@ class WalletService:
         if not user:
             raise UserNotFoundError()
         
+        last_claimed = None
+        if user.last_daily_claim:
+            ldc = user.last_daily_claim
+            last_claimed = ldc.isoformat() if hasattr(ldc, 'isoformat') else str(ldc)
+        
         return {
             "user_id": user_id,
             "balance": user.coins_balance,
             "daily_streak": user.daily_streak,
-            "can_claim_daily": self._can_claim_daily(user)
+            "can_claim_daily": self._can_claim_daily(user),
+            "last_claimed": last_claimed
         }
     
     async def get_transactions(
@@ -147,12 +153,13 @@ class WalletService:
         reward_amount = self._calculate_daily_reward(new_streak)
         new_balance = user.coins_balance + reward_amount
         
-        # Update user: balance, streak, last_daily_claim
+        # Update user: balance, streak, last_daily_claim, updated_at
         now = datetime.now(timezone.utc)
         await self.user_repo.update_by_id(user_id, {
             "$set": {
                 "last_daily_claim": now.isoformat(),
-                "daily_streak": new_streak
+                "daily_streak": new_streak,
+                "updated_at": now.isoformat()
             },
             "$inc": {"coins_balance": reward_amount}
         })

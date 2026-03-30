@@ -51,18 +51,19 @@ class UserRepository(BaseRepository[User]):
         operation: str = "add"
     ) -> bool:
         """
-        Update user's coin balance.
-        
-        Args:
-            user_id: User ID
-            amount: Amount to add or subtract
-            operation: "add" or "subtract"
+        Update user's coin balance with atomic safety.
+        For subtract: uses $gte guard to prevent negative balance.
         
         Returns:
-            True if updated successfully
+            True if updated, False if insufficient balance (subtract only)
         """
         if operation == "subtract":
-            amount = -amount
+            # Atomic: only subtract if balance >= amount (prevents negative)
+            result = await self._collection.update_one(
+                {"id": user_id, "coins_balance": {"$gte": amount}},
+                {"$inc": {"coins_balance": -amount}}
+            )
+            return result.modified_count > 0
         
         return await self.update_by_id(
             user_id,
