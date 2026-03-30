@@ -251,10 +251,13 @@ async def join_contest(
             )
         raise HTTPException(status_code=500, detail="Failed to create entry. Fee refunded.")
 
-    # 6. Increment participant count
+    # 6. Increment participant count and update prize pool dynamically
     await db.contests.update_one(
         {"id": contest_id},
-        {"$inc": {"current_participants": 1}, "$set": {"updated_at": now}}
+        {
+            "$inc": {"current_participants": 1, "prize_pool": entry_fee},
+            "$set": {"updated_at": now}
+        }
     )
 
     del entry["_id"]
@@ -615,18 +618,24 @@ async def finalize_contest(
     ).sort([("total_points", -1), ("submission_time", 1)])
     entries = await entries_cursor.to_list(length=10000)
 
-    # 2. Assign ranks
-    prize_dist = contest.get("prize_distribution", [])
+    # 2. Calculate prizes - 50/30/20 of total pool
+    entry_fee = contest.get("entry_fee", 1000)
+    num_entries = len(entries)
+    total_pool = entry_fee * num_entries
+
+    # Dynamic prize: 1st=50%, 2nd=30%, 3rd=20%
+    prize_map = {
+        1: int(total_pool * 0.50),
+        2: int(total_pool * 0.30),
+        3: int(total_pool * 0.20),
+    }
+
     total_prizes = 0
     bulk_ops = []
 
     from pymongo import UpdateOne
     for rank, entry in enumerate(entries, 1):
-        prize = 0
-        for pd in prize_dist:
-            if pd["rank_start"] <= rank <= pd["rank_end"]:
-                prize = pd["prize"]
-                break
+        prize = prize_map.get(rank, 0)
 
         total_prizes += prize
         bulk_ops.append(UpdateOne(

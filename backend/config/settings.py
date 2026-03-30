@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60)
     
     # Game Configuration
-    SIGNUP_BONUS_COINS: int = Field(default=10000)
+    SIGNUP_BONUS_COINS: int = Field(default=100000)
     DAILY_REWARD_BASE: int = Field(default=500)
     DAILY_REWARD_INCREMENT: int = Field(default=100)
     DAILY_REWARD_MAX_STREAK: int = Field(default=7)

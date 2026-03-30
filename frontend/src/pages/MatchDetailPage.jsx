@@ -170,10 +170,11 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
                       <div className="text-sm font-semibold text-white">{c.name}</div>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="flex items-center gap-1 text-xs" style={{ color: COLORS.text.secondary }}>
-                          <Coins size={11} color="#FFD700" /> {c.entry_fee === 0 ? 'FREE' : `${c.entry_fee}`}
+                          <Coins size={11} color="#FFD700" /> {c.entry_fee} coins
                         </span>
-                        <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(c.prize_pool || 0).toLocaleString()}</span>
+                        <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(c.prize_pool || c.entry_fee * (c.current_participants || 0)).toLocaleString()}</span>
                       </div>
+                      <div className="text-[9px] mt-0.5" style={{ color: COLORS.text.tertiary }}>1st: 50% | 2nd: 30% | 3rd: 20%</div>
                       <div className="flex items-center gap-1 mt-1">
                         <Users size={12} color={COLORS.info.main} />
                         <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{c.current_participants || 0}/{c.max_participants || 0}</span>

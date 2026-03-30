@@ -2,7 +2,11 @@
 Match Router
 Handles match listing, details, and live score endpoints for users.
 Admin endpoints for match creation and management.
+Auto-contest creation on match create / go-live.
 """
+import logging
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from typing import Annotated, Optional
 from pydantic import BaseModel, Field
@@ -13,8 +17,94 @@ from core.database import get_db
 from core.dependencies import CurrentUser, AdminUser
 from models.schemas import MatchStatus, generate_id, utc_now
 
+logger = logging.getLogger(__name__)
+
+DEFAULT_ENTRY_FEE = 1000
 
 router = APIRouter(prefix="/matches", tags=["Matches"])
+
+
+# ==================== AUTO-CONTEST HELPER ====================
+
+async def _auto_create_contest(db, match: dict) -> dict | None:
+    """
+    Auto-create a contest for a match using default template.
+    Prize: 50% 1st, 30% 2nd, 20% 3rd of total pool.
+    Entry fee: 1000 coins.
+    Returns contest dict or None if no template available.
+    """
+    match_id = match.get("id")
+    if not match_id:
+        return None
+
+    # Check if contest already exists
+    existing = await db.contests.count_documents({"match_id": match_id})
+    if existing > 0:
+        return None
+
+    # Get template - prefer assigned, fallback to default
+    template = None
+    templates_assigned = match.get("templates_assigned", [])
+    if templates_assigned:
+        template = await db.templates.find_one(
+            {"id": templates_assigned[0], "is_active": True}, {"_id": 0}
+        )
+
+    if not template:
+        template = await db.templates.find_one(
+            {"template_type": "full_match", "is_default": True, "is_active": True},
+            {"_id": 0}
+        )
+    if not template:
+        template = await db.templates.find_one(
+            {"is_active": True}, {"_id": 0}
+        )
+    if not template:
+        return None
+
+    # Build contest name
+    team_a = match.get("team_a", {}).get("short_name", "Team A")
+    team_b = match.get("team_b", {}).get("short_name", "Team B")
+    contest_name = f"{team_a} vs {team_b} - Mega Contest"
+
+    from datetime import datetime as dt
+    start_time = match.get("start_time", "")
+    if isinstance(start_time, str):
+        try:
+            start_time = dt.fromisoformat(start_time.replace('Z', '+00:00'))
+        except Exception:
+            start_time = utc_now() + timedelta(hours=1)
+
+    now = utc_now().isoformat()
+    contest = {
+        "id": generate_id(),
+        "match_id": match_id,
+        "template_id": template["id"],
+        "name": contest_name,
+        "entry_fee": DEFAULT_ENTRY_FEE,
+        "prize_pool": 0,
+        "max_participants": 1000,
+        "current_participants": 0,
+        "prize_distribution": [],
+        "status": "open",
+        "lock_time": (start_time - timedelta(minutes=5)).isoformat() if hasattr(start_time, 'isoformat') else start_time,
+        "auto_created": True,
+        "created_at": now,
+        "updated_at": now
+    }
+    await db.contests.insert_one(contest)
+    del contest["_id"]
+
+    # Auto-assign template to match
+    if template["id"] not in templates_assigned:
+        templates_assigned.append(template["id"])
+        await db.matches.update_one(
+            {"id": match_id},
+            {"$set": {"templates_assigned": templates_assigned}}
+        )
+
+    logger.info(f"Auto-created contest '{contest_name}' for match {match_id} with template {template['name']}")
+    return contest
 
 
 # ==================== DTOs ====================
@@ -181,6 +271,12 @@ async def create_match(
     }
     await db.matches.insert_one(match)
     del match["_id"]
+
+    # AUTO-CONTEST: Create contest with default template
+    auto_contest = await _auto_create_contest(db, match)
+    if auto_contest:
+        match["auto_contest_created"] = auto_contest["name"]
+
     return match
 
 
@@ -219,6 +315,35 @@ async def update_match_status(
         {"id": match_id},
         {"$set": {"status": new_status, "updated_at": utc_now().isoformat()}}
     )
+
+    # AUTO-CONTEST: When match goes live, ensure it has a contest
+    if new_status == "live":
+        existing_contests = await db.contests.count_documents({"match_id": match_id})
+        if existing_contests == 0:
+            # Auto-assign default template if none assigned
+            templates_assigned = existing.get("templates_assigned", [])
+            if not templates_assigned:
+                default_template = await db.templates.find_one(
+                    {"template_type": "full_match", "is_default": True, "is_active": True},
+                    {"_id": 0}
+                )
+                if not default_template:
+                    default_template = await db.templates.find_one(
+                        {"template_type": "full_match", "is_active": True},
+                        {"_id": 0}
+                    )
+                if default_template:
+                    await db.matches.update_one(
+                        {"id": match_id},
+                        {"$set": {"templates_assigned": [default_template["id"]]}}
+                    )
+                    logger.info(f"Auto-assigned default template {default_template['name']} to match {match_id}")
+
+            match_data = await db.matches.find_one({"id": match_id}, {"_id": 0})
+            auto_contest = await _auto_create_contest(db, match_data)
+            if auto_contest:
+                logger.info(f"Auto-created contest '{auto_contest['name']}' for live match {match_id}")
+
     updated = await db.matches.find_one({"id": match_id}, {"_id": 0})
     return updated
 

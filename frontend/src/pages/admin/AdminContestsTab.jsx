@@ -14,7 +14,7 @@ export default function AdminContestsTab() {
 
   const [form, setForm] = useState({
     match_id: '', template_id: '', name: '',
-    entry_fee: 0, prize_pool: 1000, max_participants: 100
+    entry_fee: 1000, prize_pool: 0, max_participants: 1000
   });
 
   const fetchAll = async () => {
@@ -42,7 +42,7 @@ export default function AdminContestsTab() {
       await apiClient.post('/admin/contests', form);
       setMsg('Contest created!');
       setShowCreate(false);
-      setForm({ match_id: '', template_id: '', name: '', entry_fee: 0, prize_pool: 1000, max_participants: 100 });
+      setForm({ match_id: '', template_id: '', name: '', entry_fee: 1000, prize_pool: 0, max_participants: 1000 });
       fetchAll();
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
@@ -96,19 +96,23 @@ export default function AdminContestsTab() {
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-xs" style={{ color: COLORS.text.secondary }}>Entry Fee</label>
-              <input type="number" value={form.entry_fee} onChange={e => setForm({ ...form, entry_fee: parseInt(e.target.value) || 0 })}
-                className="w-full mt-1 p-2 rounded-lg text-xs text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={0} />
-            </div>
-            <div>
-              <label className="text-xs" style={{ color: COLORS.text.secondary }}>Prize Pool</label>
-              <input type="number" value={form.prize_pool} onChange={e => setForm({ ...form, prize_pool: parseInt(e.target.value) || 0 })}
+              <input type="number" value={form.entry_fee} onChange={e => setForm({ ...form, entry_fee: parseInt(e.target.value) || 1000 })}
                 className="w-full mt-1 p-2 rounded-lg text-xs text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={0} />
             </div>
             <div>
               <label className="text-xs" style={{ color: COLORS.text.secondary }}>Max Players</label>
-              <input type="number" value={form.max_participants} onChange={e => setForm({ ...form, max_participants: parseInt(e.target.value) || 100 })}
+              <input type="number" value={form.max_participants} onChange={e => setForm({ ...form, max_participants: parseInt(e.target.value) || 1000 })}
                 className="w-full mt-1 p-2 rounded-lg text-xs text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={2} />
             </div>
+            <div className="flex flex-col justify-end">
+              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Prize Pool</div>
+              <div className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>Dynamic</div>
+              <div className="text-[9px]" style={{ color: COLORS.text.tertiary }}>50/30/20 split</div>
+            </div>
+          </div>
+
+          <div className="p-2 rounded-lg text-[10px]" style={{ background: COLORS.background.tertiary, color: COLORS.text.secondary }}>
+            Prize = Entry Fee x Players. 1st: 50% | 2nd: 30% | 3rd: 20%
           </div>
 
           <button data-testid="submit-contest-btn" onClick={handleCreate}
@@ -149,13 +153,17 @@ export default function AdminContestsTab() {
                         <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Entry</div>
                       </div>
                       <div className="text-center p-2 rounded" style={{ background: COLORS.background.tertiary }}>
-                        <div className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>{c.prize_pool}</div>
-                        <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Prize</div>
+                        <div className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>{(c.prize_pool || c.entry_fee * (c.current_participants || 0)).toLocaleString()}</div>
+                        <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Pool</div>
                       </div>
                       <div className="text-center p-2 rounded" style={{ background: COLORS.background.tertiary }}>
-                        <div className="text-xs font-bold text-white">{c.current_participants}/{c.max_participants}</div>
+                        <div className="text-xs font-bold text-white">{c.current_participants || 0}/{c.max_participants}</div>
                         <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Players</div>
                       </div>
+                    </div>
+                    <div className="mt-1.5 text-[9px] text-center" style={{ color: COLORS.text.tertiary }}>
+                      1st: 50% | 2nd: 30% | 3rd: 20%
+                      {c.auto_created && <span className="ml-2 font-bold" style={{ color: COLORS.success.main }}>AUTO</span>}
                     </div>
                   </div>
                 )}

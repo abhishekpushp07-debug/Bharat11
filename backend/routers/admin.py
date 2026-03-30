@@ -479,9 +479,9 @@ class ContestCreate(BaseModel):
     match_id: str
     template_id: str
     name: str
-    entry_fee: int = Field(default=0, ge=0)
-    prize_pool: int = Field(default=1000, ge=0)
-    max_participants: int = Field(default=100, ge=2)
+    entry_fee: int = Field(default=1000, ge=0)
+    prize_pool: int = Field(default=0, ge=0)
+    max_participants: int = Field(default=1000, ge=2)
     prize_distribution: list[dict] = Field(default_factory=list)
 
 

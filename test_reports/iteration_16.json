@@ -1,0 +1,108 @@
+{
+  "summary": "Iteration 16 - Auto-Contest, Dynamic Prize Pool, 50/30/20 Distribution Testing Complete. All 17 backend tests pass (100%). Frontend verified: Admin contest creation defaults to 1000 entry fee, 50/30/20 prize split info displayed, Dynamic prize pool text visible, Player view shows prize distribution. New user signup gives 100000 coins (1 lakh).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/contests?status=open", "issue": "Console warning about span inside option element in AdminContestsTab.jsx - cosmetic React hydration warning, not functional issue"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": {
+    "new_user_signup_bonus": {
+      "check_phone_new_user": "PASS - Returns {exists: false} for new phone",
+      "register_gets_100000_coins": "PASS - New user gets 100000 coins (1 lakh)"
+    },
+    "auto_contest_on_match_create": {
+      "match_creation": "PASS - POST /api/matches creates match successfully",
+      "auto_contest_created": "PASS - auto_contest_created field returned with 'Mega Contest' name",
+      "auto_contest_properties": "PASS - entry_fee=1000, status=open, auto_created=true"
+    },
+    "dynamic_prize_pool": {
+      "prize_pool_increments": "PASS - Prize pool increments by entry_fee when player joins",
+      "pool_formula": "PASS - pool = entry_fee × current_participants"
+    },
+    "prize_distribution": {
+      "50_30_20_split": "PASS - Finalize distributes 50% to 1st, 30% to 2nd, 20% to 3rd"
+    },
+    "admin_dashboard": {
+      "stats_endpoint": "PASS - Returns users, matches, contests, questions, templates counts",
+      "questions_crud": "PASS - GET /api/admin/questions returns questions",
+      "templates_crud": "PASS - GET /api/admin/templates returns templates"
+    },
+    "admin_contest_creation": {
+      "default_entry_fee": "PASS - Admin contest creation defaults to 1000 entry fee",
+      "prize_info_displayed": "PASS - 50/30/20 split info and Dynamic pool text visible"
+    },
+    "match_status_change": {
+      "status_to_live": "PASS - Match status can be changed to live",
+      "auto_contest_on_live": "PASS - Auto-creates contest when match goes live without contests"
+    },
+    "player_restrictions": {
+      "admin_stats_blocked": "PASS - Regular player gets 403 on admin endpoints",
+      "match_creation_blocked": "PASS - Regular player gets 403 when creating match"
+    },
+    "auth_flow": {
+      "check_phone_existing": "PASS - Returns {exists: true} for existing user",
+      "super_admin_login": "PASS - 7004186276/5524 logs in with is_admin=true",
+      "regular_player_login": "PASS - 9111111111/5678 logs in with is_admin=false"
+    },
+    "frontend_ui": {
+      "admin_app_loads": "PASS - Admin App with gold header and Super Admin label",
+      "admin_nav_tabs": "PASS - Dashboard, Content, Matches, Resolve tabs visible",
+      "contests_tab": "PASS - Shows 34 contests including auto-created Mega Contests",
+      "create_contest_form": "PASS - Entry fee=1000, Dynamic pool, 50/30/20 split info",
+      "player_view": "PASS - Player View button works, shows PlayerApp",
+      "match_detail_prizes": "PASS - Shows '1st: 50% | 2nd: 30% | 3rd: 20%' for each contest"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16_features.py",
+    "/app/test_reports/pytest/pytest_iteration16.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SIGNUP_BONUS_COINS correctly set to 100000 in settings.py",
+    "Auto-contest creation in matches.py _auto_create_contest() helper works correctly",
+    "Dynamic prize pool uses $inc on join in contests.py",
+    "Prize distribution 50/30/20 implemented in finalize_contest()",
+    "AdminContestsTab.jsx shows default entry_fee=1000 and prize split info",
+    "MatchDetailPage.jsx shows '1st: 50% | 2nd: 30% | 3rd: 20%' for each contest"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration16_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "super_admin": {"phone": "7004186276", "pin": "5524", "is_admin": true},
+    "regular_player": {"phone": "9111111111", "pin": "5678", "is_admin": false},
+    "new_user_test": "Register with any phone like 8888000XXX, pin 1111 - gets 100000 coins"
+  },
+  "seed_data_creation": "Test created new match with auto-contest, new user registration tested",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 16 tested auto-contest creation, dynamic prize pool, 50/30/20 distribution, 1 lakh signup bonus, default 1000 entry fee. All features working. Auto-contest creates 'TeamA vs TeamB - Mega Contest' when match is created. Prize pool = entry_fee × participants. Finalize distributes 50% 1st, 30% 2nd, 20% 3rd. Admin contest form shows Dynamic pool with 50/30/20 split info. Player match detail shows prize distribution text.",
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Cricbuzz scraper returns connected:false in container environment"]
+  },
+  "features_verified": {
+    "new_user_100000_coins": "VERIFIED - settings.SIGNUP_BONUS_COINS=100000",
+    "auto_contest_on_create": "VERIFIED - _auto_create_contest() called in POST /api/matches",
+    "auto_contest_entry_fee_1000": "VERIFIED - DEFAULT_ENTRY_FEE=1000 in matches.py",
+    "auto_contest_status_open": "VERIFIED - status='open' in auto-created contest",
+    "auto_contest_flag": "VERIFIED - auto_created=True flag set",
+    "auto_contest_on_live": "VERIFIED - Auto-creates when match goes live without contests",
+    "dynamic_prize_pool": "VERIFIED - $inc: {prize_pool: entry_fee} on join",
+    "prize_50_30_20": "VERIFIED - prize_map = {1: 50%, 2: 30%, 3: 20%} in finalize",
+    "admin_default_1000": "VERIFIED - ContestCreate entry_fee=Field(default=1000)",
+    "admin_prize_info": "VERIFIED - '50/30/20 split' and 'Dynamic' text in AdminContestsTab",
+    "player_prize_text": "VERIFIED - '1st: 50% | 2nd: 30% | 3rd: 20%' in MatchDetailPage"
+  }
+}
