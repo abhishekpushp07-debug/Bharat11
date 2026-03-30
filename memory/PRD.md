@@ -1,91 +1,58 @@
 # Bharat 11 - Product Requirements Document
 
 ## Original Problem Statement
-Fantasy Cricket Prediction App ("Bharat 11") - Mobile-first PWA where users predict cricket match outcomes using virtual coins. 15-stage development with 5 Iron Rules (50-point evaluation per stage, 90+ mandatory).
+Fantasy Cricket Prediction App ("Bharat 11") - Mobile-first PWA where users predict cricket match outcomes using virtual coins. 15-stage development. Phone + 4-digit PIN auth. Virtual coins economy.
 
 ## Tech Stack
-- **Frontend:** React.js (PWA), Zustand, Tailwind CSS (dark theme)
-- **Backend:** Python FastAPI (async)
-- **Database:** MongoDB + Redis (caching/leaderboards)
-- **Auth:** Phone + 4-digit PIN (no OTP), JWT tokens
-- **Live Data:** pycricbuzz (Cricbuzz scraper, free, graceful fallback)
+- React.js (PWA), Zustand, Tailwind CSS (dark theme)
+- FastAPI (async), MongoDB, Redis
+- JWT Auth (Phone + PIN), pycricbuzz (Cricbuzz scraper)
 
-## Super Admin
-- Phone: 7004186276 | PIN: 5524 | Auto-seeded on startup
-- Full powers: Questions, Templates, Matches, Contests, Resolution
+## Super Admin: 7004186276 / PIN: 5524
+- Auto-seeded on startup. 1,00,000 coins. Full admin powers.
+- Gets completely separate AdminApp experience (gold-themed)
 
-## Core Features Implemented
+## Architecture: Complete Admin/Player Separation
 
-### Authentication (Stage 1-3)
-- Phone + PIN login/register
-- JWT access + refresh tokens
-- Brute force protection (5 attempts lockout)
+### Admin Experience (is_admin=true)
+- **AdminApp**: Gold-themed header with Shield icon + "Super Admin" label
+- **Bottom Nav**: Dashboard | Content | Matches | Resolve
+- **Dashboard**: Stats grid, live alerts, quick actions, workflow guide
+- **Content Tab**: Questions CRUD + Templates CRUD (sub-tabs)
+- **Matches Tab**: Match creation/status + Contest creation (sub-tabs)
+- **Resolve Tab**: Per-contest resolution, progress bar, finalize
+- **View as Player**: Toggle to see player experience, floating back button
 
-### User Profile & Wallet (Stage 4)
-- Profile with stats, avatar, referral code
-- Virtual coins economy
-- Daily bonus claim
+### Player Experience (is_admin=false)
+- **PlayerApp**: Blue-themed header "BHARAT 11"
+- **Bottom Nav**: Home | My Contests | Wallet | Profile
+- **ZERO admin traces**: No admin buttons, routes, or references
+- Profile shows only: username, stats, referral, logout
 
-### Admin Panel (Stage 5, 13-14, NOW COMPLETE)
-- **Dashboard**: Stats overview (users, questions, templates, matches, contests)
-- **Questions Tab**: Full CRUD - bilingual (EN/HI), category, difficulty, points, 2-4 options
-- **Templates Tab**: Create template from questions, set type (full_match/in_match), set default
-- **Matches Tab**: Create match (IPL teams, venue, datetime), change status (upcoming/live/completed), assign templates (min 1 full_match, max 5)
-- **Contests Tab**: Create contest (select match + template, entry fee, prize pool, max players)
-- **Resolve Tab**: Resolve questions per contest, shows resolved indicator, finalize with prizes
+## Auth Flow
+1. Phone input → POST /api/auth/check-phone
+2. If exists → Login PIN screen
+3. If new → Create PIN → Confirm PIN → Register
 
-### Template System
-- **Types**: full_match (compulsory, min 1) | in_match (optional, max 4)
-- **Default Templates**: If admin forgets to assign, system uses default
-- **Validation**: Min 1 full_match required per match, max 5 total
+## Template System
+- Types: full_match (compulsory, min 1) | in_match (optional, max 4)
+- Default template auto-assign if admin forgets
+- Max 5 templates per match
 
-### Match Management (Stage 6)
-- Create matches with IPL team details
-- Status transitions: upcoming -> live -> completed
-- Live score updates
-- Template assignment to matches
-- All write endpoints require AdminUser
-
-### Contest System (Stage 7-9)
-- Join contest, make predictions
-- Scoring engine with per-question points
-- Leaderboard with rank, prizes
-- My Contests with pagination
-
-### Live Data (Stage 11)
-- Cricbuzz scraper (pycricbuzz)
-- Cache with TTL + max size limit
-- Graceful fallback in container environment
-
-### Home Page (Stage 12-13)
-- Live/Upcoming/Completed match sections
-- Auto-refresh every 30s
-- Countdown timers
-- Hot contests section
-
-## Admin Flow (For Super Admin)
-1. **Questions** -> Create bilingual questions with points and options
-2. **Templates** -> Group questions into templates (1 full_match required)
-3. **Matches** -> Create match, assign templates
-4. **Contests** -> Create contests with entry fee/prize pool
-5. **Live** -> Set match status to "live"
-6. **Resolve** -> Resolve questions as match progresses
-7. **Finalize** -> Distribute prizes to top players
-
-## Honest Audits Complete (Stages 1-14)
-- Stages 1-3: 4 bugs fixed (Request ID, CORS, Wallet, PIN)
-- Stages 4-6: 3 bugs fixed (admin guard, status transitions)
-- Stages 7-9: 3 bugs fixed (N+1 queries, pagination, finalize guard)
-- Stages 10-14: 9 bugs fixed (CRITICAL match admin security, leaderboard, cache, asyncio, admin UI)
+## Completed Stages (14 of 15)
+- Stages 1-14 implemented with honest 50-parameter audits
+- 18+ real bugs found and fixed across all audits
+- Complete admin panel with full CRUD for Questions, Templates, Matches, Contests
+- Admin/Player complete separation at App.js level
 
 ## What's NOT Yet Implemented
-1. **Real-time auto-settlement** - Questions currently resolved MANUALLY by admin. No ball-by-ball auto-resolve yet.
-2. **AI question generation** - Questions are manually created by admin.
-3. **Stage 15: Final Polish** - PWA offline support, micro-animations, share results
+1. Real-time auto-settlement (questions resolved manually by admin)
+2. AI question generation
+3. Stage 15: Final PWA polish (offline, micro-animations, share results)
 
-## Upcoming Tasks
-- Stage 15: Final PWA polish, offline support, share results
-- Automated notifications for contest results
-- Real-time question settlement (requires live data feed)
+## Upcoming: Stage 15 - Final Polish
+- PWA offline support
+- Share contest results
+- Performance optimization
 
 ## Progress: 95% (14.5 of 15 stages)
