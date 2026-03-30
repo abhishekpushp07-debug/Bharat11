@@ -1,113 +1,112 @@
-# Bharat 11 - Product Requirements Document
+# Bharat 11 - Fantasy Cricket Prediction PWA
 
-## Original Problem Statement
-Build a Fantasy Cricket Prediction PWA called "Bharat 11" with 12-stage master plan:
-1. IPL-Only Cleanup + Team Logo Integration
-2. Answer Deadline Enforcement (over/innings cutoffs)
-3. Max 11 Questions + Default Template Fallback
-4. Contest Auto-Live 24h Before Match
-5. Points & Leaderboard (Dream11 style)
-6. Ball-by-Ball Commentary (LOT4 API)
-7. Dual Points Banner + Player Profile Modal
-8. Socket.IO Real-Time Updates
-9. Heavy Animations (SIX/FOUR/WICKET)
-10. WhatsApp Share Card
-11. Push Notifications + PWA Polish
-12. User Management + Final Polish
+## Product Overview
+IPL-focused fantasy cricket prediction platform where users predict match outcomes, earn coins, and compete on leaderboards. Real-time updates via Socket.IO with AI-powered commentary.
 
-Plus extras: AI Commentary, Mood Meter, Prediction Badge, Prediction Streak.
+## Core Requirements
+1. **Prediction Model**: 200-question pool with fixed points per question
+2. **Template Routing**: `full_match` vs `in_match` templates with over/innings cutoffs
+3. **Match Auto-Engine**: 5 templates auto-attach 24h before match start
+4. **Auto-Settlement**: AI agent auto-resolves questions from live scorecard
+5. **Real-Time Updates**: Socket.IO for leaderboard, live scores, push notifications
+6. **Enhanced UX**: AI commentary, heavy animations, dual points banner, WhatsApp sharing
+7. **Admin Dashboard**: Template management, user management, AI question generation
+8. **IPL Only**: Only fetch and display IPL matches
 
 ## Tech Stack
-- Frontend: React.js (PWA), Tailwind CSS, Shadcn/UI, html2canvas, socket.io-client
-- Backend: FastAPI, MongoDB, python-socketio, pywebpush
-- AI: GPT-5.2 via Emergent LLM for commentary
-- External API: CricketData.org Premium
-
-## COMPLETED STAGES (All 12 + 4 Extras)
-
-### Stage 1-7: Core Features ✅
-All verified in audit docs (100/100 scores).
-
-### Stage 8: Socket.IO Real-Time ✅ (March 31, 2026)
-- Backend: `services/socket_manager.py` with python-socketio AsyncServer
-- ASGI wrapper: `combined_app = socketio.ASGIApp(sio, app, socketio_path='api/socket.io')`
-- Events: `live_score`, `question_resolved`, `leaderboard_update`, `template_locked`, `contest_created`, `contest_finalized`
-- Room management: `join_match`, `leave_match`, `join_contest`, `leave_contest`, `join_home`
-- Frontend: `socketStore.js` Zustand store auto-connects on PlayerApp mount
-- Live updates: HomePage (live scores, new contests), MatchDetailPage (scores, resolutions, locks), LeaderboardPage (rank updates)
-- UI: Green "LIVE" / Red "OFFLINE" indicator on HomePage header
-- Settlement engine emits `question_resolved` + `leaderboard_update` after auto-resolve
-- Autopilot emits `contest_created` when auto-contest goes live
-- Match engine emits `live_score` after scorecard fetch
-
-### Stage 9: Heavy Animations ✅
-SIX/FOUR/WICKET/Prize animations in App.css.
-
-### Stage 10: WhatsApp Share Card ✅
-html2canvas ShareCard with team logos.
-
-### Stage 11: Push Notifications + PWA ✅ (March 31, 2026)
-- Backend: `services/push_manager.py` with pywebpush
-- VAPID keys generated and stored in .env
-- Endpoints: `GET /api/notifications/vapid-public-key`, `POST /api/notifications/subscribe`, `POST /api/notifications/unsubscribe`
-- Push triggers: `notify_match_starting`, `notify_results_ready`, `notify_contest_live` 
-- Frontend: `hooks/usePushNotifications.js` hook with subscribe/unsubscribe
-- Service worker: Cache-first/Network-first strategies, push handler, notification click handler
-- UI: Bell icon toggle on HomePage header
-
-### Stage 12: User Management ✅ (March 31, 2026)
-- Backend: `GET /api/admin/users` (paginated, searchable, filterable)
-- Backend: `GET /api/admin/users/{id}` (details + stats + prediction history)
-- Backend: `POST /api/admin/users/{id}/ban` (toggle ban)
-- Backend: `POST /api/admin/users/{id}/adjust-coins` (add/deduct with transaction log)
-- Frontend: `AdminUsersTab.jsx` with search bar, banned filter, user rows
-- Frontend: `UserDetailModal` with stats, ban toggle, coin adjustment
-- Admin nav: 5 tabs (Dashboard, Content, Matches, Resolve, Users)
-
-### Extra Features ✅
-- Prediction Streak (2x at 5+, 4x at 10+, Streak King banner)
-- AI Commentary (GPT Hinglish ball-by-ball)
-- Match Mood Meter (live polling)
-- Global Prediction Accuracy Badge (Pink Diamond/Gold/Silver)
+- Frontend: React.js, Tailwind CSS, Shadcn/UI, Socket.IO client
+- Backend: FastAPI, Motor (async MongoDB), python-socketio
+- Database: MongoDB
+- External: CricketData.org API (Premium), Emergent LLM Key (AI Commentary)
+- Push: VAPID Web Push Notifications
 
 ## Architecture
 ```
-/app/backend/
-  server.py (combined_app = socketio.ASGIApp wrapping FastAPI)
-  routers/ (admin.py, auth.py, cricket.py, matches.py, contests.py, notifications.py, user.py)
-  services/ (cricket_data.py, match_engine.py, ai_commentary.py, settlement_engine.py, autopilot.py, socket_manager.py, push_manager.py)
-  models/schemas.py, core/ (security.py, dependencies.py, database.py)
-/app/frontend/src/
-  App.js, App.css
-  pages/ (HomePage.jsx, MatchDetailPage.jsx, LeaderboardPage.jsx, PlayerView.jsx, AdminApp.jsx)
-  pages/admin/ (AdminDashboard.jsx, AdminContentPage.jsx, AdminMatchPage.jsx, AdminResolvePage.jsx, AdminUsersTab.jsx, etc.)
-  components/ (ShareCard.jsx, ScorecardView.jsx, MoodMeter.jsx, PredictionBadge.jsx, StreakBanner.jsx)
-  stores/ (authStore.js, socketStore.js, appStore.js)
-  hooks/ (usePushNotifications.js)
-  constants/ (design.js, teams.js)
+/app/
+├── backend/
+│   ├── config/settings.py
+│   ├── core/database.py
+│   ├── models/schemas.py
+│   ├── routers/
+│   │   ├── admin.py (User management, template CRUD)
+│   │   ├── auth.py (JWT auth with PIN)
+│   │   ├── cricket.py (IPL data, team drill-down, match full-data)
+│   │   ├── matches.py (Match CRUD, scorecard, BBB, AI commentary)
+│   │   ├── contests.py (Contest management, streak)
+│   │   └── notifications.py (Push notifications)
+│   ├── services/
+│   │   ├── api_cache.py (MongoDB caching layer for all API calls)
+│   │   ├── cricket_data.py (CricketData.org API wrapper)
+│   │   ├── settlement_engine.py (Auto-resolve + streak multiplier)
+│   │   ├── ai_commentary.py (LLM-powered match commentary)
+│   │   ├── socket_manager.py (Socket.IO event emitter)
+│   │   ├── push_manager.py (Web Push notifications)
+│   │   ├── match_engine.py (Match sync engine)
+│   │   └── autopilot.py (Background task scheduler)
+│   └── server.py (ASGI app with Socket.IO wrapper)
+├── frontend/
+│   ├── public/service-worker.js
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── StreakBanner.jsx (Fire icon SVG, sparkling count)
+│   │   │   └── PredictionBadge.jsx
+│   │   ├── constants/
+│   │   │   ├── teams.js (TEAM_COLORS {primary, secondary})
+│   │   │   └── design.js
+│   │   ├── hooks/usePushNotifications.js
+│   │   ├── stores/
+│   │   │   ├── authStore.js
+│   │   │   └── socketStore.js
+│   │   └── pages/
+│   │       ├── HomePage.jsx (Points table, ticker, team drill-down, match data view)
+│   │       ├── MatchDetailPage.jsx
+│   │       ├── MyContestsPage.jsx
+│   │       └── admin/AdminUsersTab.jsx
 ```
 
+## What's Implemented
+### Stages 1-14 (COMPLETE)
+- JWT Auth with phone/PIN
+- Match/Contest/Template/Question CRUD
+- Auto-settlement engine with scorecard parsing
+- Auto-pilot background tasks
+- Socket.IO real-time (live scores, contest events)
+- Web Push Notifications (VAPID)
+- Admin User Management
+- AI Ball-by-ball Commentary
+- Prediction Streak with multipliers
+- Prediction Badge (accuracy ranking)
+- Mood Meter (prediction sentiment)
+
+### Session Updates (Mar 30, 2026)
+- **MongoDB API Cache Layer** (api_cache.py): All CricketData.org API calls cached in MongoDB. Completed match data cached permanently. Live match data with short TTL. Prevents duplicate API hits — saves API quota.
+- **Team Drill-Down**: Click any team in IPL points table → see all 14 matches. Click any match → see full data (scorecard, squad, fantasy points, match info, metrics).
+- **Match Full Data View**: Combined endpoint fetches match_info + scorecard + fantasy_points + squad + BBB in parallel. Tabbed UI with Info, Scorecard, Squad, Fantasy, AI Commentary.
+- **TEAM_COLORS Fix**: Changed from arrays to objects {primary, secondary}. Fixed bug where team colors weren't applying to points table rows.
+- **UI Polish**: Team-colored rows in points table, vibrant live ticker with team-color accents, bold fire icon (orange/yellow/red gradient SVG), sparkling red streak count.
+- **Cache Stats Endpoint**: /api/cricket/cache-stats shows total cached items, by type, API hits today/remaining.
+
 ## Key API Endpoints
-### Public
-- GET /api/socket.io/ (Socket.IO polling/websocket)
-- GET /api/notifications/vapid-public-key
-- GET /api/contests/global/prediction-leaderboard
-- GET /api/contests/global/top-streak
+- `GET /api/cricket/ipl/points-table` — IPL standings
+- `GET /api/cricket/live-ticker` — Live IPL scores
+- `GET /api/cricket/ipl/team/{short}/matches` — Team's IPL matches
+- `GET /api/cricket/match/{id}/full-data` — Combined match data (17 APIs)
+- `GET /api/cricket/ipl/squads` — All team squads
+- `GET /api/cricket/cache-stats` — Cache statistics
+- `GET /api/matches/{id}/scorecard` — Match scorecard
+- `GET /api/matches/{id}/ai-commentary` — AI-generated commentary
 
-### Auth Required
-- GET /api/contests/global/my-badge
-- GET /api/contests/global/my-streak
-- POST /api/notifications/subscribe
-- POST /api/notifications/unsubscribe
+## Remaining / Backlog
+### P0 (Critical)
+- 200-Question Pool seed (question_seed.py) — bilingual Hindi+English
+- Template routing schema upgrades (template_type, innings_range, over_start/end)
+- 5-Template Match Engine (1 full_match + 4 in_match per match)
 
-### Admin Required
-- GET /api/admin/users (paginated, search, banned_only)
-- GET /api/admin/users/{id} (detail + stats)
-- POST /api/admin/users/{id}/ban
-- POST /api/admin/users/{id}/adjust-coins
+### P1 (Important)
+- Performance optimization / Lighthouse audit
+- Socket.IO connection stability improvements
 
-## Backlog
-- Performance optimization (lazy loading, API pagination, MongoDB indexes)
-- Lighthouse audit + PWA score optimization
-- Share card confetti effects
+### P2 (Nice to have)
+- WhatsApp share card confetti effects
 - Service worker offline page improvements
+- Final cleanup (remove test data, production-ready state)
