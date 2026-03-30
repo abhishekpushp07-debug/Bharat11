@@ -1,52 +1,76 @@
 # Bharat 11 - Product Requirements Document
 
 ## Original Problem Statement
-Fantasy Cricket Prediction App ("Bharat 11") - Mobile-first PWA. Virtual coins economy. Phone + PIN auth. 15-stage plan.
+Fantasy Cricket Prediction PWA with 15-stage strict development plan. "World's Best" standard with zero compromises. Complete architectural separation between Admin Dashboard and Player App. Auto-pipeline: Live match syncing, auto-contest creation, and real-time auto-settlement. Virtual Economy with 1 Lakh signup bonus. Dual-source live data: Cricbuzz (Primary Scraper) + CricketData.org (Fallback API).
 
-## Tech Stack
-React.js (PWA) + FastAPI + MongoDB + Redis | JWT Auth | pycricbuzz (Cricbuzz scraper)
+## Architecture
+- Frontend: React PWA (Tailwind CSS, Zustand, Shadcn/UI)
+- Backend: FastAPI + MongoDB
+- Data: BeautifulSoup4 Cricbuzz Scraper + CricketData.org Premium API (Scorecard + Squad)
+- Auth: Phone + PIN JWT auth with role-based routing
 
-## Super Admin: 7004186276 / PIN: 5524
-Auto-seeded on startup. 1,00,000 coins. Full admin powers.
-Gets completely separate AdminApp (gold-themed).
+## Core Requirements
+1. 15-stage development plan with honest audits
+2. Admin/Player complete separation (zero admin traces in player UI)
+3. Auto Pipeline: Live Match Sync -> Auto Contest Creation -> Auto Settlement -> Auto Prize Distribution
+4. Virtual Economy: 1L signup, 1000 entry, 50/30/20 prize split
+5. Dual-source data: Cricbuzz scraping + CricketData.org API
 
-## Architecture: Complete Admin/Player Separation
-- Admin → AdminApp (Dashboard/Content/Matches/Resolve tabs, gold header)
-- Player → PlayerApp (Home/Contests/Wallet/Profile tabs, zero admin traces)
-- Admin has "View as Player" toggle
+## Key Features Implemented
+### Stages 1-14: Complete
+- JWT Auth (Phone+PIN), role-based routing
+- Admin Dashboard (Dashboard, Content, Matches, Resolve tabs)
+- Player View (completely separated)
+- Template system (full_match/in_match, default templates)
+- Contest system with dynamic prize pools
+- Economy system (coins, wallet, transactions)
+- Dual-source data fetching (Cricbuzz BS4 + CricketData.org API)
+- Auto-contest creation on match sync
 
-## Economy Model
-- New user signup: 1,00,000 coins
-- Default entry fee: 1000 coins per contest
-- Prize Pool: Dynamic = entry_fee × total_participants
-- Distribution: 1st: 50% | 2nd: 30% | 3rd: 20%
+### Auto-Settlement Engine (Layer 3 & 4) - COMPLETED 2026-03-30
+- CricketData.org Premium Scorecard API integration
+- Scorecard parser extracts 40+ metrics per match (innings runs, wickets, sixes, fours, extras, run rate, highest scorer, best bowler, etc.)
+- Question auto_resolution config: metric + trigger + resolution_type (range/text_match/boolean)
+- Seeded 11 auto-resolvable T20 questions with default template
+- Auto-link CricketData.org match IDs by team name matching
+- Auto-resolve questions when trigger conditions met
+- Auto-finalize contests and distribute prizes (50/30/20)
+- Admin UI: Manual Resolve + Auto-Settle tabs
+- Settlement Report: shows key metrics, contest progress, finalization status
+- Testing: 100% pass rate (iteration_18)
 
-## Auto-Contest System
-- Match create → Auto-creates "TeamA vs TeamB - Mega Contest" with default template
-- Match goes live without template → Auto-assigns default template, auto-creates contest
-- Entry fee: 1000 coins, max 1000 players
+## API Endpoints
+### Auth
+- POST /api/auth/check-phone
+- POST /api/auth/register
+- POST /api/auth/login
 
-## Template System
-- Types: full_match (compulsory, min 1) | in_match (optional, max 4)
-- Default template auto-assign if admin forgets
-- Max 5 templates per match
+### Admin Settlement (NEW)
+- POST /api/admin/settlement/{match_id}/run - Run auto-settlement
+- GET /api/admin/settlement/status - Get all matches settlement status
+- GET /api/admin/settlement/{match_id}/metrics - Parsed scorecard metrics
+- GET /api/admin/settlement/{match_id}/scorecard - Raw scorecard data
+- POST /api/admin/settlement/{match_id}/link - Link CricketData.org ID
+- POST /api/admin/questions/bulk-import-with-auto - Seed 11 auto-resolution questions
 
-## Auth Flow
-Phone → check-phone → If exists: Login PIN | If new: Create PIN → Register
+### Matches & Contests
+- POST /api/matches/live/sync - Sync live matches
+- GET /api/contests, POST /api/admin/contests
+- POST /api/contests/{id}/resolve, /api/contests/{id}/finalize
 
-## Admin Panel (6 tabs)
-1. Dashboard: Stats, alerts, quick actions, workflow guide
-2. Content: Questions CRUD + Templates CRUD
-3. Matches: Match CRUD + status control + template assignment
-4. Contests: Contest creation (1000 fee default, 50/30/20 info)
-5. Resolve: Per-contest resolution with progress bar, finalize
-6. View as Player: Test player experience
+## Backlog
+### P1 - Stage 15: Final Polish & Launch
+- PWA manifest tuning, offline caching, service worker
+- Performance optimization, lighthouse audit
+- Deployment prep
 
-## Honest Audits: Stages 1-14 complete (50-parameter each, 18+ bugs found/fixed)
+### P2 - Notifications
+- WebSocket/Push notifications for contest results
+- Prize distribution alerts
 
-## What's NOT Yet Implemented
-1. Real-time auto-settlement (manual only via Resolve tab)
-2. AI question generation
-3. Stage 15: Final PWA polish
+### P2 - User Management
+- Admin tab for Ban/Unban users
+- Coin balance adjustment
+- User activity monitoring
 
-## Progress: 96%
+## Progress: 97%
