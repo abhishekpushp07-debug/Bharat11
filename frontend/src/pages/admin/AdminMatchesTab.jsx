@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
-import { Plus, Play, Square, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
+import { Plus, Play, Square, ChevronDown, ChevronUp, Link as LinkIcon, Wand2 } from 'lucide-react';
 
 const IPL_TEAMS = [
   'Mumbai Indians', 'Chennai Super Kings', 'Royal Challengers Bangalore',
@@ -103,6 +103,19 @@ export default function AdminMatchesTab() {
     setSelectedTemplateIds(prev =>
       prev.includes(tid) ? prev.filter(id => id !== tid) : [...prev, tid]
     );
+  };
+
+  const [autoGenLoading, setAutoGenLoading] = useState(null);
+
+  const handleAutoGenTemplates = async (matchId) => {
+    setAutoGenLoading(matchId);
+    try {
+      const res = await apiClient.post(`/admin/matches/${matchId}/auto-templates`);
+      const d = res.data;
+      setMsg(`${d.templates_created} templates auto-generated! ${d.total_questions_used} questions used.`);
+      fetchAll();
+    } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setAutoGenLoading(null); }
   };
 
   return (
@@ -239,10 +252,19 @@ export default function AdminMatchesTab() {
                     </div>
 
                     {/* Assign Templates */}
-                    <button onClick={() => { setAssigningM(m.id); setSelectedTemplateIds(m.templates_assigned || []); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: COLORS.info.bg, color: COLORS.info.main }}>
-                      <LinkIcon size={12} /> Assign Templates ({tCount})
-                    </button>
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={() => { setAssigningM(m.id); setSelectedTemplateIds(m.templates_assigned || []); }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: COLORS.info.bg, color: COLORS.info.main }}>
+                        <LinkIcon size={12} /> Assign Templates ({tCount})
+                      </button>
+                      <button data-testid={`auto-gen-templates-${m.id}`}
+                        onClick={() => handleAutoGenTemplates(m.id)}
+                        disabled={autoGenLoading === m.id}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                        style={{ background: '#10b98115', color: '#10b981', border: '1px solid #10b98122' }}>
+                        <Wand2 size={12} /> {autoGenLoading === m.id ? 'Generating...' : 'Auto 5 Templates'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

@@ -18,7 +18,9 @@ export default function AdminTemplatesTab() {
 
   const [form, setForm] = useState({
     name: '', description: '', match_type: 'T20',
-    template_type: 'full_match', question_ids: [], is_default: false
+    template_type: 'full_match', question_ids: [], is_default: false,
+    innings_range: [], over_start: null, over_end: null,
+    answer_deadline_over: null, phase_label: ''
   });
 
   const fetchAll = async () => {
@@ -67,6 +69,11 @@ export default function AdminTemplatesTab() {
         question_ids: form.question_ids,
         is_default: form.is_default,
         template_type: form.template_type,
+        innings_range: form.innings_range,
+        over_start: form.over_start,
+        over_end: form.over_end,
+        answer_deadline_over: form.answer_deadline_over,
+        phase_label: form.phase_label,
       });
       setMsg('Template updated!');
       setEditingT(null);
@@ -97,6 +104,11 @@ export default function AdminTemplatesTab() {
       template_type: t.template_type || 'full_match',
       question_ids: t.question_ids || [],
       is_default: t.is_default || false,
+      innings_range: t.innings_range || [],
+      over_start: t.over_start || null,
+      over_end: t.over_end || null,
+      answer_deadline_over: t.answer_deadline_over || null,
+      phase_label: t.phase_label || '',
     });
     setEditingT(t.id);
     setShowForm(false);
@@ -104,7 +116,8 @@ export default function AdminTemplatesTab() {
   };
 
   const resetForm = () => {
-    setForm({ name: '', description: '', match_type: 'T20', template_type: 'full_match', question_ids: [], is_default: false });
+    setForm({ name: '', description: '', match_type: 'T20', template_type: 'full_match', question_ids: [], is_default: false,
+      innings_range: [], over_start: null, over_end: null, answer_deadline_over: null, phase_label: '' });
   };
 
   // One-click: select ALL auto-resolution questions
@@ -231,6 +244,50 @@ export default function AdminTemplatesTab() {
             </div>
           </div>
 
+          {/* In-Match Routing Fields */}
+          {form.template_type === 'in_match' && (
+            <div className="p-3 rounded-lg space-y-2" style={{ background: '#818cf808', border: '1px solid #818cf818' }}>
+              <div className="text-[10px] font-bold" style={{ color: '#818cf8' }}>In-Match Routing Config</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Phase Label</label>
+                  <input value={form.phase_label || ''} onChange={e => setForm({ ...form, phase_label: e.target.value })}
+                    className="w-full mt-0.5 p-1.5 rounded-lg text-[10px] text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
+                    placeholder="e.g. Innings 1 Powerplay" />
+                </div>
+                <div>
+                  <label className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Innings</label>
+                  <select value={JSON.stringify(form.innings_range || [])} onChange={e => setForm({ ...form, innings_range: JSON.parse(e.target.value) })}
+                    className="w-full mt-0.5 p-1.5 rounded-lg text-[10px] text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}>
+                    <option value="[]">Both</option>
+                    <option value="[1]">Innings 1</option>
+                    <option value="[2]">Innings 2</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Over Start</label>
+                  <input type="number" value={form.over_start || ''} onChange={e => setForm({ ...form, over_start: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full mt-0.5 p-1.5 rounded-lg text-[10px] text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
+                    placeholder="1" min={1} max={20} />
+                </div>
+                <div>
+                  <label className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Over End</label>
+                  <input type="number" value={form.over_end || ''} onChange={e => setForm({ ...form, over_end: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full mt-0.5 p-1.5 rounded-lg text-[10px] text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
+                    placeholder="6" min={1} max={20} />
+                </div>
+                <div>
+                  <label className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Deadline Over</label>
+                  <input type="number" value={form.answer_deadline_over || ''} onChange={e => setForm({ ...form, answer_deadline_over: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full mt-0.5 p-1.5 rounded-lg text-[10px] text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
+                    placeholder="1" min={1} max={20} />
+                </div>
+              </div>
+            </div>
+          )}
+
           <QuestionPicker />
 
           <div className="flex gap-2">
@@ -271,6 +328,14 @@ export default function AdminTemplatesTab() {
                         style={{ background: t.template_type === 'full_match' ? COLORS.primary.main + '22' : COLORS.warning.bg, color: t.template_type === 'full_match' ? COLORS.primary.main : COLORS.warning.main }}>
                         {t.template_type === 'full_match' ? 'FULL' : 'IN-MATCH'}
                       </span>
+                      {t.phase_label && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#6366f115', color: '#818cf8' }}>
+                          {t.phase_label}
+                        </span>
+                      )}
+                      {t.over_start && t.over_end && (
+                        <span className="text-[9px]" style={{ color: COLORS.text.tertiary }}>Ov {t.over_start}-{t.over_end}</span>
+                      )}
                       <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{t.question_count || t.question_ids?.length || 0} Qs | {t.total_points || 0}pts</span>
                       {autoCount > 0 && (
                         <span className="text-[9px] px-1 rounded font-bold" style={{ background: '#f59e0b15', color: '#f59e0b' }}>{autoCount} AUTO</span>

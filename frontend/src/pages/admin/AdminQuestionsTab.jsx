@@ -317,6 +317,15 @@ export default function AdminQuestionsTab() {
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
+  const seed200Questions = async () => {
+    try {
+      setMsg('Seeding 200 questions...');
+      const res = await apiClient.post('/admin/seed-200-questions');
+      setMsg(res.data.message);
+      fetchQuestions();
+    } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+  };
+
   const diffColor = (d) => d === 'hard' ? COLORS.error.main : d === 'medium' ? COLORS.warning.main : COLORS.success.main;
 
   return (
@@ -329,6 +338,10 @@ export default function AdminQuestionsTab() {
           <option value="">All Categories</option>
           {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
+        <button data-testid="seed-200-btn" onClick={seed200Questions}
+          className="flex items-center gap-1 px-2.5 py-2 rounded-lg text-[10px] font-bold" style={{ background: '#10b98115', color: '#10b981', border: '1px solid #10b98122' }}>
+          <Zap size={12} /> Seed 200
+        </button>
         <button data-testid="seed-auto-btn" onClick={seedAutoQuestions}
           className="flex items-center gap-1 px-2.5 py-2 rounded-lg text-[10px] font-bold" style={{ background: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b22' }}>
           <Zap size={12} /> Seed Auto

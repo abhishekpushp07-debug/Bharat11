@@ -328,10 +328,16 @@ class Template(TimestampMixin):
     description: Optional[str] = Field(default=None)
     match_type: MatchType = Field(default=MatchType.T20)
     template_type: TemplateType = Field(default=TemplateType.FULL_MATCH)
-    question_ids: List[str] = Field(..., min_length=1, max_length=20)
+    question_ids: List[str] = Field(default_factory=list)
     total_points: int = Field(default=0)
     is_active: bool = Field(default=True)
     is_default: bool = Field(default=False)
+    # In-match routing fields
+    innings_range: List[int] = Field(default_factory=list)  # e.g. [1] or [2] or [1,2]
+    over_start: Optional[int] = Field(default=None)  # e.g. 1
+    over_end: Optional[int] = Field(default=None)  # e.g. 6
+    answer_deadline_over: Optional[int] = Field(default=None)  # last over to submit answers
+    phase_label: Optional[str] = Field(default=None)  # "Innings 1 Powerplay", etc.
 
 
 # ==================== CONTEST MODELS ====================

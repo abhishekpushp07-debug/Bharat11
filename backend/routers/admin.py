@@ -79,9 +79,14 @@ class TemplateCreate(BaseModel):
     description: str = ""
     match_type: str = "T20"
     template_type: str = "full_match"
-    question_ids: list[str] = Field(..., min_length=1, max_length=20)
+    question_ids: list[str] = Field(default_factory=list)
     is_active: bool = True
     is_default: bool = False
+    innings_range: list[int] = Field(default_factory=list)
+    over_start: Optional[int] = None
+    over_end: Optional[int] = None
+    answer_deadline_over: Optional[int] = None
+    phase_label: Optional[str] = None
 
 
 class TemplateUpdate(BaseModel):
@@ -92,6 +97,11 @@ class TemplateUpdate(BaseModel):
     question_ids: Optional[list[str]] = None
     is_active: Optional[bool] = None
     is_default: Optional[bool] = None
+    innings_range: Optional[list[int]] = None
+    over_start: Optional[int] = None
+    over_end: Optional[int] = None
+    answer_deadline_over: Optional[int] = None
+    phase_label: Optional[str] = None
 
 
 class BulkQuestionImport(BaseModel):
@@ -378,6 +388,11 @@ async def create_template(
         "question_count": len(data.question_ids),
         "is_active": data.is_active,
         "is_default": data.is_default,
+        "innings_range": data.innings_range,
+        "over_start": data.over_start,
+        "over_end": data.over_end,
+        "answer_deadline_over": data.answer_deadline_over,
+        "phase_label": data.phase_label,
         "created_at": now,
         "updated_at": now
     }
@@ -1075,6 +1090,110 @@ async def autopilot_status(
 ):
     from services.autopilot import autopilot
     return autopilot.get_status()
+
+
+# ==================== 200-QUESTION POOL SEED ====================
+
+@router.post(
+    "/seed-200-questions",
+    status_code=status.HTTP_201_CREATED,
+    summary="Seed the 200-question pool into DB (idempotent)"
+)
+async def seed_200_questions(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Seeds 200 bilingual T20 cricket prediction questions.
+    Idempotent: skips if 150+ questions already exist.
+    """
+    existing_count = await db.questions.count_documents({"is_active": True})
+    if existing_count >= 150:
+        return {
+            "seeded": 0,
+            "existing": existing_count,
+            "message": f"Already have {existing_count} questions in DB. Seed skipped."
+        }
+
+    from services.question_seed import generate_200_questions
+    questions = generate_200_questions()
+
+    if questions:
+        await db.questions.insert_many(questions)
+
+    return {
+        "seeded": len(questions),
+        "total_in_db": existing_count + len(questions),
+        "categories": {
+            "batting": sum(1 for q in questions if q["category"] == "batting"),
+            "bowling": sum(1 for q in questions if q["category"] == "bowling"),
+            "powerplay": sum(1 for q in questions if q["category"] == "powerplay"),
+            "death_overs": sum(1 for q in questions if q["category"] == "death_overs"),
+            "match": sum(1 for q in questions if q["category"] == "match"),
+            "player_performance": sum(1 for q in questions if q["category"] == "player_performance"),
+            "special": sum(1 for q in questions if q["category"] == "special"),
+        },
+        "message": f"{len(questions)} questions seeded successfully!"
+    }
+
+
+# ==================== 5-TEMPLATE AUTO-ENGINE ====================
+
+@router.post(
+    "/matches/{match_id}/auto-templates",
+    status_code=status.HTTP_201_CREATED,
+    summary="Auto-generate 5 templates for a match (1 full + 4 in-match)"
+)
+async def auto_generate_match_templates(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Auto-generates 5 templates for a match:
+    1. Full Match — all match_end + toss questions
+    2. Innings 1 Powerplay (overs 1-6)
+    3. Innings 1 Death (overs 16-20)
+    4. Innings 2 Powerplay (overs 1-6)
+    5. Innings 2 Death (overs 16-20)
+    """
+    from services.template_engine import generate_5_templates_for_match
+    result = await generate_5_templates_for_match(match_id, db)
+    return result
+
+
+@router.post(
+    "/auto-templates-all",
+    summary="Auto-generate 5 templates for ALL upcoming matches"
+)
+async def auto_generate_all_templates(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Auto-generate templates for all upcoming matches that don't have 5 templates yet."""
+    matches = await db.matches.find(
+        {"status": {"$in": ["upcoming", "live"]}},
+        {"_id": 0, "id": 1, "templates_assigned": 1, "team_a": 1, "team_b": 1}
+    ).to_list(length=50)
+
+    results = []
+    from services.template_engine import generate_5_templates_for_match
+    for match in matches:
+        assigned = match.get("templates_assigned", [])
+        if len(assigned) >= 5:
+            results.append({
+                "match_id": match["id"],
+                "status": "skipped",
+                "reason": f"Already has {len(assigned)} templates"
+            })
+            continue
+        try:
+            r = await generate_5_templates_for_match(match["id"], db)
+            results.append({"match_id": match["id"], "status": "created", "templates": r.get("templates_created", 0)})
+        except Exception as e:
+            results.append({"match_id": match["id"], "status": "error", "reason": str(e)})
+
+    return {"matches_processed": len(matches), "results": results}
 
 
 # ==================== RICH SCORECARD (Admin + Users) ====================
