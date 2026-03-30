@@ -8,8 +8,9 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 4. Auto-settlement: AI agent auto-resolves questions from live scorecard
 5. Real-time updates: Socket.IO for leaderboard + push notifications
 6. Enhanced UX: AI commentary, heavy animations, WhatsApp sharing, Match Mood Meter
-7. Admin features: Dashboard with auto/manual template building
+7. Admin features: Dashboard with auto/manual template building, clickable KPIs
 8. IPL-ONLY matches enforced
+9. Global Prediction Accuracy Badge system
 
 ## Tech Stack
 - Frontend: React.js (PWA), Tailwind CSS, Shadcn/UI
@@ -26,15 +27,17 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 
 ### Phase 3: Match Auto-Engine (DONE)
 - 5-template auto-attach (1 full_match + 4 in_match) per match
+- Default template fallback when no templates assigned
+- Auto-contest creation 24h before match
 
 ### Phase 4: Auto-Settlement (DONE)
-- Settlement engine polling every 45 seconds
+- Settlement engine polling every 45 seconds from live scorecard
 
 ### Phase 5-6: LOT 1-5 API Integration (DONE)
 - Squads, Standings, Fantasy Points, Ball-by-Ball, IPL-only filtering
 
 ### Phase 7: AI Commentary + Animations (DONE - March 30, 2026)
-- GPT-5.2 structured JSON commentary with match_pulse, key_moments, star_performers, turning_point, verdict
+- GPT-5.2 structured JSON commentary (match_pulse, key_moments, star_performers, turning_point, verdict)
 - LiveTab 3 sub-tabs (Match Story / Moments / Stars)
 - Event animations (SIX golden glow, WICKET red shake, FOUR blue wave)
 - Team card image backgrounds, glass morphism
@@ -46,17 +49,22 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 - Integrated into ShareCard for WhatsApp sharing
 
 ### Phase 9: HD Polish Stage 1-6 (DONE - March 30, 2026)
-- Glass morphism clarity: darker backgrounds (rgba(22,22,30,0.65-0.75))
-- Text contrast: secondary #C8C8C8, tertiary #808080
-- Contest cards: participant progress bars, clearer entry fees
-- Tab bar: glass morphism with active indicator dot
-- Leaderboard: rounded avatar squares, bold names, gold ranking
-- Player Profile Modal: better spacing, backdrop blur
-- Fantasy Points tab: polished toggle + rows
-- Dual Points Banner: animated gradient shift
-- Match cards: team card image backgrounds with dark overlay
-- Scorecard: clearer key metrics with color-tinted borders
-- Score display: handles both r/w/o and runs/wickets/overs formats
+- Glass morphism clarity: darker backgrounds for readability
+- Text contrast boost, contest card progress bars
+- Tab bar glass morphism, leaderboard polish
+
+### Phase 10: Global Prediction Accuracy Badge (DONE - March 30, 2026)
+- Ranks users by total correct answers across ALL contests (not contest wins)
+- Rank 1 = Pink Diamond, Rank 2 = Gold, Rank 3 = Silver, Rank 4+ = Blue Crystal
+- Badge shows: diamond SVG icon, rank, correct/attempted, accuracy bar, percentage
+- Displayed on: HomePage (between greeting and banner), ShareCard (WhatsApp)
+- Backend: GET /api/contests/global/my-badge, GET /api/contests/global/prediction-leaderboard
+
+### Phase 11: Admin Dashboard Enhancement (DONE - March 30, 2026)
+- All KPI stat cards clickable → navigate to relevant tabs
+- Quick Actions with icons, labels, chevron arrows
+- Workflow steps all clickable with step numbers and navigation
+- Alert cards clickable for contest resolution and match prep
 
 ## Prioritized Backlog
 
@@ -69,7 +77,7 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 - User Management tab in Admin Dashboard
 
 ### P2
-- Advanced WhatsApp share card animations (confetti, rank reveal)
+- WhatsApp share card confetti animations
 - Performance optimization / Lighthouse audit
 
 ## Architecture
@@ -80,14 +88,17 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
   models/schemas.py, core/ (security.py, dependencies.py)
 /app/frontend/src/
   pages/ (HomePage.jsx, MatchDetailPage.jsx, LeaderboardPage.jsx, PlayerView.jsx)
-  components/ (ShareCard.jsx, ScorecardView.jsx, MoodMeter.jsx)
+  pages/admin/ (AdminDashboard.jsx, AdminApp.jsx)
+  components/ (ShareCard.jsx, ScorecardView.jsx, MoodMeter.jsx, PredictionBadge.jsx)
   constants/ (design.js, teams.js)
   App.css, App.js
 ```
 
 ## Key API Endpoints
+- /api/contests/global/my-badge (GET, auth required)
+- /api/contests/global/prediction-leaderboard (GET, public)
 - /api/matches/{id}/mood-vote (POST, auth required)
 - /api/matches/{id}/mood-meter (GET, public)
 - /api/matches/{id}/ai-commentary (GET)
-- /api/matches/{id}/bbb (GET)
-- /api/cricket/standings (GET)
+- /api/admin/templates (CRUD)
+- /api/admin/questions (CRUD)
