@@ -424,28 +424,37 @@ async def my_contests(
     entry_cursor = db.contest_entries.find(
         {"user_id": current_user.id},
         {"_id": 0}
-    ).sort("created_at", -1).skip(skip).limit(limit)
-    entries = await entry_cursor.to_list(length=limit)
+    ).sort("created_at", -1)
+    all_entries = await entry_cursor.to_list(length=200)  # max 200 entries
 
-    total = await db.contest_entries.count_documents({"user_id": current_user.id})
+    # Batch fetch contests + matches (avoid N+1)
+    contest_ids = list(set(e["contest_id"] for e in all_entries))
+    contests_cursor = db.contests.find(
+        {"id": {"$in": contest_ids}},
+        {"_id": 0, "id": 1, "name": 1, "status": 1, "match_id": 1, "entry_fee": 1, "prize_pool": 1, "current_participants": 1}
+    )
+    contests_list = await contests_cursor.to_list(length=len(contest_ids))
+    contest_map = {c["id"]: c for c in contests_list}
 
-    # Enrich with contest + match data
+    match_ids = list(set(c.get("match_id", "") for c in contests_list if c.get("match_id")))
+    matches_cursor = db.matches.find(
+        {"id": {"$in": match_ids}},
+        {"_id": 0, "id": 1, "team_a": 1, "team_b": 1, "status": 1, "start_time": 1}
+    )
+    matches_list = await matches_cursor.to_list(length=len(match_ids))
+    match_map = {m["id"]: m for m in matches_list}
+
+    # Build result with filter BEFORE pagination
     result = []
-    for entry in entries:
-        contest = await db.contests.find_one(
-            {"id": entry["contest_id"]},
-            {"_id": 0, "name": 1, "status": 1, "match_id": 1, "entry_fee": 1, "prize_pool": 1, "current_participants": 1}
-        )
+    for entry in all_entries:
+        contest = contest_map.get(entry["contest_id"])
         if not contest:
             continue
 
         if contest_status and contest.get("status") != contest_status:
             continue
 
-        match = await db.matches.find_one(
-            {"id": contest.get("match_id")},
-            {"_id": 0, "team_a": 1, "team_b": 1, "status": 1, "start_time": 1}
-        )
+        match = match_map.get(contest.get("match_id", ""))
 
         result.append({
             "entry": entry,
@@ -453,7 +462,11 @@ async def my_contests(
             "match": match
         })
 
-    return {"my_contests": result, "total": total, "page": page, "has_more": (page * limit) < total}
+    # Apply pagination AFTER filtering
+    total_filtered = len(result)
+    paginated = result[skip:skip + limit]
+
+    return {"my_contests": paginated, "total": total_filtered, "page": page, "has_more": (page * limit) < total_filtered}
 
 
 # ==================== SCORING ENGINE (Stage 9) ====================
@@ -579,6 +592,20 @@ async def finalize_contest(
 
     if contest["status"] == "completed":
         return {"message": "Contest already finalized"}
+
+    # Check all questions are resolved before finalizing
+    template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0, "question_ids": 1})
+    if template:
+        qids = template.get("question_ids", [])
+        resolved_count = await db.question_results.count_documents({
+            "match_id": contest["match_id"],
+            "question_id": {"$in": qids}
+        })
+        if resolved_count < len(qids):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot finalize: {len(qids) - resolved_count}/{len(qids)} questions still unresolved. Resolve all questions first."
+            )
 
     now = utc_now().isoformat()
 
