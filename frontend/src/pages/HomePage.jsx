@@ -2,21 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
+import { TEAM_COLORS, TEAM_CARD_IMAGES, getTeamLogo, getTeamGradient, getTeamCardImage, normalizeTeam } from '../constants/teams';
 import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft } from 'lucide-react';
 
-const TEAM_COLORS = {
-  MI: ['#004BA0', '#00599E'], CSK: ['#F9CD05', '#F3A012'],
-  RCB: ['#D4213D', '#A0171F'], RCBW: ['#D4213D', '#A0171F'],
-  KKR: ['#3A225D', '#552583'], DC: ['#0078BC', '#17479E'],
-  PBKS: ['#ED1B24', '#AA1019'], SRH: ['#FF822A', '#E35205'],
-  RR: ['#EA1A85', '#C51D70'], GT: ['#1C1C2B', '#0B4F6C'],
-  LSG: ['#2E90A8', '#1B7B93'],
-};
-
-const getTeamGrad = (short) => {
-  const c = TEAM_COLORS[short] || ['#555', '#333'];
-  return `linear-gradient(135deg, ${c[0]}, ${c[1]})`;
-};
+const getTeamGrad = (short) => getTeamGradient(short);
 
 function useCountdown(targetTime) {
   const [remaining, setRemaining] = useState('');
@@ -309,8 +298,8 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
 
       <div className="px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white" style={{ background: getTeamGrad(teamA.short_name) }}>
-            {teamA.short_name || '?'}
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white overflow-hidden" style={{ background: getTeamGrad(teamA.short_name) }}>
+            {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-8 h-8 object-contain" /> : (teamA.short_name || '?')}
           </div>
           <div>
             <div className="text-sm font-bold text-white">{teamA.short_name || 'TBD'}</div>
@@ -327,8 +316,8 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
         </div>
 
         <div className="flex items-center gap-3 flex-row-reverse">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white" style={{ background: getTeamGrad(teamB.short_name) }}>
-            {teamB.short_name || '?'}
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white overflow-hidden" style={{ background: getTeamGrad(teamB.short_name) }}>
+            {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-8 h-8 object-contain" /> : (teamB.short_name || '?')}
           </div>
           <div className="text-right">
             <div className="text-sm font-bold text-white">{teamB.short_name || 'TBD'}</div>

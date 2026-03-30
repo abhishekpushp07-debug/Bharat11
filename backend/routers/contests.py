@@ -341,12 +341,24 @@ async def submit_predictions(
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
 
-    # 2. Check lock time
+    # 2. Check lock time (basic time check)
     lock_time = contest.get("lock_time", "")
     if lock_time:
         lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
         if datetime.now(timezone.utc) >= lt:
             raise HTTPException(status_code=400, detail="Contest is locked. Predictions cannot be modified")
+
+    # 2b. Check template deadline (over-based enforcement — HARD RULE)
+    template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
+    if template:
+        from services.match_engine import check_can_submit
+        match_id = contest.get("match_id", "")
+        deadline_check = await check_can_submit(template, match_id, db)
+        if not deadline_check["can_submit"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Template locked! {deadline_check['reason']}"
+            )
 
     # 3. Verify user has joined
     entry = await db.contest_entries.find_one(
@@ -356,7 +368,8 @@ async def submit_predictions(
         raise HTTPException(status_code=403, detail="You haven't joined this contest. Join first.")
 
     # 4. Validate question IDs belong to contest template
-    template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0, "question_ids": 1})
+    if not template:
+        template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
     valid_qids = set(template.get("question_ids", [])) if template else set()
 
     predictions = []

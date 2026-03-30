@@ -701,3 +701,94 @@ async def sync_match_score(
     )
 
     return {"match_id": match_id, "updated": True, "score": score}
+
+
+
+@router.get(
+    "/{match_id}/ball-by-ball",
+    summary="Ball-by-ball data (LOT4) — extras & events"
+)
+async def get_match_bbb(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Ball-by-ball feed from match_bbb API. Returns extras/penalty events per ball."""
+    from services.cricket_data import cricket_service
+    from services.settlement_engine import _auto_link_cricketdata_id
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        cd_id = await _auto_link_cricketdata_id(match, db)
+    if not cd_id:
+        return {"match_id": match_id, "error": "BBB data not available", "balls": []}
+
+    data = await cricket_service.get_match_bbb(cd_id)
+    if not data:
+        return {"match_id": match_id, "error": "Could not fetch BBB data", "balls": []}
+
+    bbb = data.get("bbb", [])
+    return {
+        "match_id": match_id,
+        "name": data.get("name", ""),
+        "status": data.get("status", ""),
+        "balls": bbb,
+        "total_events": len(bbb)
+    }
+
+
+
+# ==================== TEMPLATE DEADLINE STATUS ====================
+
+@router.get(
+    "/{match_id}/template-deadlines",
+    summary="Get deadline status for all templates of a match"
+)
+async def get_template_deadlines(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Returns deadline status (OPEN/LOCKED) for each template assigned to this match.
+    Used by frontend to show lock badges and disable submission forms.
+    """
+    from services.match_engine import check_can_submit, get_deadline_for_template, get_match_current_state
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    template_ids = match.get("templates_assigned", [])
+    if not template_ids:
+        return {"match_id": match_id, "templates": [], "current_state": {}}
+
+    templates = await db.templates.find(
+        {"id": {"$in": template_ids}},
+        {"_id": 0}
+    ).to_list(length=10)
+
+    state = await get_match_current_state(match_id, db)
+    results = []
+
+    for t in templates:
+        deadline = get_deadline_for_template(t)
+        can = await check_can_submit(t, match_id, db)
+        results.append({
+            "template_id": t["id"],
+            "template_name": t.get("name", ""),
+            "template_type": t.get("template_type", ""),
+            "phase_label": t.get("phase_label", ""),
+            "innings_range": t.get("innings_range", []),
+            "over_start": t.get("over_start"),
+            "over_end": t.get("over_end"),
+            "deadline_innings": deadline["innings"],
+            "deadline_over": deadline["over"],
+            "is_locked": not can["can_submit"],
+            "status": "LOCKED" if not can["can_submit"] else "OPEN",
+            "reason": can["reason"],
+            "question_count": len(t.get("question_ids", [])),
+            "total_points": t.get("total_points", 0),
+        })
+
+    return {
+        "match_id": match_id,
+        "current_state": state,
+        "templates": results
+    }

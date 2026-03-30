@@ -54,7 +54,7 @@ TEMPLATE_CONFIGS = [
             "innings_2_req_rr", "innings_2_rr_at_15",
             "combined_match_score",
         ],
-        "max_questions": 15,
+        "max_questions": 11,
     },
     {
         "name": "Innings 1 Powerplay",
@@ -73,7 +73,7 @@ TEMPLATE_CONFIGS = [
             "innings_1_pp_noballs", "innings_1_first_over",
             "innings_1_first3_runs", "innings_1_first_wicket_over",
         ],
-        "max_questions": 10,
+        "max_questions": 11,
     },
     {
         "name": "Innings 1 Death Overs",
@@ -98,7 +98,7 @@ TEMPLATE_CONFIGS = [
             "innings_1_extras", "innings_1_run_rate",
             "innings_1_50_partnerships", "innings_1_10_over_score",
         ],
-        "max_questions": 10,
+        "max_questions": 11,
     },
     {
         "name": "Innings 2 Powerplay",
@@ -115,7 +115,7 @@ TEMPLATE_CONFIGS = [
             "innings_2_pp_dots", "innings_2_pp_extras",
             "innings_2_first_over_runs",
         ],
-        "max_questions": 10,
+        "max_questions": 11,
     },
     {
         "name": "Innings 2 Death Overs",
@@ -138,7 +138,7 @@ TEMPLATE_CONFIGS = [
             "innings_2_fifties", "innings_2_ducks",
             "innings_2_extras", "innings_2_run_rate",
         ],
-        "max_questions": 10,
+        "max_questions": 11,
     },
 ]
 

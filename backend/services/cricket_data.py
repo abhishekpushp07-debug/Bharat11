@@ -323,6 +323,13 @@ class CricketDataAPI:
             return None
         return data.get("data")
 
+    def fetch_match_bbb(self, cricapi_match_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch ball-by-ball data (extras/penalties). LOT4 API 1. IN TESTING."""
+        data = self._call("match_bbb", {"id": cricapi_match_id})
+        if not data:
+            return None
+        return data.get("data")
+
     def fetch_series_squad(self, series_id: str) -> Optional[list]:
         """Fetch all team squads for entire series. LOT5 API 3. ~53KB response."""
         data = self._call("series_squad", {"id": series_id})
@@ -530,6 +537,18 @@ class UnifiedCricketService:
             self._cache[cache_key] = data
             self._cache_time[cache_key] = datetime.now(timezone.utc).timestamp() + 3540
         return data
+
+    async def get_match_bbb(self, cricapi_match_id: str) -> Optional[Dict]:
+        """Get ball-by-ball extras/penalty data (LOT4)."""
+        cache_key = f"bbb_{cricapi_match_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_match_bbb, cricapi_match_id)
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
 
     @property
     def is_connected(self) -> bool:

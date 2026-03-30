@@ -79,7 +79,7 @@ class TemplateCreate(BaseModel):
     description: str = ""
     match_type: str = "T20"
     template_type: str = "full_match"
-    question_ids: list[str] = Field(default_factory=list)
+    question_ids: list[str] = Field(default_factory=list, max_length=11)
     is_active: bool = True
     is_default: bool = False
     innings_range: list[int] = Field(default_factory=list)
@@ -1194,6 +1194,38 @@ async def auto_generate_all_templates(
             results.append({"match_id": match["id"], "status": "error", "reason": str(e)})
 
     return {"matches_processed": len(matches), "results": results}
+
+
+@router.post(
+    "/auto-contests-24h",
+    summary="Auto-create contests for matches starting within 24h"
+)
+async def trigger_auto_contests(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Creates contests for upcoming matches within 24h window.
+    Applies default template fallback if no templates assigned.
+    """
+    from services.match_engine import auto_create_contests_24h
+    result = await auto_create_contests_24h(db)
+    return result
+
+
+@router.post(
+    "/matches/{match_id}/apply-default-templates",
+    summary="Apply default templates from last match (fallback)"
+)
+async def apply_default_templates(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Copy templates from last match to this match if it has none."""
+    from services.match_engine import apply_default_template_fallback
+    result = await apply_default_template_fallback(match_id, db)
+    return result
 
 
 # ==================== RICH SCORECARD (Admin + Users) ====================

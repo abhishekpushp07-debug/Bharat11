@@ -1,16 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2 } from 'lucide-react';
+import { getTeamLogo, getTeamGradient, getTeamCardImage } from '../constants/teams';
+import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X } from 'lucide-react';
 import ScorecardView from '../components/ScorecardView';
 
-const TEAM_COLORS = {
-  MI: ['#004BA0', '#00599E'], CSK: ['#F9CD05', '#F3A012'],
-  RCB: ['#D4213D', '#A0171F'], KKR: ['#3A225D', '#552583'],
-  DC: ['#0078BC', '#17479E'], PBKS: ['#ED1B24', '#AA1019'],
-  SRH: ['#FF822A', '#E35205'], RR: ['#EA1A85', '#C51D70'],
-  GT: ['#1C1C2B', '#0B4F6C'], LSG: ['#2E90A8', '#1B7B93'],
-};
+const getGrad = (s) => getTeamGradient(s);
 
 const ROLE_COLORS = {
   'Batsman': '#E53E3E', 'Bowler': '#3182CE', 'WK-Batsman': '#38A169',
@@ -19,6 +14,7 @@ const ROLE_COLORS = {
 
 const TABS = [
   { key: 'contests', label: 'Contests', icon: Trophy },
+  { key: 'live', label: 'Live', icon: Radio },
   { key: 'scorecard', label: 'Scorecard', icon: BarChart3 },
   { key: 'squad', label: 'Squad', icon: Users },
   { key: 'fantasy', label: 'Fantasy Pts', icon: Swords },
@@ -45,6 +41,16 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const [scorecardData, setScorecardData] = useState(null);
   const [scorecardLoading, setScorecardLoading] = useState(false);
 
+  // Ball-by-ball + Deadline state
+  const [bbbData, setBbbData] = useState(null);
+  const [bbbLoading, setBbbLoading] = useState(false);
+  const [deadlines, setDeadlines] = useState([]);
+
+  // Player profile modal
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [playerProfile, setPlayerProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+
   const fetchContests = useCallback(async () => {
     try {
       const res = await apiClient.get(`/matches/${match.id}/contests`);
@@ -68,7 +74,14 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   }, [match?.id]);
 
   useEffect(() => {
-    if (match?.id) { fetchContests(); fetchMatchInfo(); }
+    if (match?.id) {
+      fetchContests();
+      fetchMatchInfo();
+      // Fetch template deadlines
+      apiClient.get(`/matches/${match.id}/template-deadlines`)
+        .then(res => setDeadlines(res.data.templates || []))
+        .catch(() => {});
+    }
   }, [match?.id, fetchContests, fetchMatchInfo]);
 
   // Lazy load tabs
@@ -94,7 +107,25 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         .catch(() => {})
         .finally(() => setScorecardLoading(false));
     }
-  }, [activeTab, match?.id, squad, fantasyData, scorecardData, squadLoading, fantasyLoading, scorecardLoading]);
+    if (activeTab === 'live' && !bbbData && !bbbLoading) {
+      setBbbLoading(true);
+      apiClient.get(`/matches/${match.id}/ball-by-ball`)
+        .then(res => setBbbData(res.data))
+        .catch(() => {})
+        .finally(() => setBbbLoading(false));
+    }
+  }, [activeTab, match?.id, squad, fantasyData, scorecardData, bbbData, squadLoading, fantasyLoading, scorecardLoading, bbbLoading]);
+
+  const openPlayerProfile = async (playerId) => {
+    if (!playerId) return;
+    setSelectedPlayer(playerId);
+    setProfileLoading(true);
+    try {
+      const res = await apiClient.get(`/cricket/player/${playerId}`);
+      setPlayerProfile(res.data);
+    } catch (_) {}
+    finally { setProfileLoading(false); }
+  };
 
   const handleJoin = async (contestId) => {
     setJoiningId(contestId);
@@ -117,7 +148,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const isLive = match?.status === 'live';
   const isCompleted = match?.status === 'completed';
   const score = match?.live_score;
-  const getGrad = (s) => { const c = TEAM_COLORS[s] || ['#555','#333']; return `linear-gradient(135deg, ${c[0]}, ${c[1]})`; };
+  const getGradLocal = (s) => getTeamGradient(s);
 
   return (
     <div data-testid="match-detail-page" className="pb-6 space-y-4">
@@ -134,8 +165,8 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         </div>
         <div className="px-6 py-5 flex items-center justify-between">
           <div className="flex flex-col items-center gap-2 flex-1">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg" style={{ background: getGrad(teamA.short_name) }}>
-              {teamA.short_name || '?'}
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamA.short_name) }}>
+              {getTeamLogo(teamA.short_name) ? <img src={getTeamLogo(teamA.short_name)} alt={teamA.short_name} className="w-12 h-12 object-contain" /> : teamA.short_name || '?'}
             </div>
             <div className="text-center">
               <div className="text-sm font-bold text-white">{teamA.short_name}</div>
@@ -151,8 +182,8 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
             <div className="text-xs font-bold px-3 py-1 rounded-lg" style={{ background: `${COLORS.primary.main}22`, color: COLORS.primary.main }}>VS</div>
           </div>
           <div className="flex flex-col items-center gap-2 flex-1">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg" style={{ background: getGrad(teamB.short_name) }}>
-              {teamB.short_name || '?'}
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-lg overflow-hidden" style={{ background: getGrad(teamB.short_name) }}>
+              {getTeamLogo(teamB.short_name) ? <img src={getTeamLogo(teamB.short_name)} alt={teamB.short_name} className="w-12 h-12 object-contain" /> : teamB.short_name || '?'}
             </div>
             <div className="text-center">
               <div className="text-sm font-bold text-white">{teamB.short_name}</div>
@@ -217,26 +248,62 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
       )}
 
       {/* Tab Content */}
-      {activeTab === 'contests' && <ContestsTab contests={contests} loading={loading} joinedIds={joinedIds} joiningId={joiningId} onJoin={handleJoin} onOpenPrediction={onOpenPrediction} onOpenLeaderboard={onOpenLeaderboard} />}
+      {activeTab === 'contests' && <ContestsTab contests={contests} loading={loading} joinedIds={joinedIds} joiningId={joiningId} onJoin={handleJoin} onOpenPrediction={onOpenPrediction} onOpenLeaderboard={onOpenLeaderboard} deadlines={deadlines} />}
+      {activeTab === 'live' && <LiveTab data={bbbData} loading={bbbLoading} scorecardData={scorecardData} matchInfo={matchInfo} />}
       {activeTab === 'scorecard' && <ScorecardTab data={scorecardData} loading={scorecardLoading} />}
-      {activeTab === 'squad' && <SquadTab squads={squad} loading={squadLoading} />}
-      {activeTab === 'fantasy' && <FantasyPointsTab data={fantasyData} loading={fantasyLoading} />}
+      {activeTab === 'squad' && <SquadTab squads={squad} loading={squadLoading} onPlayerClick={openPlayerProfile} />}
+      {activeTab === 'fantasy' && <FantasyPointsTab data={fantasyData} loading={fantasyLoading} onPlayerClick={openPlayerProfile} />}
+
+      {/* Player Profile Modal */}
+      {selectedPlayer && (
+        <PlayerProfileModal
+          player={playerProfile}
+          loading={profileLoading}
+          onClose={() => { setSelectedPlayer(null); setPlayerProfile(null); }}
+        />
+      )}
     </div>
   );
 }
 
 
 // ========== CONTESTS TAB ==========
-function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPrediction, onOpenLeaderboard }) {
+function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPrediction, onOpenLeaderboard, deadlines }) {
   if (loading) return <LoadingSpinner />;
-  if (!contests.length) return (
-    <div className="text-center py-8 rounded-2xl" style={{ background: COLORS.background.card }}>
-      <Trophy size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
-      <p className="text-sm" style={{ color: COLORS.text.secondary }}>No contests yet</p>
-    </div>
-  );
+  
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
+      {/* Template Deadline Status */}
+      {deadlines.length > 0 && (
+        <div data-testid="deadline-status" className="space-y-1.5">
+          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.text.tertiary }}>Template Status</div>
+          {deadlines.map(d => (
+            <div key={d.template_id} className="flex items-center justify-between px-3 py-2 rounded-lg"
+              style={{ background: COLORS.background.card, border: `1px solid ${d.is_locked ? COLORS.error.main + '33' : COLORS.success.main + '33'}` }}>
+              <div className="flex items-center gap-2">
+                {d.is_locked ? <Lock size={12} color={COLORS.error.main} /> : <Unlock size={12} color={COLORS.success.main} />}
+                <span className="text-xs font-semibold text-white">{d.phase_label || d.template_type}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
+                  Deadline: Inn {d.deadline_innings} Ov {d.deadline_over}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                  style={{ background: d.is_locked ? COLORS.error.bg : COLORS.success.bg, color: d.is_locked ? COLORS.error.main : COLORS.success.main }}>
+                  {d.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!contests.length && (
+        <div className="text-center py-8 rounded-2xl" style={{ background: COLORS.background.card }}>
+          <Trophy size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
+          <p className="text-sm" style={{ color: COLORS.text.secondary }}>No contests yet</p>
+        </div>
+      )}
       {contests.map(c => {
         const isJoined = joinedIds.has(c.id);
         const isJoining = joiningId === c.id;
@@ -302,7 +369,7 @@ function ScorecardTab({ data, loading }) {
 
 
 // ========== SQUAD TAB ==========
-function SquadTab({ squads, loading }) {
+function SquadTab({ squads, loading, onPlayerClick }) {
   const [activeTeam, setActiveTeam] = useState(0);
   if (loading) return <LoadingSpinner />;
   if (!squads.length) return (
@@ -345,7 +412,8 @@ function SquadTab({ squads, loading }) {
             <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
               {group.players.map((p, i) => (
                 <div key={p.id || i} data-testid={`player-${p.id}`}
-                  className="flex items-center gap-3 px-3 py-2.5"
+                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => onPlayerClick?.(p.id)}
                   style={{ borderBottom: i < group.players.length - 1 ? `1px solid ${COLORS.border.light}` : 'none' }}>
                   <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center" style={{ background: COLORS.background.tertiary }}>
                     {p.playerImg && !p.playerImg.includes('icon512') ? (
@@ -375,7 +443,7 @@ function SquadTab({ squads, loading }) {
 
 
 // ========== FANTASY POINTS TAB ==========
-function FantasyPointsTab({ data, loading }) {
+function FantasyPointsTab({ data, loading, onPlayerClick }) {
   const [view, setView] = useState('totals');
   if (loading) return <LoadingSpinner />;
   if (!data || data.error || (!data.totals?.length && !data.innings?.length)) return (
@@ -449,6 +517,196 @@ function FantasyPointsTab({ data, loading }) {
             ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+
+// ========== LIVE TAB (Ball-by-Ball Commentary) ==========
+function LiveTab({ data, loading, scorecardData, matchInfo }) {
+  if (loading) return <LoadingSpinner />;
+
+  // Build commentary from scorecard batting data
+  const commentary = [];
+  const scorecard = scorecardData?.scorecard || [];
+
+  for (let innIdx = 0; innIdx < scorecard.length; innIdx++) {
+    const inn = scorecard[innIdx];
+    const batting = inn?.batting || [];
+    const bowling = inn?.bowling || [];
+    const inningLabel = inn?.inning || `Innings ${innIdx + 1}`;
+
+    // Add innings header
+    commentary.push({ type: 'header', text: inningLabel, key: `inn_${innIdx}` });
+
+    // Add batting milestones
+    for (const b of batting) {
+      const runs = parseInt(b.r) || 0;
+      const balls = parseInt(b.b) || 0;
+      const fours = parseInt(b['4s']) || 0;
+      const sixes = parseInt(b['6s']) || 0;
+
+      if (runs >= 50) {
+        commentary.push({ type: runs >= 100 ? 'century' : 'fifty', player: b.batsman, runs, balls, fours, sixes, dismissal: b.dismissal, key: `bat_${innIdx}_${b.batsman}` });
+      }
+      if (b.dismissal && b.dismissal !== 'not out') {
+        commentary.push({ type: 'wicket', player: b.batsman, runs, balls, dismissal: b.dismissal, key: `wkt_${innIdx}_${b.batsman}` });
+      }
+    }
+
+    // Add bowling highlights
+    for (const bw of bowling) {
+      const wickets = parseInt(bw.w) || 0;
+      if (wickets >= 3) {
+        commentary.push({ type: 'bowling', player: bw.bowler, wickets, overs: bw.o, runs: bw.r, econ: bw.eco, key: `bowl_${innIdx}_${bw.bowler}` });
+      }
+    }
+  }
+
+  // BBB extras events
+  if (data?.balls?.length > 0) {
+    commentary.push({ type: 'header', text: 'Ball Events', key: 'bbb_header' });
+    for (const ball of data.balls.slice(0, 20)) {
+      commentary.push({ type: 'event', ...ball, key: `bbb_${ball.over || ''}_${Math.random()}` });
+    }
+  }
+
+  if (commentary.length === 0) {
+    return (
+      <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
+        <Radio size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
+        <p className="text-sm" style={{ color: COLORS.text.secondary }}>Live commentary not available yet</p>
+        <p className="text-xs mt-1" style={{ color: COLORS.text.tertiary }}>Available once match starts</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {commentary.map(item => (
+        <div key={item.key}>
+          {item.type === 'header' && (
+            <div className="text-[10px] font-bold uppercase tracking-wider mt-3 mb-1" style={{ color: COLORS.primary.main }}>{item.text}</div>
+          )}
+          {item.type === 'century' && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl animate-pulse" style={{ background: `${COLORS.accent.gold}15`, border: `1px solid ${COLORS.accent.gold}44` }}>
+              <span className="text-xl">💯</span>
+              <div>
+                <span className="text-xs font-bold text-white">{item.player}</span>
+                <span className="text-xs ml-2" style={{ color: COLORS.accent.gold }}>{item.runs} ({item.balls}) | {item.fours}x4 {item.sixes}x6</span>
+              </div>
+            </div>
+          )}
+          {item.type === 'fifty' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${COLORS.success.main}12`, border: `1px solid ${COLORS.success.main}33` }}>
+              <span className="text-lg">🔥</span>
+              <div>
+                <span className="text-xs font-bold text-white">{item.player}</span>
+                <span className="text-xs ml-2" style={{ color: COLORS.success.main }}>{item.runs} ({item.balls}) | {item.fours}x4 {item.sixes}x6</span>
+              </div>
+            </div>
+          )}
+          {item.type === 'wicket' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${COLORS.error.main}12`, border: `1px solid ${COLORS.error.main}33` }}>
+              <span className="text-lg">🏏</span>
+              <div>
+                <span className="text-xs font-bold" style={{ color: COLORS.error.main }}>WICKET!</span>
+                <span className="text-xs ml-1 text-white">{item.player} {item.runs}({item.balls})</span>
+                <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{item.dismissal}</div>
+              </div>
+            </div>
+          )}
+          {item.type === 'bowling' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${COLORS.info.main}12`, border: `1px solid ${COLORS.info.main}33` }}>
+              <span className="text-lg">🎯</span>
+              <div>
+                <span className="text-xs font-bold text-white">{item.player}</span>
+                <span className="text-xs ml-2" style={{ color: COLORS.info.main }}>{item.wickets}/{item.runs} ({item.overs} ov) Eco: {item.econ}</span>
+              </div>
+            </div>
+          )}
+          {item.type === 'event' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: COLORS.background.card }}>
+              <span className="text-[10px] font-mono" style={{ color: COLORS.text.tertiary }}>Ov {item.over || '?'}</span>
+              <span className="text-xs text-white">{item.batsman || ''} {item.score || ''}</span>
+              {item.extra && <span className="text-[9px] px-1 rounded" style={{ background: '#f59e0b22', color: '#f59e0b' }}>{item.extra}</span>}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// ========== PLAYER PROFILE MODAL ==========
+function PlayerProfileModal({ player, loading, onClose }) {
+  if (!player && !loading) return null;
+
+  const p = player?.player || {};
+  const stats = player?.stats || [];
+
+  // Group stats by format
+  const formats = {};
+  for (const s of stats) {
+    const fmt = s.matchtype || 'Other';
+    if (!formats[fmt]) formats[fmt] = [];
+    formats[fmt].push(s);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-t-3xl p-5 space-y-4"
+        style={{ background: COLORS.background.primary, animation: 'slideUp 0.3s ease' }}
+        onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-white">Player Profile</h3>
+          <button onClick={onClose} className="p-1 rounded-full" style={{ background: COLORS.background.tertiary }}>
+            <X size={16} color={COLORS.text.secondary} />
+          </button>
+        </div>
+
+        {loading ? <LoadingSpinner /> : !p.name ? (
+          <p className="text-sm text-center py-4" style={{ color: COLORS.text.secondary }}>Profile not available</p>
+        ) : (
+          <>
+            {/* Player Header */}
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0" style={{ background: COLORS.background.tertiary }}>
+                {p.playerImg && !p.playerImg.includes('icon512') && (
+                  <img src={p.playerImg} alt={p.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div>
+                <div className="text-lg font-bold text-white">{p.name}</div>
+                <div className="text-xs" style={{ color: COLORS.text.secondary }}>{p.role} | {p.country}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: COLORS.text.tertiary }}>
+                  {p.battingStyle}{p.bowlingStyle ? ` | ${p.bowlingStyle}` : ''}
+                </div>
+                {p.placeOfBirth && <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Born: {p.placeOfBirth}</div>}
+              </div>
+            </div>
+
+            {/* Stats by Format */}
+            {Object.entries(formats).map(([fmt, fmtStats]) => (
+              <div key={fmt}>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: COLORS.primary.main }}>{fmt}</div>
+                <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+                  {fmtStats.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-1.5"
+                      style={{ borderBottom: i < fmtStats.length - 1 ? `1px solid ${COLORS.border.light}` : 'none' }}>
+                      <span className="text-xs" style={{ color: COLORS.text.secondary }}>{s.fn}</span>
+                      <span className="text-xs font-semibold text-white">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -99,6 +99,17 @@ class AutoPilot:
         self._run_count += 1
         self._last_run = datetime.now(timezone.utc).isoformat()
 
+        # Every 10th cycle (~7.5 min): auto-create contests for upcoming matches within 24h
+        if self._run_count % 10 == 1:
+            try:
+                from services.match_engine import auto_create_contests_24h
+                ac_result = await auto_create_contests_24h(db)
+                created = [r for r in ac_result.get("results", []) if r.get("status") == "created"]
+                if created:
+                    self._add_log(f"Auto-contests: {len(created)} new contests created")
+            except Exception as e:
+                self._add_log(f"Auto-contest error: {str(e)[:60]}")
+
         # Find matches that need settlement (live or completed, with active contests)
         matches = await db.matches.find(
             {"status": {"$in": ["live", "completed"]}},
