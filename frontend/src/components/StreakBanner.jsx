@@ -9,10 +9,10 @@ function FireIcon({ size = 20, className = '' }) {
 }
 
 function getStreakTier(streak) {
-  if (streak >= 10) return { label: 'LEGENDARY', color: '#FF3B3B', glow: '#FF3B3B', multiplier: '4x', bg: 'linear-gradient(135deg, #FF3B3B22, #FF690022)' };
-  if (streak >= 5) return { label: 'HOT STREAK', color: '#FF6B00', glow: '#FF6B00', multiplier: '2x', bg: 'linear-gradient(135deg, #FF6B0022, #FFD70011)' };
-  if (streak >= 3) return { label: 'WARMING UP', color: '#F59E0B', glow: '#F59E0B', multiplier: '1x', bg: 'linear-gradient(135deg, #F59E0B15, #FFD70008)' };
-  return { label: 'BUILD IT', color: COLORS.text.tertiary, glow: 'transparent', multiplier: '1x', bg: COLORS.background.card };
+  if (streak >= 10) return { label: 'LEGENDARY', color: '#FF69B4', glow: '#FF69B4', multiplier: '4x', bg: 'linear-gradient(135deg, #FF69B422, #C88CFF22)' };
+  if (streak >= 5) return { label: 'HOT STREAK', color: '#E040A0', glow: '#E040A0', multiplier: '2x', bg: 'linear-gradient(135deg, #E040A022, #FF69B411)' };
+  if (streak >= 3) return { label: 'WARMING UP', color: '#C88CFF', glow: '#C88CFF', multiplier: '1x', bg: 'linear-gradient(135deg, #C88CFF15, #FF69B408)' };
+  return { label: 'BUILD IT', color: '#C88CFF', glow: 'transparent', multiplier: '1x', bg: COLORS.background.card };
 }
 
 export default function StreakBanner() {
@@ -99,42 +99,53 @@ export default function StreakBanner() {
         </div>
       )}
 
-      {/* My Streak Card */}
+      {/* My Streak Card - Diamond Cut Pink */}
       <div data-testid="my-streak-card"
-        className={`rounded-xl overflow-hidden relative ${isHot ? 'streak-hot-border' : ''}`}
+        className={`rounded-xl overflow-hidden relative ${isHot ? 'streak-hot-border' : 'streak-diamond-border'}`}
         style={{
-          background: '#0d1117',
-          border: isHot ? 'none' : `1px solid ${tier.color}25`,
+          background: 'linear-gradient(135deg, #1a0a1e, #2d0f38, #1a0a20, #2d0f38)',
+          border: isHot ? 'none' : 'none',
         }}>
+
+        {/* Diamond sparkle overlay */}
+        <div className="absolute inset-0 pointer-events-none streak-diamond-sparkle" />
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: 'radial-gradient(ellipse at 30% 20%, rgba(255,105,180,0.08) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(200,140,255,0.06) 0%, transparent 50%)',
+        }} />
+
+        {/* Floating diamond particles */}
+        <div className="streak-diamond-particles">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="diamond-particle"
+              style={{
+                '--delay': `${i * 0.6}s`,
+                '--x': `${8 + i * 11}%`,
+                '--size': `${2 + (i % 3)}px`,
+              }} />
+          ))}
+        </div>
 
         {/* Hot streak fire particles */}
         {isHot && (
           <>
-            <div className="absolute inset-0 pointer-events-none streak-fire-bg" />
-            <div className="streak-particles">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="streak-particle"
-                  style={{
-                    '--delay': `${i * 0.3}s`,
-                    '--x': `${15 + i * 14}%`,
-                    '--drift': `${(i % 2 === 0 ? 1 : -1) * (5 + i * 3)}px`,
-                  }} />
-              ))}
-            </div>
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: 'linear-gradient(180deg, transparent 0%, rgba(255,105,180,0.06) 40%, rgba(200,140,255,0.08) 70%, rgba(255,105,180,0.03) 100%)',
+              animation: 'streakFireBg 4s ease-in-out infinite',
+            }} />
           </>
         )}
 
         <div className="relative p-3.5 flex items-center gap-3.5">
           {/* Streak Fire Icon */}
           <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${isHot ? 'streak-icon-glow' : ''}`}
-            style={{ background: isHot ? `${tier.color}20` : `${COLORS.background.tertiary}` }}>
+            style={{ background: isHot ? 'rgba(255,105,180,0.15)' : 'rgba(255,105,180,0.08)' }}>
             <FireIcon
               size={isHot ? 28 : 22}
               className={`transition-all ${isHot ? 'streak-fire-icon' : ''}`}
             />
             {currentStreak >= 10 && (
               <div className="absolute inset-0 rounded-xl animate-live-pulse" style={{
-                background: `radial-gradient(circle, ${tier.color}25, transparent 70%)`
+                background: 'radial-gradient(circle, rgba(255,105,180,0.2), transparent 70%)'
               }} />
             )}
           </div>
@@ -199,8 +210,8 @@ export default function StreakBanner() {
 
         {/* Bottom info bar */}
         {currentStreak === 0 && (
-          <div className="px-3.5 py-2 text-center" style={{ borderTop: `1px solid rgba(255,255,255,0.04)`, background: 'rgba(255,255,255,0.02)' }}>
-            <span className="text-[8px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          <div className="px-3.5 py-2 text-center" style={{ borderTop: '1px solid rgba(255,105,180,0.08)', background: 'rgba(255,105,180,0.03)' }}>
+            <span className="text-[8px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,105,180,0.4)' }}>
               Get 5 consecutive correct predictions for 2x bonus
             </span>
           </div>

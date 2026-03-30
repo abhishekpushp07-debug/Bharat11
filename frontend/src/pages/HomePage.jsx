@@ -191,11 +191,11 @@ export default function HomePage({ onMatchClick }) {
       {/* Dual Points Banner - Vibrant */}
       <div data-testid="dual-banner" className="grid grid-cols-2 gap-2.5">
         <div className="p-3.5 rounded-2xl relative overflow-hidden animate-gradient-shift"
-          style={{ background: 'linear-gradient(135deg, #10b981, #059669, #10b981)', backgroundSize: '200% 200%', boxShadow: '0 4px 24px #10b98133' }}>
+          style={{ background: 'linear-gradient(135deg, #7EC8E3, #5BA3C9, #A8D8EA)', backgroundSize: '200% 200%', boxShadow: '0 4px 24px rgba(126,200,227,0.25)' }}>
           <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #fff, transparent)' }} />
-          <div className="absolute bottom-0 left-0 w-full h-[1px] opacity-20" style={{ background: 'linear-gradient(90deg, transparent, #fff, transparent)' }} />
+          <div className="absolute bottom-0 left-0 w-full h-[1px] opacity-30" style={{ background: 'linear-gradient(90deg, transparent, #fff, transparent)' }} />
           <div className="relative">
-            <div className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#ffffffbb' }}>Fantasy Points</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#ffffffcc' }}>Fantasy Points</div>
             <div className="text-2xl font-black text-white mt-0.5 animate-count" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
               {(user?.total_fantasy_points || 0).toLocaleString()}
             </div>
