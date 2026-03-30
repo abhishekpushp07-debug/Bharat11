@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins } from 'lucide-react';
 
 const TEAM_COLORS = {
   MI: ['#004BA0', '#00599E'], CSK: ['#F9CD05', '#F3A012'],
@@ -11,15 +11,27 @@ const TEAM_COLORS = {
   GT: ['#1C1C2B', '#0B4F6C'], LSG: ['#2E90A8', '#1B7B93'],
 };
 
-export default function MatchDetailPage({ match, onBack }) {
+export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPrediction, onOpenLeaderboard }) {
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [joiningId, setJoiningId] = useState(null);
+  const [joinedIds, setJoinedIds] = useState(new Set());
+  const [joinError, setJoinError] = useState('');
 
   const fetchContests = useCallback(async () => {
     try {
       const res = await apiClient.get(`/matches/${match.id}/contests`);
       setContests(res.data.contests || []);
-    } catch (e) { /* silent */ }
+
+      // Check which contests user already joined
+      try {
+        const myRes = await apiClient.get('/contests/user/my-contests?limit=50');
+        const myContestIds = new Set(
+          (myRes.data.my_contests || []).map(mc => mc.entry?.contest_id).filter(Boolean)
+        );
+        setJoinedIds(myContestIds);
+      } catch (_) { /* silent */ }
+    } catch (_) { /* silent */ }
     finally { setLoading(false); }
   }, [match?.id]);
 
@@ -27,9 +39,30 @@ export default function MatchDetailPage({ match, onBack }) {
     if (match?.id) fetchContests();
   }, [match?.id, fetchContests]);
 
+  const handleJoin = async (contestId) => {
+    setJoiningId(contestId);
+    setJoinError('');
+    try {
+      await apiClient.post(`/contests/${contestId}/join`, { team_name: `Team_${Date.now().toString(36)}` });
+      setJoinedIds(prev => new Set([...prev, contestId]));
+      onJoinContest?.(contestId);
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.message || 'Join failed';
+      if (msg.includes('Already joined')) {
+        setJoinedIds(prev => new Set([...prev, contestId]));
+        onOpenPrediction?.(contestId);
+      } else {
+        setJoinError(msg);
+      }
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
   const teamA = match?.team_a || {};
   const teamB = match?.team_b || {};
   const isLive = match?.status === 'live';
+  const isCompleted = match?.status === 'completed';
   const score = match?.live_score;
   const getGrad = (s) => { const c = TEAM_COLORS[s] || ['#555','#333']; return `linear-gradient(135deg, ${c[0]}, ${c[1]})`; };
 
@@ -46,6 +79,7 @@ export default function MatchDetailPage({ match, onBack }) {
         <div className="px-4 py-3 flex items-center justify-between" style={{ background: isLive ? `${COLORS.primary.main}15` : COLORS.background.tertiary }}>
           <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match?.tournament || 'IPL 2026'}</span>
           {isLive && <span className="px-2 py-0.5 rounded text-xs font-bold text-white animate-pulse" style={{ background: COLORS.primary.main }}>LIVE</span>}
+          {isCompleted && <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ color: COLORS.text.tertiary, background: COLORS.background.tertiary }}>COMPLETED</span>}
         </div>
 
         {/* Teams */}
@@ -95,11 +129,18 @@ export default function MatchDetailPage({ match, onBack }) {
           <div className="flex items-center gap-1.5">
             <Clock size={14} color={COLORS.warning.main} />
             <span className="text-xs" style={{ color: COLORS.warning.main }}>
-              {isLive ? 'In Progress' : new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              {isLive ? 'In Progress' : isCompleted ? 'Match Over' : new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         </div>
       </div>
+
+      {/* Error */}
+      {joinError && (
+        <div data-testid="join-error" className="text-center text-sm py-2.5 px-3 rounded-xl" style={{ background: COLORS.error.bg, color: COLORS.error.main }}>
+          {joinError}
+        </div>
+      )}
 
       {/* Contests */}
       <div>
@@ -114,27 +155,69 @@ export default function MatchDetailPage({ match, onBack }) {
             <p className="text-sm" style={{ color: COLORS.text.secondary }}>No contests yet for this match</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {contests.map(c => (
-              <div key={c.id} className="p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-white">{c.name}</div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs" style={{ color: COLORS.text.secondary }}>Entry: {c.entry_fee === 0 ? 'FREE' : `${c.entry_fee} coins`}</span>
-                      <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(c.prize_pool || 0).toLocaleString()}</span>
+          <div className="space-y-2.5">
+            {contests.map(c => {
+              const isJoined = joinedIds.has(c.id);
+              const isJoining = joiningId === c.id;
+              const contestCompleted = c.status === 'completed';
+
+              return (
+                <div key={c.id} data-testid={`contest-${c.id}`}
+                  className="p-4 rounded-xl transition-all"
+                  style={{ background: COLORS.background.card, border: `1px solid ${isJoined ? COLORS.success.main + '33' : COLORS.border.light}` }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-white">{c.name}</div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="flex items-center gap-1 text-xs" style={{ color: COLORS.text.secondary }}>
+                          <Coins size={11} color="#FFD700" /> {c.entry_fee === 0 ? 'FREE' : `${c.entry_fee}`}
+                        </span>
+                        <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(c.prize_pool || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Users size={12} color={COLORS.info.main} />
+                        <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{c.current_participants || 0}/{c.max_participants || 0}</span>
+                        <span className="text-xs font-medium ml-2 px-1.5 py-0.5 rounded" style={{
+                          color: c.status === 'open' ? COLORS.success.main : COLORS.text.tertiary,
+                          background: c.status === 'open' ? COLORS.success.bg : COLORS.background.tertiary
+                        }}>{c.status?.toUpperCase()}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Users size={12} color={COLORS.info.main} />
-                      <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{c.current_participants || 0}/{c.max_participants || 0}</span>
+
+                    <div className="ml-3 shrink-0">
+                      {contestCompleted ? (
+                        <button
+                          data-testid={`leaderboard-btn-${c.id}`}
+                          onClick={() => onOpenLeaderboard?.(c.id)}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1"
+                          style={{ background: COLORS.background.tertiary, color: COLORS.accent.gold, border: `1px solid ${COLORS.accent.gold}33` }}>
+                          <Trophy size={13} /> Results
+                        </button>
+                      ) : isJoined ? (
+                        <button
+                          data-testid={`predict-btn-${c.id}`}
+                          onClick={() => onOpenPrediction?.(c.id)}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1"
+                          style={{ background: COLORS.success.bg, color: COLORS.success.main, border: `1px solid ${COLORS.success.main}33` }}>
+                          <Check size={13} /> Predict
+                        </button>
+                      ) : (
+                        <button
+                          data-testid={`join-btn-${c.id}`}
+                          onClick={() => handleJoin(c.id)}
+                          disabled={isJoining || c.status !== 'open'}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+                          style={{ background: COLORS.primary.gradient, color: '#fff' }}>
+                          {isJoining ? <Loader2 size={13} className="animate-spin" /> : null}
+                          {isJoining ? 'Joining...' : 'Join'}
+                          {!isJoining && <ChevronRight size={13} />}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <button className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: COLORS.primary.gradient, color: '#fff' }}>
-                    Join <ChevronRight size={12} className="inline" />
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

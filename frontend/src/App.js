@@ -2,16 +2,18 @@
  * CrickPredict - Main App Component
  * Fantasy Cricket Prediction PWA
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import "@/App.css";
 import { useAuthStore } from "@/stores/authStore";
-import { useAppStore } from "@/stores/appStore";
 import { AuthFlow } from "@/components/auth";
 import BottomNav from "@/components/BottomNav";
 import HomePage from "@/pages/HomePage";
 import WalletPage from "@/pages/WalletPage";
 import ProfilePage from "@/pages/ProfilePage";
 import MatchDetailPage from "@/pages/MatchDetailPage";
+import MyContestsPage from "@/pages/MyContestsPage";
+import PredictionPage from "@/pages/PredictionPage";
+import LeaderboardPage from "@/pages/LeaderboardPage";
 import { COLORS } from "@/constants/design";
 
 // Splash Screen
@@ -25,35 +27,69 @@ const SplashScreen = () => (
   </div>
 );
 
-// My Contests Placeholder (Stage 7)
-const MyContestsPage = () => (
-  <div data-testid="contests-page" className="flex flex-col items-center justify-center py-20">
-    <div className="text-5xl mb-4">🏆</div>
-    <h2 className="text-lg font-semibold text-white mb-2">My Contests</h2>
-    <p className="text-sm text-center" style={{ color: COLORS.text.secondary }}>Join a contest to see your entries here.<br />Coming soon in Stage 7!</p>
-  </div>
-);
-
 // Main App Shell (after login)
 const AppShell = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedMatch, setSelectedMatch] = useState(null);
+  const [selectedContestId, setSelectedContestId] = useState(null);
+  const { fetchUser } = useAuthStore();
 
-  const handleMatchClick = (match) => {
+  const handleMatchClick = useCallback((match) => {
     setSelectedMatch(match);
     setActiveTab('matchDetail');
-  };
+  }, []);
 
-  const handleBackFromMatch = () => {
+  const handleBackFromMatch = useCallback(() => {
     setSelectedMatch(null);
     setActiveTab('home');
-  };
+  }, []);
+
+  const handleOpenPrediction = useCallback((contestId) => {
+    setSelectedContestId(contestId);
+    setActiveTab('prediction');
+  }, []);
+
+  const handleOpenLeaderboard = useCallback((contestId) => {
+    setSelectedContestId(contestId);
+    setActiveTab('leaderboard');
+  }, []);
+
+  const handleBackFromPrediction = useCallback(() => {
+    setSelectedContestId(null);
+    if (selectedMatch) {
+      setActiveTab('matchDetail');
+    } else {
+      setActiveTab('contests');
+    }
+  }, [selectedMatch]);
+
+  const handleBackFromLeaderboard = useCallback(() => {
+    setSelectedContestId(null);
+    setActiveTab('contests');
+  }, []);
+
+  const handleContestClick = useCallback(({ entry, contest }) => {
+    const cid = contest?.id || entry?.contest_id;
+    if (!cid) return;
+    if (contest?.status === 'completed') {
+      handleOpenLeaderboard(cid);
+    } else {
+      handleOpenPrediction(cid);
+    }
+  }, [handleOpenLeaderboard, handleOpenPrediction]);
+
+  const handleAfterJoin = useCallback((contestId) => {
+    fetchUser();
+    handleOpenPrediction(contestId);
+  }, [fetchUser, handleOpenPrediction]);
 
   const renderPage = () => {
     switch (activeTab) {
       case 'home': return <HomePage onMatchClick={handleMatchClick} />;
-      case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} />;
-      case 'contests': return <MyContestsPage />;
+      case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} />;
+      case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
+      case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
+      case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} onBack={handleBackFromLeaderboard} />;
       case 'wallet': return <WalletPage />;
       case 'profile': return <ProfilePage />;
       default: return <HomePage onMatchClick={handleMatchClick} />;
@@ -62,8 +98,11 @@ const AppShell = () => {
 
   const handleTabChange = (tab) => {
     setSelectedMatch(null);
+    setSelectedContestId(null);
     setActiveTab(tab);
   };
+
+  const hiddenNavTabs = ['matchDetail', 'prediction', 'leaderboard'];
 
   return (
     <div className="min-h-screen" style={{ background: COLORS.background.primary }}>
@@ -82,7 +121,7 @@ const AppShell = () => {
       </main>
 
       {/* Bottom Navigation */}
-      <BottomNav active={['matchDetail'].includes(activeTab) ? 'home' : activeTab} onChange={handleTabChange} />
+      <BottomNav active={hiddenNavTabs.includes(activeTab) ? 'home' : activeTab} onChange={handleTabChange} />
     </div>
   );
 };
