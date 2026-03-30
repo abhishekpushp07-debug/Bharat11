@@ -82,7 +82,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https: wss: ws:; frame-ancestors 'none'"
         if not settings.DEBUG:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
@@ -351,14 +351,32 @@ app.include_router(matches_router, prefix="/api")
 app.include_router(contests_router, prefix="/api")
 app.include_router(cricket_router, prefix="/api")
 
+from routers.notifications import router as notifications_router
+app.include_router(notifications_router, prefix="/api")
+
 
 # Root endpoint
 @app.get("/api")
 async def root():
     """API root endpoint."""
+    from services.socket_manager import get_socket_status
     return {
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/api/docs" if settings.DEBUG else "disabled"
+        "docs": "/api/docs" if settings.DEBUG else "disabled",
+        "socket": get_socket_status(),
     }
+
+
+# ==================== SOCKET.IO ASGI APP ====================
+# Wraps FastAPI with Socket.IO for WebSocket support
+# The combined_app is the top-level ASGI entrypoint used by uvicorn
+import socketio as _socketio_module
+from services.socket_manager import sio
+
+combined_app = _socketio_module.ASGIApp(
+    sio,
+    app,
+    socketio_path='api/socket.io'
+)

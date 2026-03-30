@@ -3,6 +3,7 @@ import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { ArrowLeft, Trophy, Crown, Medal, Star, X, Check, AlertCircle, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
 import ShareCard from '../components/ShareCard';
+import { useSocketStore } from '../stores/socketStore';
 
 // User Answer Detail Modal
 function UserAnswerModal({ contestId, userId, onClose }) {
@@ -167,6 +168,7 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
   const [showShare, setShowShare] = useState(false);
   const [moodData, setMoodData] = useState(null);
   const [badgeData, setBadgeData] = useState(null);
+  const { joinContest, leaveContest, on, off } = useSocketStore();
 
   const fetchData = useCallback(async () => {
     try {
@@ -194,6 +196,41 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
   }, [contestId, match?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Socket.IO: Real-time leaderboard updates
+  useEffect(() => {
+    if (!contestId) return;
+    joinContest(contestId);
+
+    const handleLeaderboardUpdate = (data) => {
+      if (data.contest_id === contestId) {
+        fetchData(); // Refresh leaderboard when scores change
+      }
+    };
+
+    const handleQuestionResolved = (data) => {
+      if (data.contest_id === contestId) {
+        fetchData(); // Refresh when a question is resolved
+      }
+    };
+
+    const handleContestFinalized = (data) => {
+      if (data.contest_id === contestId) {
+        fetchData();
+      }
+    };
+
+    on('leaderboard_update', handleLeaderboardUpdate);
+    on('question_resolved', handleQuestionResolved);
+    on('contest_finalized', handleContestFinalized);
+
+    return () => {
+      leaveContest(contestId);
+      off('leaderboard_update', handleLeaderboardUpdate);
+      off('question_resolved', handleQuestionResolved);
+      off('contest_finalized', handleContestFinalized);
+    };
+  }, [contestId, joinContest, leaveContest, on, off, fetchData]);
 
   const rankIcon = (rank) => {
     if (rank === 1) return <Crown size={18} color="#FFD700" />;

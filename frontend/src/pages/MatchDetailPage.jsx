@@ -5,6 +5,7 @@ import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS } from '../
 import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X } from 'lucide-react';
 import ScorecardView from '../components/ScorecardView';
 import MoodMeter from '../components/MoodMeter';
+import { useSocketStore } from '../stores/socketStore';
 
 const getGrad = (s) => getTeamGradient(s);
 
@@ -29,6 +30,10 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const [joinedIds, setJoinedIds] = useState(new Set());
   const [joinError, setJoinError] = useState('');
   const [matchInfo, setMatchInfo] = useState(null);
+  const [liveMatchData, setLiveMatchData] = useState(null);
+
+  // Socket.IO for real-time match updates
+  const { joinMatch, leaveMatch, on, off } = useSocketStore();
 
   // Squad state
   const [squad, setSquad] = useState([]);
@@ -133,6 +138,45 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     } catch (_) {}
     finally { setProfileLoading(false); }
   };
+
+  // Socket.IO: Join match room for real-time updates
+  useEffect(() => {
+    if (!match?.id) return;
+    joinMatch(match.id);
+
+    const handleLiveScore = (data) => {
+      if (data.match_id === match.id) {
+        setLiveMatchData(data);
+      }
+    };
+
+    const handleQuestionResolved = (data) => {
+      if (data.match_id === match.id) {
+        // Refresh contests to show updated question results
+        fetchContests();
+      }
+    };
+
+    const handleTemplateLocked = (data) => {
+      if (data.match_id === match.id) {
+        // Update deadlines to reflect locked template
+        setDeadlines(prev => prev.map(d =>
+          d.template_id === data.template_id ? { ...d, is_locked: true } : d
+        ));
+      }
+    };
+
+    on('live_score', handleLiveScore);
+    on('question_resolved', handleQuestionResolved);
+    on('template_locked', handleTemplateLocked);
+
+    return () => {
+      leaveMatch(match.id);
+      off('live_score', handleLiveScore);
+      off('question_resolved', handleQuestionResolved);
+      off('template_locked', handleTemplateLocked);
+    };
+  }, [match?.id, joinMatch, leaveMatch, on, off, fetchContests]);
 
   const handleJoin = async (contestId) => {
     setJoiningId(contestId);

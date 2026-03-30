@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { useSocketStore } from '../stores/socketStore';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_CARD_IMAGES, getTeamLogo, getTeamGradient, getTeamCardImage, normalizeTeam } from '../constants/teams';
-import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin } from 'lucide-react';
+import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin, Wifi, WifiOff, Bell, BellOff } from 'lucide-react';
 import PredictionBadge from '../components/PredictionBadge';
 import StreakBanner from '../components/StreakBanner';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 const getTeamGrad = (short) => getTeamGradient(short);
 
@@ -59,6 +61,8 @@ function MatchSkeleton() {
 
 export default function HomePage({ onMatchClick }) {
   const { user } = useAuthStore();
+  const { on, off, isConnected } = useSocketStore();
+  const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: subscribePush } = usePushNotifications();
   const [matches, setMatches] = useState([]);
   const [hotContests, setHotContests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +96,46 @@ export default function HomePage({ onMatchClick }) {
     return () => clearInterval(refreshTimer.current);
   }, [fetchAll]);
 
+  // Socket.IO: Live score updates
+  useEffect(() => {
+    const handleLiveScore = (data) => {
+      setMatches(prev => prev.map(m => {
+        if (m.id === data.match_id) {
+          return {
+            ...m,
+            live_score: {
+              scores: data.scores || m.live_score?.scores,
+              status_text: data.status_text || m.live_score?.status_text,
+              match_winner: data.match_winner || m.live_score?.match_winner,
+              updated_at: data.updated_at,
+            }
+          };
+        }
+        return m;
+      }));
+    };
+
+    const handleContestCreated = (data) => {
+      // Refresh contests list when a new one is auto-created
+      fetchAll();
+    };
+
+    const handleContestFinalized = (data) => {
+      // Refresh to show updated results
+      fetchAll();
+    };
+
+    on('live_score', handleLiveScore);
+    on('contest_created', handleContestCreated);
+    on('contest_finalized', handleContestFinalized);
+
+    return () => {
+      off('live_score', handleLiveScore);
+      off('contest_created', handleContestCreated);
+      off('contest_finalized', handleContestFinalized);
+    };
+  }, [on, off, fetchAll]);
+
   const liveMatches = matches.filter(m => m.status === 'live');
   const upcomingMatches = matches.filter(m => m.status === 'upcoming');
   const completedMatches = matches.filter(m => m.status === 'completed');
@@ -108,6 +152,25 @@ export default function HomePage({ onMatchClick }) {
           <p className="text-xs mt-0.5" style={{ color: COLORS.text.secondary }}>Predict & Win Virtual Coins</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Live connection indicator */}
+          <div data-testid="socket-status" className="flex items-center gap-1 px-2 py-1 rounded-full" style={{
+            background: isConnected ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+            border: `1px solid ${isConnected ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+          }}>
+            {isConnected ? <Wifi size={9} color="#22c55e" /> : <WifiOff size={9} color="#ef4444" />}
+            <span className="text-[8px] font-bold" style={{ color: isConnected ? '#22c55e' : '#ef4444' }}>
+              {isConnected ? 'LIVE' : 'OFFLINE'}
+            </span>
+          </div>
+          {/* Push notification toggle */}
+          {pushSupported && (
+            <button data-testid="push-toggle" onClick={subscribePush}
+              className="p-1.5 rounded-full" style={{ background: pushSubscribed ? 'rgba(34,197,94,0.12)' : COLORS.background.card }}>
+              {pushSubscribed
+                ? <Bell size={12} color="#22c55e" />
+                : <BellOff size={12} color={COLORS.text.tertiary} />}
+            </button>
+          )}
           <button data-testid="refresh-btn" onClick={() => fetchAll(true)} disabled={refreshing}
             className="p-2 rounded-full" style={{ background: COLORS.background.card }}>
             <RefreshCw size={14} color={COLORS.text.secondary} className={refreshing ? 'animate-spin' : ''} />

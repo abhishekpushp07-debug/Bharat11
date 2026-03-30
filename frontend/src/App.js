@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import "@/App.css";
 import { useAuthStore } from "@/stores/authStore";
+import { useSocketStore } from "@/stores/socketStore";
 import { AuthFlow } from "@/components/auth";
 import BottomNav from "@/components/BottomNav";
 import HomePage from "@/pages/HomePage";
@@ -34,6 +35,13 @@ const PlayerApp = () => {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [selectedContestId, setSelectedContestId] = useState(null);
   const { fetchUser } = useAuthStore();
+  const { connect, disconnect } = useSocketStore();
+
+  // Connect to Socket.IO on mount
+  useEffect(() => {
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
 
   const handleMatchClick = useCallback((match) => {
     setSelectedMatch(match);

@@ -1278,3 +1278,160 @@ async def get_rich_scorecard(
         "scorecard": data.get("scorecard", []),
         "metrics": metrics,
     }
+
+
+# ==================== USER MANAGEMENT ====================
+
+class UserCoinAdjust(BaseModel):
+    amount: int = Field(..., description="Positive to add, negative to deduct")
+    reason: str = Field(default="Admin adjustment")
+
+
+@router.get(
+    "/users",
+    summary="List all users (Admin)",
+)
+async def admin_list_users(
+    admin: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    search: str = Query("", description="Search by username or phone"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("created_at", description="Sort field"),
+    banned_only: bool = Query(False),
+):
+    """List all users with search, pagination, and filtering."""
+    query = {}
+    if search:
+        query["$or"] = [
+            {"username": {"$regex": search, "$options": "i"}},
+            {"phone": {"$regex": search}},
+        ]
+    if banned_only:
+        query["is_banned"] = True
+
+    skip = (page - 1) * limit
+    sort_dir = -1 if sort_by.startswith("-") else 1
+    sort_field = sort_by.lstrip("-")
+
+    total = await db.users.count_documents(query)
+    cursor = db.users.find(
+        query,
+        {"_id": 0, "pin_hash": 0}
+    ).sort(sort_field, sort_dir).skip(skip).limit(limit)
+    users = await cursor.to_list(length=limit)
+
+    return {
+        "users": users,
+        "total": total,
+        "page": page,
+        "pages": (total + limit - 1) // limit,
+    }
+
+
+@router.get(
+    "/users/{user_id}",
+    summary="Get user details (Admin)",
+)
+async def admin_get_user(
+    user_id: str,
+    admin: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Get detailed user info including prediction history."""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "pin_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Get recent contest entries
+    entries_cursor = db.contest_entries.find(
+        {"user_id": user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(20)
+    entries = await entries_cursor.to_list(length=20)
+
+    # Stats
+    total_entries = await db.contest_entries.count_documents({"user_id": user_id})
+    correct_predictions = 0
+    total_predictions = 0
+    for entry in entries:
+        for pred in entry.get("predictions", []):
+            total_predictions += 1
+            if pred.get("is_correct"):
+                correct_predictions += 1
+
+    return {
+        "user": user,
+        "stats": {
+            "total_contests": total_entries,
+            "recent_correct": correct_predictions,
+            "recent_total": total_predictions,
+            "accuracy": round((correct_predictions / total_predictions * 100), 1) if total_predictions > 0 else 0,
+        },
+        "recent_entries": entries,
+    }
+
+
+@router.post(
+    "/users/{user_id}/ban",
+    summary="Ban/Unban a user (Admin)",
+)
+async def admin_ban_user(
+    user_id: str,
+    admin: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Toggle ban status for a user."""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "is_banned": 1, "is_admin": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Cannot ban admin users")
+
+    new_status = not user.get("is_banned", False)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"is_banned": new_status, "updated_at": utc_now().isoformat()}}
+    )
+    return {"user_id": user_id, "is_banned": new_status, "action": "banned" if new_status else "unbanned"}
+
+
+@router.post(
+    "/users/{user_id}/adjust-coins",
+    summary="Adjust user coins (Admin)",
+)
+async def admin_adjust_coins(
+    user_id: str,
+    data: UserCoinAdjust,
+    admin: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Add or deduct coins from a user's balance."""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "coins_balance": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_balance = max(0, user.get("coins_balance", 0) + data.amount)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"coins_balance": new_balance, "updated_at": utc_now().isoformat()}}
+    )
+
+    # Log the transaction
+    await db.wallet_transactions.insert_one({
+        "id": generate_id(),
+        "user_id": user_id,
+        "type": "admin_adjustment",
+        "amount": data.amount,
+        "balance_after": new_balance,
+        "reason": data.reason,
+        "admin_id": admin.id,
+        "created_at": utc_now().isoformat(),
+    })
+
+    return {
+        "user_id": user_id,
+        "amount": data.amount,
+        "new_balance": new_balance,
+        "reason": data.reason,
+    }

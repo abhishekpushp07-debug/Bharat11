@@ -6,11 +6,12 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/design';
-import { LayoutDashboard, FileText, Calendar, CheckCircle, Eye, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, FileText, Calendar, CheckCircle, Eye, LogOut, Shield, Users } from 'lucide-react';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminContentPage from './admin/AdminContentPage';
 import AdminMatchPage from './admin/AdminMatchPage';
 import AdminResolvePage from './admin/AdminResolvePage';
+import AdminUsersTab from './admin/AdminUsersTab';
 import PlayerView from './PlayerView';
 
 const ADMIN_TABS = [
@@ -18,6 +19,7 @@ const ADMIN_TABS = [
   { id: 'content', label: 'Content', Icon: FileText },
   { id: 'matches', label: 'Matches', Icon: Calendar },
   { id: 'resolve', label: 'Resolve', Icon: CheckCircle },
+  { id: 'users', label: 'Users', Icon: Users },
 ];
 
 export default function AdminApp() {
@@ -38,6 +40,7 @@ export default function AdminApp() {
       case 'content': return <AdminContentPage />;
       case 'matches': return <AdminMatchPage />;
       case 'resolve': return <AdminResolvePage />;
+      case 'users': return <AdminUsersTab />;
       default: return <AdminDashboard onNavigate={setActiveTab} />;
     }
   };

@@ -296,4 +296,18 @@ async def auto_create_contests_24h(db):
         })
         logger.info(f"Auto-contest created: {contest['name']} (ID: {contest['id']})")
 
+        # Emit Socket.IO event for new contest
+        try:
+            from services.socket_manager import emit_contest_created
+            await emit_contest_created(contest)
+        except Exception as e:
+            logger.debug(f"Socket emit (contest_created) failed: {e}")
+
+        # Push notification: new contest live
+        try:
+            from services.push_manager import notify_contest_live
+            await notify_contest_live(db, contest["name"], match_id)
+        except Exception as e:
+            logger.debug(f"Push notify (contest_live) failed: {e}")
+
     return {"processed": len(upcoming), "results": results}

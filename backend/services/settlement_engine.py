@@ -515,20 +515,32 @@ async def run_settlement_for_match(match_id: str, db) -> Dict[str, Any]:
 
     # Update match live_score with latest scorecard data
     score_summary = scorecard_data.get("score", [])
+    live_score_data = {
+        "scores": score_summary,
+        "status_text": scorecard_data.get("status", ""),
+        "toss_winner": scorecard_data.get("tossWinner", ""),
+        "match_winner": scorecard_data.get("matchWinner", ""),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
     await db.matches.update_one(
         {"id": match_id},
         {"$set": {
-            "live_score": {
-                "scores": score_summary,
-                "status_text": scorecard_data.get("status", ""),
-                "toss_winner": scorecard_data.get("tossWinner", ""),
-                "match_winner": scorecard_data.get("matchWinner", ""),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            },
+            "live_score": live_score_data,
             "status": "completed" if metrics["match_completed"] else match.get("status", "live"),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }}
     )
+
+    # Emit live score via Socket.IO
+    try:
+        from services.socket_manager import emit_live_score, emit_contest_finalized
+        await emit_live_score(match_id, live_score_data)
+        # Emit finalized contests
+        for cr in contest_reports:
+            if cr.get("auto_finalized"):
+                await emit_contest_finalized(cr["contest_id"], match_id, [])
+    except Exception as e:
+        logger.debug(f"Socket emit (live_score) failed: {e}")
 
     return {
         "match_id": match_id,
@@ -695,6 +707,14 @@ async def _resolve_question_internal(db, contest_id: str, match_id: str, questio
 
     streak_bonuses = sum(sr["bonus"] for sr in streak_results.values() if sr["bonus"] > 0)
     logger.info(f"Auto-resolved Q:{question_id} → {correct_option} | {len(entries)} entries scored | Streak bonuses: {streak_bonuses}")
+
+    # Phase 4: Emit Socket.IO events
+    try:
+        from services.socket_manager import emit_question_resolved, emit_leaderboard_update
+        await emit_question_resolved(contest_id, match_id, question_id, correct_option, len(entries))
+        await emit_leaderboard_update(contest_id, match_id)
+    except Exception as e:
+        logger.debug(f"Socket emit failed (non-critical): {e}")
 
 
 async def _auto_finalize_contest(db, contest_id: str) -> Dict:

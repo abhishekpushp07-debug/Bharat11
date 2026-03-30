@@ -1,0 +1,109 @@
+{
+  "summary": "Iteration 27 - Socket.IO, Push Notifications, Admin User Management Testing Complete. 15/15 backend tests passed. All frontend features verified: Socket.IO LIVE indicator, Push notification bell toggle, Admin Users tab with search/ban/coin adjustment.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": {
+    "backend": {
+      "socket_io_polling": "PASS - GET /api/socket.io/?EIO=4&transport=polling returns valid session",
+      "api_root_socket_status": "PASS - GET /api returns socket status with connected_clients and server_active fields",
+      "vapid_public_key": "PASS - GET /api/notifications/vapid-public-key returns non-empty public_key",
+      "subscribe_requires_auth": "PASS - POST /api/notifications/subscribe requires authentication",
+      "subscribe_with_auth": "PASS - POST /api/notifications/subscribe works with valid auth",
+      "unsubscribe_with_auth": "PASS - POST /api/notifications/unsubscribe works with valid auth",
+      "admin_users_list": "PASS - GET /api/admin/users returns paginated user list (37 users)",
+      "admin_users_search": "PASS - GET /api/admin/users?search=Player returns filtered results",
+      "admin_users_requires_admin": "PASS - GET /api/admin/users returns 403 for non-admin",
+      "admin_user_detail": "PASS - GET /api/admin/users/{user_id} returns user details with stats",
+      "admin_ban_toggle": "PASS - POST /api/admin/users/{user_id}/ban toggles ban status",
+      "admin_adjust_coins": "PASS - POST /api/admin/users/{user_id}/adjust-coins adjusts coins and logs transaction",
+      "health_endpoint": "PASS - GET /api/health returns 200",
+      "admin_login": "PASS - POST /api/auth/login returns token for admin",
+      "player_login": "PASS - POST /api/auth/login returns token for player"
+    },
+    "frontend": {
+      "socket_status_indicator": "PASS - data-testid='socket-status' shows 'LIVE' on HomePage",
+      "push_toggle_bell": "PASS - data-testid='push-toggle' bell icon visible on HomePage",
+      "home_balance": "PASS - data-testid='home-balance' shows user coins",
+      "admin_nav_users": "PASS - data-testid='admin-nav-users' tab in admin bottom nav",
+      "admin_users_tab": "PASS - data-testid='admin-users-tab' renders with user list",
+      "user_search_input": "PASS - data-testid='user-search-input' found",
+      "banned_filter": "PASS - data-testid='banned-filter' button found",
+      "user_rows": "PASS - 15 user rows displayed with data-testid='user-row-*'",
+      "user_detail_modal": "PASS - Click on user row opens modal with data-testid='user-detail-name'",
+      "ban_toggle_button": "PASS - data-testid='ban-toggle' button in user detail modal",
+      "coin_amount_input": "PASS - data-testid='coin-amount-input' found",
+      "adjust_coins_button": "PASS - data-testid='adjust-coins-btn' found"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration27_socketio_push_admin.py",
+    "/app/test_reports/pytest/pytest_iteration27.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed bug in admin.py: admin_adjust_coins was using 'coins' field instead of 'coins_balance' - corrected to use coins_balance",
+    "Fixed frontend/.env formatting issue - missing newline between ENABLE_HEALTH_CHECK and REACT_APP_VAPID_PUBLIC_KEY",
+    "Socket.IO integration working correctly with path '/api/socket.io/'",
+    "socketStore.js properly connects on PlayerApp mount and joins home room",
+    "HomePage.jsx correctly shows LIVE/OFFLINE indicator based on isConnected state",
+    "Push notification hook (usePushNotifications.js) properly handles subscription/unsubscription",
+    "AdminUsersTab.jsx has all required data-testid attributes for testing",
+    "UserDetailModal shows user stats, ban toggle, and coin adjustment controls"
+  ],
+  "updated_files": [
+    "/app/backend/routers/admin.py",
+    "/app/frontend/.env",
+    "/app/backend/tests/test_iteration27_socketio_push_admin.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (12/12 UI features verified)"
+  },
+  "test_credentials": {
+    "super_admin": {"phone": "7004186276", "pin": "5524"},
+    "test_player": {"phone": "9111111111", "pin": "5678"}
+  },
+  "seed_data_creation": "None - used existing users for testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 27 verified Socket.IO, Push Notifications, and Admin User Management features. Key findings: (1) Socket.IO uses path '/api/socket.io/' and combined_app wraps FastAPI, (2) GET /api returns socket status with connected_clients and server_active, (3) VAPID keys are in both frontend and backend .env files, (4) Push notification endpoints require auth except vapid-public-key, (5) Admin Users tab at /api/admin/users with search, pagination, ban/unban, coin adjustment, (6) Fixed coins_balance field name bug in admin_adjust_coins endpoint, (7) All data-testid attributes present for UI testing.",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  },
+  "features_verified": {
+    "socket_io_polling": "VERIFIED - /api/socket.io/?EIO=4&transport=polling accessible",
+    "socket_status_api": "VERIFIED - GET /api returns socket.connected_clients and socket.server_active",
+    "socket_status_ui": "VERIFIED - LIVE/OFFLINE indicator on HomePage with data-testid='socket-status'",
+    "push_vapid_key": "VERIFIED - GET /api/notifications/vapid-public-key returns valid key",
+    "push_subscribe": "VERIFIED - POST /api/notifications/subscribe works with auth",
+    "push_unsubscribe": "VERIFIED - POST /api/notifications/unsubscribe works with auth",
+    "push_bell_toggle": "VERIFIED - Bell icon toggle on HomePage with data-testid='push-toggle'",
+    "admin_users_list": "VERIFIED - GET /api/admin/users returns paginated list",
+    "admin_users_search": "VERIFIED - Search parameter filters results",
+    "admin_user_detail": "VERIFIED - GET /api/admin/users/{id} returns user with stats",
+    "admin_ban_toggle": "VERIFIED - POST /api/admin/users/{id}/ban toggles status",
+    "admin_coin_adjust": "VERIFIED - POST /api/admin/users/{id}/adjust-coins works",
+    "admin_users_tab_ui": "VERIFIED - Users tab in admin nav with full user management UI"
+  },
+  "bugs_fixed": [
+    {
+      "file": "/app/backend/routers/admin.py",
+      "issue": "admin_adjust_coins endpoint was using 'coins' field instead of 'coins_balance'",
+      "fix": "Changed db query and update to use 'coins_balance' field",
+      "line": "1410-1417"
+    },
+    {
+      "file": "/app/frontend/.env",
+      "issue": "Missing newline between ENABLE_HEALTH_CHECK and REACT_APP_VAPID_PUBLIC_KEY",
+      "fix": "Added proper newline formatting"
+    }
+  ]
+}

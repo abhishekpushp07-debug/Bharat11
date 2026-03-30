@@ -5,9 +5,9 @@
  * Handles caching, offline support, and background sync
  */
 
-const CACHE_NAME = 'crickpredict-v1';
-const STATIC_CACHE = 'crickpredict-static-v1';
-const DYNAMIC_CACHE = 'crickpredict-dynamic-v1';
+const CACHE_NAME = 'bharat11-v2';
+const STATIC_CACHE = 'bharat11-static-v2';
+const DYNAMIC_CACHE = 'bharat11-dynamic-v2';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -174,19 +174,29 @@ async function updateCache(request) {
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   
-  const data = event.data.json();
+  let data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: 'Bharat 11', body: event.data.text() };
+  }
   
   const options = {
-    body: data.body || 'New update from CrickPredict!',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-72.png',
-    vibrate: [100, 50, 100],
+    body: data.body || 'New update from Bharat 11!',
+    icon: '/icons/icon.svg',
+    badge: '/icons/icon.svg',
+    vibrate: [200, 100, 200],
     data: data.data || {},
-    actions: data.actions || []
+    tag: data.data?.type || 'general',
+    renotify: true,
+    actions: [
+      { action: 'open', title: 'Open App' },
+      { action: 'dismiss', title: 'Dismiss' },
+    ],
   };
   
   event.waitUntil(
-    self.registration.showNotification(data.title || 'CrickPredict', options)
+    self.registration.showNotification(data.title || 'Bharat 11', options)
   );
 });
 
@@ -194,18 +204,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
+  if (event.action === 'dismiss') return;
+  
   const urlToOpen = event.notification.data?.url || '/';
   
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Check if app is already open
         for (const client of clientList) {
-          if (client.url === urlToOpen && 'focus' in client) {
+          if ('focus' in client) {
             return client.focus();
           }
         }
-        // Open new window
         return self.clients.openWindow(urlToOpen);
       })
   );

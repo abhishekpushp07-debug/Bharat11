@@ -40,7 +40,7 @@ export default function AdminDashboard({ onNavigate }) {
   }
 
   const statCards = [
-    { label: 'Users', value: stats?.users || 0, Icon: Users, color: COLORS.primary.main, tab: null },
+    { label: 'Users', value: stats?.users || 0, Icon: Users, color: COLORS.primary.main, tab: 'users' },
     { label: 'Questions', value: stats?.questions || 0, Icon: HelpCircle, color: COLORS.info.main, tab: 'content' },
     { label: 'Templates', value: stats?.templates || 0, Icon: FileText, color: COLORS.warning.main, tab: 'content' },
     { label: 'Matches', value: stats?.matches || 0, Icon: Calendar, color: COLORS.success.main, tab: 'matches' },
