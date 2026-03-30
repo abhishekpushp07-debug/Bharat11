@@ -1,10 +1,10 @@
 import { COLORS } from '../constants/design';
-import { Home, Trophy, Wallet, User, Scale } from 'lucide-react';
+import { Home, Trophy, Scale, User } from 'lucide-react';
 
 const tabs = [
   { id: 'home', label: 'Home', Icon: Home },
   { id: 'contests', label: 'My Contest', Icon: Trophy },
-  { id: 'wallet', label: 'Wallet', Icon: Wallet },
+  { id: 'wallet', label: 'Legal', Icon: Scale },
   { id: 'profile', label: 'Profile', Icon: User },
 ];
 

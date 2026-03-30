@@ -695,6 +695,17 @@
 .streak-hot-border::before {
   background: linear-gradient(45deg, #A020F0, #C134EA, #E040FF, #A020F0) !important;
   background-size: 300% 300% !important;
+
+/* Instagram Stories - Slow rotating ring for contest circles */
+.contest-ring-spin {
+  animation: contestRingSpin 8s linear infinite;
+}
+
+@keyframes contestRingSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 }
 
 /* Update progress glow for purple */

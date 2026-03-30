@@ -1,0 +1,137 @@
+{
+  "summary": "Iteration 29 - New Features Testing Complete. 20/20 backend tests passed. All frontend features verified: Bottom nav 'Legal' tab with Scale icon, Legal page with 6-point Indian gaming law compliance section (bilingual EN+HI), Hot Contests Instagram Stories-style circles with rotating ring animation, 200-question pool seed endpoint, 5-Template Match Engine (1 full_match + 4 in_match with 55 total questions).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": {
+    "backend": {
+      "health_endpoint": "PASS - GET /api/health returns 200 with healthy status",
+      "admin_login": "PASS - POST /api/auth/login returns token for admin",
+      "player_login": "PASS - POST /api/auth/login returns token for player",
+      "ipl_points_table_returns_teams": "PASS - GET /api/cricket/ipl/points-table returns 10 IPL teams",
+      "ipl_points_table_team_structure": "PASS - Each team has shortname, wins, loss, matches fields",
+      "live_ticker_returns_scores": "PASS - GET /api/cricket/live-ticker returns IPL match scores",
+      "live_ticker_match_structure": "PASS - Each match has id, t1, t2, ms, status fields",
+      "team_matches_mi": "PASS - GET /api/cricket/ipl/team/MI/matches returns MI matches",
+      "team_matches_csk": "PASS - GET /api/cricket/ipl/team/CSK/matches returns CSK matches",
+      "cache_stats": "PASS - GET /api/cricket/cache-stats shows cached items",
+      "seed_question_pool_requires_admin": "PASS - POST /api/admin/seed-question-pool requires admin role",
+      "seed_question_pool_with_force": "PASS - POST /api/admin/seed-question-pool?force=true seeds 200 questions",
+      "seed_question_pool_categories": "PASS - Categories: batting=40, bowling=35, powerplay=25, death_overs=25, match=30, player_performance=25, special=20",
+      "questions_are_bilingual": "PASS - Questions have both EN and HI text",
+      "auto_templates_requires_admin": "PASS - POST /api/admin/matches/{id}/auto-templates requires admin",
+      "auto_templates_for_match": "PASS - Creates 5 templates (1 full_match + 4 in_match) with 55 questions",
+      "auto_templates_idempotent": "PASS - Calling twice doesn't create duplicates",
+      "auto_templates_all": "PASS - POST /api/admin/auto-templates-all bulk generates for all upcoming matches",
+      "match_full_data_returns_sections": "PASS - GET /api/cricket/match/{id}/full-data returns combined data",
+      "template_has_phase_routing": "PASS - In-match templates have innings_range and phase_label"
+    },
+    "frontend": {
+      "bottom_nav_found": "PASS - data-testid='bottom-nav' found",
+      "legal_tab_text": "PASS - Legal tab shows 'Legal' text with Scale icon",
+      "home_page_found": "PASS - data-testid='home-page' found",
+      "home_balance": "PASS - data-testid='home-balance' shows 100,000 coins",
+      "ipl_points_table": "PASS - data-testid='ipl-points-table' found with 4 team rows visible",
+      "live_ticker": "PASS - data-testid='live-ticker' found with 12 ticker items",
+      "hot_contests_section": "PASS - data-testid='hot-contests-section' found",
+      "contest_story_circles": "PASS - Found 4 contest story circles (data-testid='contest-story-*')",
+      "rotating_ring_animation": "PASS - .contest-ring-spin CSS animation found",
+      "wallet_page": "PASS - data-testid='wallet-page' loaded on Legal tab click",
+      "balance_card": "PASS - data-testid='balance-card' found",
+      "legal_section": "PASS - data-testid='legal-section' found",
+      "legal_points_0_to_5": "PASS - All 6 legal points found (legal-point-0 through legal-point-5)",
+      "team_drawer": "PASS - data-testid='team-drawer' opens on team row click",
+      "team_matches_in_drawer": "PASS - Found 14 team matches in drawer"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration29_new_features.py",
+    "/app/test_reports/pytest/pytest_iteration29.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin.py: seed-question-pool endpoint correctly seeds 200 bilingual questions with force=true option",
+    "admin.py: auto-templates endpoint creates exactly 5 templates (1 full_match + 4 in_match) with 55 total questions",
+    "admin.py: TEMPLATE_CONFIGS defines phase routing with innings_range, over_start, over_end, answer_deadline_over",
+    "question_seed.py: generate_200_questions() creates questions with EN+HI text, auto_resolution config, and correct category distribution",
+    "BottomNav.jsx: 'Wallet' tab renamed to 'Legal' with Scale icon from lucide-react",
+    "WalletPage.jsx: LEGAL_POINTS array contains 6 Indian gaming law compliance points with bilingual titles",
+    "WalletPage.jsx: Legal section has data-testid='legal-section' and legal-point-0 through legal-point-5",
+    "HomePage.jsx: Hot contests rendered as Instagram Stories-style circles with SVG rotating ring",
+    "App.css: .contest-ring-spin animation rotates 360deg over 8s linear infinite"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration29_new_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "100% (15/15 UI features verified)"
+  },
+  "test_credentials": {
+    "super_admin": {"phone": "7004186276", "pin": "5524"},
+    "test_player": {"phone": "9111111111", "pin": "5678"}
+  },
+  "seed_data_creation": "200 questions seeded via POST /api/admin/seed-question-pool?force=true",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 29 verified new features: (1) POST /api/admin/seed-question-pool?force=true seeds 200 bilingual questions with categories batting=40, bowling=35, powerplay=25, death_overs=25, match=30, player_performance=25, special=20, (2) POST /api/admin/matches/{match_id}/auto-templates creates 5 templates per match (1 full_match with 15 questions + 4 in_match with 10 questions each = 55 total), (3) POST /api/admin/auto-templates-all bulk generates for all upcoming matches, (4) Bottom nav 'Wallet' tab renamed to 'Legal' with Scale icon, (5) Legal page (WalletPage.jsx) has balance card + transaction history + 6-point legal section with bilingual EN+HI text, (6) Hot Contests section shows Instagram Stories-style circular cards with slow rotating ring animation (.contest-ring-spin), (7) All existing features still work: IPL Points Table, Live Ticker, Team drill-down drawer, Match full-data view",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  },
+  "features_verified": {
+    "seed_question_pool_api": "VERIFIED - Seeds 200 bilingual questions with correct category distribution",
+    "auto_templates_api": "VERIFIED - Creates 5 templates (1 full_match + 4 in_match) with 55 questions",
+    "auto_templates_all_api": "VERIFIED - Bulk generates templates for all upcoming matches",
+    "legal_tab_ui": "VERIFIED - Bottom nav shows 'Legal' with Scale icon instead of 'Wallet'",
+    "legal_section_ui": "VERIFIED - 6-point Indian gaming law compliance section with bilingual text",
+    "hot_contests_stories_ui": "VERIFIED - Instagram Stories-style circles with rotating ring animation",
+    "ipl_points_table_api": "VERIFIED - Returns 10 teams with standings (regression)",
+    "live_ticker_api": "VERIFIED - Returns IPL match scores (regression)",
+    "team_drill_down_api": "VERIFIED - Returns team matches (regression)",
+    "match_full_data_api": "VERIFIED - Returns combined data (regression)",
+    "cache_stats_api": "VERIFIED - Returns cache statistics (regression)"
+  },
+  "new_features_summary": {
+    "200_question_pool": {
+      "endpoint": "POST /api/admin/seed-question-pool?force=true",
+      "total_questions": 200,
+      "categories": {
+        "batting": 40,
+        "bowling": 35,
+        "powerplay": 25,
+        "death_overs": 25,
+        "match": 30,
+        "player_performance": 25,
+        "special": 20
+      },
+      "bilingual": "EN + HI text for all questions"
+    },
+    "5_template_match_engine": {
+      "endpoint": "POST /api/admin/matches/{match_id}/auto-templates",
+      "templates_created": 5,
+      "template_breakdown": {
+        "full_match": "1 template with 15 questions",
+        "in_match": "4 templates with 10 questions each (Innings 1 Powerplay, Innings 1 Death, Innings 2 Powerplay, Innings 2 Death)"
+      },
+      "total_questions": 55,
+      "phase_routing": "innings_range, over_start, over_end, answer_deadline_over"
+    },
+    "legal_page": {
+      "tab_name": "Legal (was Wallet)",
+      "icon": "Scale from lucide-react",
+      "legal_points": 6,
+      "compliance": "Indian Gaming Law - Public Gambling Act, 1867"
+    },
+    "hot_contests_stories": {
+      "style": "Instagram Stories circular cards",
+      "animation": ".contest-ring-spin (8s linear infinite rotation)"
+    }
+  }
+}

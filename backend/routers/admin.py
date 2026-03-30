@@ -1137,64 +1137,7 @@ async def seed_200_questions(
     }
 
 
-# ==================== 5-TEMPLATE AUTO-ENGINE ====================
-
-@router.post(
-    "/matches/{match_id}/auto-templates",
-    status_code=status.HTTP_201_CREATED,
-    summary="Auto-generate 5 templates for a match (1 full + 4 in-match)"
-)
-async def auto_generate_match_templates(
-    match_id: str,
-    current_user: AdminUser,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """
-    Auto-generates 5 templates for a match:
-    1. Full Match — all match_end + toss questions
-    2. Innings 1 Powerplay (overs 1-6)
-    3. Innings 1 Death (overs 16-20)
-    4. Innings 2 Powerplay (overs 1-6)
-    5. Innings 2 Death (overs 16-20)
-    """
-    from services.template_engine import generate_5_templates_for_match
-    result = await generate_5_templates_for_match(match_id, db)
-    return result
-
-
-@router.post(
-    "/auto-templates-all",
-    summary="Auto-generate 5 templates for ALL upcoming matches"
-)
-async def auto_generate_all_templates(
-    current_user: AdminUser,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """Auto-generate templates for all upcoming matches that don't have 5 templates yet."""
-    matches = await db.matches.find(
-        {"status": {"$in": ["upcoming", "live"]}},
-        {"_id": 0, "id": 1, "templates_assigned": 1, "team_a": 1, "team_b": 1}
-    ).to_list(length=50)
-
-    results = []
-    from services.template_engine import generate_5_templates_for_match
-    for match in matches:
-        assigned = match.get("templates_assigned", [])
-        if len(assigned) >= 5:
-            results.append({
-                "match_id": match["id"],
-                "status": "skipped",
-                "reason": f"Already has {len(assigned)} templates"
-            })
-            continue
-        try:
-            r = await generate_5_templates_for_match(match["id"], db)
-            results.append({"match_id": match["id"], "status": "created", "templates": r.get("templates_created", 0)})
-        except Exception as e:
-            results.append({"match_id": match["id"], "status": "error", "reason": str(e)})
-
-    return {"matches_processed": len(matches), "results": results}
-
+# ==================== AUTO-ENGINE TRIGGERS ====================
 
 @router.post(
     "/auto-contests-24h",
@@ -1434,4 +1377,379 @@ async def admin_adjust_coins(
         "amount": data.amount,
         "new_balance": new_balance,
         "reason": data.reason,
+    }
+
+
+# ==================== QUESTION POOL SEEDER ====================
+
+@router.post(
+    "/seed-question-pool",
+    summary="Seed the 200-question pool (run once)"
+)
+async def seed_question_pool(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    force: bool = Query(default=False, description="Force re-seed (deletes existing pool)")
+):
+    """Insert the 200 bilingual (EN+HI) question pool into the database."""
+    from services.question_seed import generate_200_questions
+
+    existing = await db.questions.count_documents({})
+    if existing >= 200 and not force:
+        return {
+            "seeded": 0,
+            "total_in_db": existing,
+            "message": f"Question pool already has {existing} questions. Use force=true to re-seed."
+        }
+
+    if force:
+        await db.questions.delete_many({})
+
+    questions = generate_200_questions()
+    now = utc_now().isoformat()
+
+    docs = []
+    for q in questions:
+        doc = {
+            "id": q["id"],
+            "question_text_en": q["question_text_en"],
+            "question_text_hi": q["question_text_hi"],
+            "category": q["category"],
+            "difficulty": q["difficulty"],
+            "points": q["points"],
+            "options": q["options"],
+            "auto_resolution": q.get("auto_resolution", {}),
+            "evaluation_rules": q.get("evaluation_rules", {}),
+            "correct_option": None,
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        docs.append(doc)
+
+    if docs:
+        await db.questions.insert_many(docs)
+
+    # Categorize for summary
+    cats = {}
+    for q in questions:
+        c = q["category"]
+        cats[c] = cats.get(c, 0) + 1
+
+    return {
+        "seeded": len(docs),
+        "total_in_db": await db.questions.count_documents({}),
+        "categories": cats,
+        "message": "200-question pool seeded successfully!"
+    }
+
+
+# ==================== 5-TEMPLATE MATCH ENGINE ====================
+
+TEMPLATE_CONFIGS = [
+    {
+        "suffix": "Full Match Predictions",
+        "template_type": "full_match",
+        "innings_range": [1, 2],
+        "over_start": None,
+        "over_end": None,
+        "answer_deadline_over": None,
+        "phase_label": "Full Match",
+        "question_filter": {
+            "triggers": ["match_end", "innings_1_end", "innings_2_end", "toss"],
+            "categories": ["batting", "bowling", "match", "player_performance", "special"],
+        },
+        "question_count": 15,
+    },
+    {
+        "suffix": "Innings 1 Powerplay",
+        "template_type": "in_match",
+        "innings_range": [1],
+        "over_start": 1,
+        "over_end": 6,
+        "answer_deadline_over": 1,
+        "phase_label": "Innings 1 Powerplay (Overs 1-6)",
+        "question_filter": {
+            "triggers": ["innings_1_end", "powerplay_end"],
+            "categories": ["powerplay", "batting", "bowling"],
+        },
+        "question_count": 10,
+    },
+    {
+        "suffix": "Innings 1 Death Overs",
+        "template_type": "in_match",
+        "innings_range": [1],
+        "over_start": 16,
+        "over_end": 20,
+        "answer_deadline_over": 15,
+        "phase_label": "Innings 1 Death (Overs 16-20)",
+        "question_filter": {
+            "triggers": ["innings_1_end"],
+            "categories": ["death_overs", "batting", "bowling"],
+        },
+        "question_count": 10,
+    },
+    {
+        "suffix": "Innings 2 Powerplay",
+        "template_type": "in_match",
+        "innings_range": [2],
+        "over_start": 1,
+        "over_end": 6,
+        "answer_deadline_over": 1,
+        "phase_label": "Innings 2 Powerplay (Overs 1-6)",
+        "question_filter": {
+            "triggers": ["innings_2_end", "powerplay_end"],
+            "categories": ["powerplay", "batting", "bowling"],
+        },
+        "question_count": 10,
+    },
+    {
+        "suffix": "Innings 2 Death Overs",
+        "template_type": "in_match",
+        "innings_range": [2],
+        "over_start": 16,
+        "over_end": 20,
+        "answer_deadline_over": 15,
+        "phase_label": "Innings 2 Death (Overs 16-20)",
+        "question_filter": {
+            "triggers": ["match_end", "innings_2_end"],
+            "categories": ["death_overs", "batting", "bowling", "match"],
+        },
+        "question_count": 10,
+    },
+]
+
+
+@router.post(
+    "/matches/{match_id}/auto-templates",
+    summary="Auto-generate 5 templates for a match (1 full + 4 in-match)"
+)
+async def auto_generate_templates(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    The 5-Template Match Engine.
+    Generates exactly 5 templates for a match:
+    1. Full Match Predictions (15 questions)
+    2. Innings 1 Powerplay (10 questions)
+    3. Innings 1 Death Overs (10 questions)
+    4. Innings 2 Powerplay (10 questions)
+    5. Innings 2 Death Overs (10 questions)
+    Total: 55 questions per match.
+    """
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    team_a = match.get("team_a", {}).get("short_name", "TBD")
+    team_b = match.get("team_b", {}).get("short_name", "TBD")
+    match_label = f"{team_a} vs {team_b}"
+
+    # Check if templates already exist
+    existing = await db.templates.count_documents({
+        "match_id": match_id,
+        "auto_generated": True,
+    })
+    if existing >= 5:
+        return {
+            "match_id": match_id,
+            "message": f"5 templates already exist for {match_label}",
+            "templates_created": 0,
+            "existing": existing,
+        }
+
+    # Fetch all active questions from question pool
+    all_questions = await db.questions.find(
+        {"is_active": True},
+        {"_id": 0}
+    ).to_list(300)
+
+    if len(all_questions) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Need at least 50 questions in pool. Currently have {len(all_questions)}. Run seed-question-pool first."
+        )
+
+    import random
+    now = utc_now().isoformat()
+    templates_created = []
+    used_question_ids = set()
+
+    for config in TEMPLATE_CONFIGS:
+        # Filter questions by category and trigger
+        eligible = []
+        for q in all_questions:
+            qid = q.get("id", "")
+            if qid in used_question_ids:
+                continue
+            cat = q.get("category", "")
+            auto_res = q.get("auto_resolution", {})
+            trigger = auto_res.get("trigger", "")
+
+            cat_match = cat in config["question_filter"]["categories"]
+            trigger_match = trigger in config["question_filter"]["triggers"]
+
+            if cat_match or trigger_match:
+                eligible.append(q)
+
+        # Shuffle and pick
+        random.shuffle(eligible)
+        selected = eligible[:config["question_count"]]
+        selected_ids = [q["id"] for q in selected]
+        used_question_ids.update(selected_ids)
+
+        total_pts = sum(q.get("points", 50) for q in selected)
+
+        template_doc = {
+            "id": generate_id(),
+            "match_id": match_id,
+            "name": f"{match_label} — {config['suffix']}",
+            "description": config["phase_label"],
+            "match_type": "T20",
+            "template_type": config["template_type"],
+            "question_ids": selected_ids,
+            "total_points": total_pts,
+            "is_active": True,
+            "is_default": False,
+            "auto_generated": True,
+            "innings_range": config["innings_range"],
+            "over_start": config["over_start"],
+            "over_end": config["over_end"],
+            "answer_deadline_over": config["answer_deadline_over"],
+            "phase_label": config["phase_label"],
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        await db.templates.insert_one(template_doc)
+        templates_created.append({
+            "id": template_doc["id"],
+            "name": template_doc["name"],
+            "type": config["template_type"],
+            "questions": len(selected_ids),
+            "total_points": total_pts,
+            "phase": config["phase_label"],
+        })
+
+    # Update match with template IDs
+    template_ids = [t["id"] for t in templates_created]
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {"templates_assigned": template_ids, "updated_at": now}}
+    )
+
+    return {
+        "match_id": match_id,
+        "match": match_label,
+        "templates_created": len(templates_created),
+        "templates": templates_created,
+        "total_questions_assigned": sum(t["questions"] for t in templates_created),
+        "total_points": sum(t["total_points"] for t in templates_created),
+    }
+
+
+@router.post(
+    "/auto-templates-all",
+    summary="Auto-generate 5 templates for ALL upcoming matches"
+)
+async def auto_generate_all_templates(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Bulk generate templates for all upcoming/live matches that don't have 5 templates yet."""
+    matches = await db.matches.find(
+        {"status": {"$in": ["upcoming", "live"]}},
+        {"_id": 0, "id": 1, "team_a": 1, "team_b": 1, "templates_assigned": 1}
+    ).to_list(50)
+
+    results = []
+    for m in matches:
+        existing = len(m.get("templates_assigned", []))
+        if existing >= 5:
+            results.append({"match_id": m["id"], "status": "skipped", "reason": "already has 5 templates"})
+            continue
+
+        try:
+            # Call the single-match endpoint logic
+            result = await _create_5_templates(m["id"], db)
+            results.append({"match_id": m["id"], "status": "created", **result})
+        except Exception as e:
+            results.append({"match_id": m["id"], "status": "error", "error": str(e)})
+
+    return {
+        "processed": len(matches),
+        "results": results,
+    }
+
+
+async def _create_5_templates(match_id: str, db: AsyncIOMotorDatabase):
+    """Internal: Create 5 templates for a match."""
+    import random
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        return {"error": "Match not found"}
+
+    team_a = match.get("team_a", {}).get("short_name", "TBD")
+    team_b = match.get("team_b", {}).get("short_name", "TBD")
+    match_label = f"{team_a} vs {team_b}"
+
+    all_questions = await db.questions.find({"is_active": True}, {"_id": 0}).to_list(300)
+    if len(all_questions) < 50:
+        return {"error": "Not enough questions in pool"}
+
+    now = utc_now().isoformat()
+    templates_created = []
+    used_ids = set()
+
+    for config in TEMPLATE_CONFIGS:
+        eligible = []
+        for q in all_questions:
+            qid = q.get("id", "")
+            if qid in used_ids:
+                continue
+            cat = q.get("category", "")
+            auto_res = q.get("auto_resolution", {})
+            trigger = auto_res.get("trigger", "")
+            if cat in config["question_filter"]["categories"] or trigger in config["question_filter"]["triggers"]:
+                eligible.append(q)
+
+        random.shuffle(eligible)
+        selected = eligible[:config["question_count"]]
+        selected_ids = [q["id"] for q in selected]
+        used_ids.update(selected_ids)
+        total_pts = sum(q.get("points", 50) for q in selected)
+
+        template_doc = {
+            "id": generate_id(),
+            "match_id": match_id,
+            "name": f"{match_label} — {config['suffix']}",
+            "description": config["phase_label"],
+            "match_type": "T20",
+            "template_type": config["template_type"],
+            "question_ids": selected_ids,
+            "total_points": total_pts,
+            "is_active": True,
+            "is_default": False,
+            "auto_generated": True,
+            "innings_range": config["innings_range"],
+            "over_start": config["over_start"],
+            "over_end": config["over_end"],
+            "answer_deadline_over": config["answer_deadline_over"],
+            "phase_label": config["phase_label"],
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.templates.insert_one(template_doc)
+        templates_created.append({"id": template_doc["id"], "name": template_doc["name"], "questions": len(selected_ids)})
+
+    template_ids = [t["id"] for t in templates_created]
+    await db.matches.update_one({"id": match_id}, {"$set": {"templates_assigned": template_ids, "updated_at": now}})
+
+    return {
+        "match": match_label,
+        "templates_created": len(templates_created),
+        "total_questions": sum(t["questions"] for t in templates_created),
     }
