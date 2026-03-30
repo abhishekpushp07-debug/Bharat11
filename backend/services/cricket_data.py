@@ -24,9 +24,11 @@ class CricketDataService:
     """
     Live cricket data service using Cricbuzz.
     - Fetches real matches, live scores, scorecards
-    - Caches data to reduce API calls
+    - Caches data to reduce API calls (max 100 entries)
     - Graceful fallback when Cricbuzz unreachable
     """
+
+    MAX_CACHE_ENTRIES = 100
 
     def __init__(self):
         self._cb = Cricbuzz() if CRICBUZZ_AVAILABLE else None
@@ -38,6 +40,16 @@ class CricketDataService:
     def _is_cache_valid(self, key: str) -> bool:
         last = self._last_fetch.get(key, 0)
         return (datetime.now(timezone.utc).timestamp() - last) < self._cache_ttl
+
+    def _evict_stale_cache(self):
+        """Remove expired entries if cache exceeds max size."""
+        if len(self._cache) <= self.MAX_CACHE_ENTRIES:
+            return
+        now = datetime.now(timezone.utc).timestamp()
+        stale_keys = [k for k, t in self._last_fetch.items() if (now - t) > self._cache_ttl]
+        for k in stale_keys:
+            self._cache.pop(k, None)
+            self._last_fetch.pop(k, None)
 
     async def fetch_live_matches(self) -> List[Dict]:
         """
@@ -53,7 +65,7 @@ class CricketDataService:
 
         try:
             # Run sync pycricbuzz in executor to not block async loop
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             raw_matches = await loop.run_in_executor(None, self._cb.matches)
             self._connected = True
 
@@ -65,6 +77,7 @@ class CricketDataService:
 
             self._cache[cache_key] = matches
             self._last_fetch[cache_key] = datetime.now(timezone.utc).timestamp()
+            self._evict_stale_cache()
             logger.info(f"Fetched {len(matches)} matches from Cricbuzz")
             return matches
 
@@ -85,13 +98,14 @@ class CricketDataService:
             return None
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             raw = await loop.run_in_executor(None, self._cb.livescore, cricbuzz_match_id)
             self._connected = True
 
             score = self._parse_live_score(raw)
             self._cache[cache_key] = score
             self._last_fetch[cache_key] = datetime.now(timezone.utc).timestamp()
+            self._evict_stale_cache()
             return score
 
         except Exception as e:
@@ -108,11 +122,12 @@ class CricketDataService:
             return None
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             raw = await loop.run_in_executor(None, self._cb.scorecard, cricbuzz_match_id)
             self._connected = True
             self._cache[cache_key] = raw
             self._last_fetch[cache_key] = datetime.now(timezone.utc).timestamp()
+            self._evict_stale_cache()
             return raw
 
         except Exception as e:

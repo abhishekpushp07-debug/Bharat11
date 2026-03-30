@@ -7,13 +7,16 @@ import { ArrowLeft, Trophy, Crown, Medal, Star, X, Check, AlertCircle, ChevronDo
 function UserAnswerModal({ contestId, userId, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetch = async () => {
       try {
         const res = await apiClient.get(`/contests/${contestId}/leaderboard/${userId}`);
         setData(res.data);
-      } catch (_) { /* silent */ }
+      } catch (e) {
+        setError(e?.response?.data?.detail || e?.message || 'Failed to load answers');
+      }
       finally { setLoading(false); }
     };
     fetch();
@@ -26,6 +29,18 @@ function UserAnswerModal({ contestId, userId, onClose }) {
           <div className="flex justify-center py-10">
             <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+        <div className="w-full max-w-lg rounded-t-3xl p-6 text-center" style={{ background: COLORS.background.secondary }} onClick={e => e.stopPropagation()}>
+          <AlertCircle size={32} color={COLORS.error.main} className="mx-auto mb-2" />
+          <p className="text-sm mb-3" style={{ color: COLORS.error.main }}>{error}</p>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: COLORS.background.card, color: COLORS.text.secondary }}>Close</button>
         </div>
       </div>
     );
@@ -147,6 +162,7 @@ export default function LeaderboardPage({ contestId, onBack }) {
   const [myPos, setMyPos] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
@@ -157,6 +173,7 @@ export default function LeaderboardPage({ contestId, onBack }) {
       if (lbRes.status === 'fulfilled') setData(lbRes.value.data);
       if (meRes.status === 'fulfilled') setMyPos(meRes.value.data);
     } catch (_) { /* silent */ }
+    finally { setLoading(false); }
   }, [contestId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -193,6 +210,13 @@ export default function LeaderboardPage({ contestId, onBack }) {
           <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(data?.prize_pool || 0).toLocaleString()}</span>
         </div>
       </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center py-10">
+          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} />
+        </div>
+      )}
 
       {/* My Position */}
       {myPos && (

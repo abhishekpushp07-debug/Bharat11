@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from core.database import get_db
-from core.dependencies import CurrentUser
+from core.dependencies import CurrentUser, AdminUser
 from models.schemas import MatchStatus, generate_id, utc_now
 
 
@@ -160,7 +160,7 @@ async def get_match_contests(
 )
 async def create_match(
     data: MatchCreate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     now = utc_now().isoformat()
@@ -191,7 +191,7 @@ async def create_match(
 async def update_match_status(
     match_id: str,
     data: MatchStatusUpdate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     existing = await db.matches.find_one({"id": match_id})
@@ -230,7 +230,7 @@ async def update_match_status(
 async def update_live_score(
     match_id: str,
     data: LiveScoreUpdate,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     existing = await db.matches.find_one({"id": match_id})
@@ -254,7 +254,7 @@ async def update_live_score(
 )
 async def assign_template(
     match_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db),
     template_id: str = Query(...)
 ):
@@ -298,7 +298,7 @@ async def get_cricbuzz_live():
     description="Fetch matches from Cricbuzz and create/update them in our database"
 )
 async def sync_cricbuzz_matches(
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     from services.cricket_data import cricket_data_service
@@ -367,7 +367,7 @@ async def sync_cricbuzz_matches(
 )
 async def sync_match_score(
     match_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     from services.cricket_data import cricket_data_service

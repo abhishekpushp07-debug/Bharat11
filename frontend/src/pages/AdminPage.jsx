@@ -151,6 +151,8 @@ function ContestResolveTab() {
   const [resolvingQ, setResolvingQ] = useState(null);
   const [selectedContest, setSelectedContest] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [resolvedMap, setResolvedMap] = useState({});
+  const [finalizing, setFinalizing] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -170,6 +172,15 @@ function ContestResolveTab() {
       const qs = res.data.questions || [];
       setQuestions(qs);
       setSelectedContest(contestId);
+
+      // Check which questions are already resolved by looking at correct_option
+      const resolved = {};
+      qs.forEach(q => {
+        if (q.correct_option) {
+          resolved[q.id] = q.correct_option;
+        }
+      });
+      setResolvedMap(resolved);
       setActionMsg(qs.length > 0 ? '' : 'No questions found');
     } catch (e) {
       setActionMsg(`Error loading questions: ${e?.response?.data?.detail || e.message}`);
@@ -180,67 +191,107 @@ function ContestResolveTab() {
   const resolveQuestion = async (contestId, questionId, correctOption) => {
     setResolvingQ(questionId);
     try {
-      await apiClient.post(`/contests/${contestId}/resolve`, {
+      const res = await apiClient.post(`/contests/${contestId}/resolve`, {
         question_id: questionId,
         correct_option: correctOption
       });
-      setActionMsg(`Q resolved with answer ${correctOption}`);
-      loadQuestions(contestId);
+      if (res.data.message === 'Question already resolved') {
+        setActionMsg(`Already resolved with ${res.data.correct_option}`);
+      } else {
+        setActionMsg(`Q resolved: ${correctOption} | ${res.data.correct}/${res.data.entries_evaluated} correct`);
+      }
+      setResolvedMap(prev => ({ ...prev, [questionId]: correctOption }));
     } catch (e) {
       setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
     } finally { setResolvingQ(null); }
   };
 
   const finalizeContest = async (contestId) => {
+    setFinalizing(true);
     try {
       const res = await apiClient.post(`/contests/${contestId}/finalize`);
-      setActionMsg(`Contest finalized! Top: ${res.data.top_3?.map(t => t.username).join(', ')}`);
+      const topNames = res.data.top_3?.map(t => `#${t.rank} ${t.username || t.team_name}`).join(', ') || 'N/A';
+      setActionMsg(`Finalized! ${res.data.prizes_distributed} coins distributed. Top: ${topNames}`);
       setSelectedContest(null);
+      setResolvedMap({});
       // Refresh
       const cRes = await apiClient.get('/contests?limit=50');
       setContests(cRes.data.contests || []);
     } catch (e) {
       setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
-    }
+    } finally { setFinalizing(false); }
   };
+
+  const resolvedCount = Object.keys(resolvedMap).length;
+  const totalQuestions = questions.length;
+  const allResolved = totalQuestions > 0 && resolvedCount >= totalQuestions;
 
   if (selectedContest) {
     const contest = contests.find(c => c.id === selectedContest);
     return (
       <div className="space-y-3">
-        <button onClick={() => setSelectedContest(null)} className="text-xs flex items-center gap-1" style={{ color: COLORS.text.secondary }}>
+        <button onClick={() => { setSelectedContest(null); setResolvedMap({}); }} className="text-xs flex items-center gap-1" style={{ color: COLORS.text.secondary }}>
           <ArrowLeft size={14} /> Back to Contests
         </button>
 
         <div className="text-sm font-semibold text-white">{contest?.name} - Resolve Questions</div>
 
+        {/* Resolution Progress */}
+        <div className="flex items-center gap-2 text-xs" style={{ color: allResolved ? COLORS.success.main : COLORS.warning.main }}>
+          <CheckCircle size={13} />
+          <span>{resolvedCount}/{totalQuestions} Questions Resolved</span>
+        </div>
+
         {actionMsg && <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>}
 
         <div className="space-y-2">
-          {questions.map((q, i) => (
-            <div key={q.id} className="rounded-xl p-3" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-              <div className="text-xs font-medium text-white mb-2">Q{i + 1}: {q.question_text_hi || q.question_text_en}</div>
-              <div className="flex gap-1.5 flex-wrap">
-                {(q.options || []).map(opt => (
-                  <button key={opt.key}
-                    data-testid={`resolve-${q.id}-${opt.key}`}
-                    onClick={() => resolveQuestion(selectedContest, q.id, opt.key)}
-                    disabled={resolvingQ === q.id}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                    style={{ background: COLORS.background.tertiary, color: '#fff', border: `1px solid ${COLORS.border.light}` }}>
-                    {opt.key}: {(opt.text_hi || opt.text_en || '').slice(0, 15)}
-                  </button>
-                ))}
+          {questions.map((q, i) => {
+            const isResolved = !!resolvedMap[q.id];
+            const correctOpt = resolvedMap[q.id];
+            return (
+              <div key={q.id} className="rounded-xl p-3" style={{
+                background: COLORS.background.card,
+                border: `1px solid ${isResolved ? COLORS.success.main + '44' : COLORS.border.light}`,
+                opacity: isResolved ? 0.75 : 1
+              }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-medium text-white flex-1">Q{i + 1}: {q.question_text_hi || q.question_text_en}</div>
+                  {isResolved && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 shrink-0" style={{ background: COLORS.success.bg, color: COLORS.success.main }}>
+                      ANS: {correctOpt}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(q.options || []).map(opt => {
+                    const isCorrectAnswer = isResolved && opt.key === correctOpt;
+                    return (
+                      <button key={opt.key}
+                        data-testid={`resolve-${q.id}-${opt.key}`}
+                        onClick={() => resolveQuestion(selectedContest, q.id, opt.key)}
+                        disabled={resolvingQ === q.id || isResolved}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 transition-all"
+                        style={{
+                          background: isCorrectAnswer ? COLORS.success.main : COLORS.background.tertiary,
+                          color: isCorrectAnswer ? '#fff' : '#fff',
+                          border: `1px solid ${isCorrectAnswer ? COLORS.success.main : COLORS.border.light}`
+                        }}>
+                        {opt.key}: {(opt.text_hi || opt.text_en || '').slice(0, 15)}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button onClick={() => finalizeContest(selectedContest)}
           data-testid="finalize-contest-btn"
-          className="w-full py-3 rounded-xl text-sm font-bold"
-          style={{ background: COLORS.accent.gold, color: '#000' }}>
-          <Award size={14} className="inline mr-1" /> Finalize & Distribute Prizes
+          disabled={!allResolved || finalizing}
+          className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40 transition-all"
+          style={{ background: allResolved ? COLORS.accent.gold : COLORS.background.tertiary, color: allResolved ? '#000' : COLORS.text.tertiary }}>
+          {finalizing ? 'Finalizing...' : !allResolved ? `Resolve All Questions First (${resolvedCount}/${totalQuestions})` : <><Award size={14} className="inline mr-1" /> Finalize & Distribute Prizes</>}
         </button>
       </div>
     );

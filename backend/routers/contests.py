@@ -673,15 +673,25 @@ async def finalize_contest(
         {"$set": {"status": "completed", "updated_at": now}}
     )
 
+    # Enrich top 3 with usernames
+    top_3_users = []
+    for i, e in enumerate(entries[:3]):
+        u = await db.users.find_one({"id": e["user_id"]}, {"_id": 0, "username": 1})
+        top_3_users.append({
+            "rank": i + 1,
+            "user_id": e["user_id"],
+            "username": u.get("username", "Unknown") if u else "Unknown",
+            "team_name": e.get("team_name", ""),
+            "points": e["total_points"],
+            "prize_won": e.get("prize_won", 0)
+        })
+
     return {
         "contest_id": contest_id,
         "total_entries": len(entries),
         "prizes_distributed": total_prizes,
         "status": "completed",
-        "top_3": [
-            {"rank": i+1, "user_id": e["user_id"], "team_name": e.get("team_name", ""), "points": e["total_points"]}
-            for i, e in enumerate(entries[:3])
-        ]
+        "top_3": top_3_users
     }
 
 
@@ -759,13 +769,24 @@ async def get_my_leaderboard_position(
         raise HTTPException(status_code=404, detail="No entry found")
 
     # Calculate rank
-    higher_count = await db.contest_entries.count_documents({
+    rank_query = {
         "contest_id": contest_id,
-        "$or": [
-            {"total_points": {"$gt": entry["total_points"]}},
-            {"total_points": entry["total_points"], "submission_time": {"$lt": entry.get("submission_time")}}
-        ]
-    })
+        "total_points": {"$gt": entry["total_points"]}
+    }
+    # Only use submission_time tiebreaker if both have it
+    if entry.get("submission_time"):
+        higher_count = await db.contest_entries.count_documents({
+            "contest_id": contest_id,
+            "$or": [
+                {"total_points": {"$gt": entry["total_points"]}},
+                {
+                    "total_points": entry["total_points"],
+                    "submission_time": {"$ne": None, "$lt": entry["submission_time"]}
+                }
+            ]
+        })
+    else:
+        higher_count = await db.contest_entries.count_documents(rank_query)
 
     return {
         "rank": higher_count + 1,
