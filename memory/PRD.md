@@ -1,91 +1,91 @@
 # Bharat 11 - Product Requirements Document
 
 ## Original Problem Statement
-Fantasy Cricket Prediction PWA (IPL-only). "World's Best" standard with zero compromises. Complete architectural separation between Admin Dashboard and Player App. Auto-pipeline: Live match syncing, auto-contest creation, and real-time auto-settlement. Virtual Economy with 1 Lakh signup bonus. Dual-source live data: Cricbuzz (Primary Scraper) + CricketData.org Premium API (Scorecard + Squad).
+Fantasy Cricket Prediction PWA (IPL-only). "World's Best" standard. Complete Admin + Player separation. Auto-pipeline: Live match sync, auto-contests, real-time auto-settlement. Virtual Economy with 1 Lakh signup bonus. Dual-source live data: Cricbuzz (Primary) + CricketData.org Premium API.
 
 ## Architecture
 - Frontend: React PWA (Tailwind CSS, Zustand, Shadcn/UI)
 - Backend: FastAPI + MongoDB
-- Data: BeautifulSoup4 Cricbuzz Scraper + CricketData.org Premium API
+- Data: BeautifulSoup4 Cricbuzz Scraper + CricketData.org Premium API (17+ APIs from LOT1-5)
 - Auth: Phone + PIN JWT auth with role-based routing
 
-## What's Implemented (as of 2026-03-30)
+## What's Implemented
 
-### Stages 1-14: Complete
-- JWT Auth (Phone+PIN), role-based routing
-- Admin Dashboard (Dashboard, Content, Matches, Resolve)
-- Player View (zero admin traces)
+### Core Infrastructure (Stages 1-14)
+- JWT Auth (Phone+PIN), role-based routing (Admin/Player)
+- Admin Dashboard (Dashboard, Content, Matches, Resolve tabs)
+- Player View (zero admin traces, bottom nav)
 - Template system (full_match/in_match, default, editable)
 - Contest system with dynamic prize pools
 - Economy system (1L signup, 1000 entry, 50/30/20 prize split)
 - Dual-source data fetching (Cricbuzz BS4 + CricketData.org API)
 - Auto-contest creation on match sync
 
-### Auto-Settlement Engine (Layers 3 & 4) - DONE
+### Auto-Settlement Engine (Layers 3 & 4)
 - CricketData.org Premium Scorecard API integration
 - Scorecard parser: 40+ metrics per match
-- Question auto_resolution: metric + trigger + resolution_type (range/text_match/boolean)
-- 11 seeded auto-resolvable T20 questions + default template
-- Auto-link CricketData IDs by team name matching
+- Question auto_resolution: metric + trigger + resolution_type
 - Auto-resolve questions + auto-finalize contests + auto-distribute prizes
-- Admin Resolve page: Auto-Settle + Manual tabs + Settlement Report
-- Testing: 100% pass (iteration_18)
+- Admin Resolve page with Auto-Settle + Manual tabs
+- Auto-Pilot Mode: 45s polling loop
 
-### Enhanced Features (2026-03-30) - DONE
-1. **IPL-Only Filter**: Sync only fetches IPL matches (team name + series check)
-2. **Rich Scorecard Display**: ScorecardView component shows batting/bowling/catching/extras per innings (20+ stats)
-3. **Auto-Pilot Mode**: 45-second polling loop. Start/Stop via admin. Auto-checks live matches, evaluates questions, auto-resolves & auto-finalizes.
-4. **One-Click Template**: Button to create template with all auto-resolution questions
-5. **Template Editing**: Full CRUD, add/remove questions from any template (auto or manual)
-6. **Enhanced Questions**: Full form with EN+HI text, 2-4 options with min/max ranges, points, auto-resolution config (metric/trigger/type)
-7. **API Rate Limit Handling**: Graceful 429 errors, usage tracking
-- Testing: 100% pass (iteration_19, 17/17 backend + all frontend)
+### 200-Question Pool + 5-Template Auto-Engine (2026-03-30)
+- 200 bilingual T20 prediction questions across 7 categories
+- Template Schema: innings_range, over_start, over_end, answer_deadline_over, phase_label
+- 5-Template Auto-Engine per match (1 full_match + 4 in_match)
+- Admin UI: Seed 200 button, Auto 5 Templates per match
+- Testing: 100% pass (iteration_20)
 
-### 200-Question Pool + 5-Template Auto-Engine (2026-03-30) - DONE
-1. **200-Question Pool**: Seeded 200 bilingual T20 prediction questions across 7 categories (batting:40, bowling:35, powerplay:25, death_overs:25, match:30, player_performance:25, special:20). Each question has EN+HI text, 4 options with min/max ranges, auto_resolution config.
-2. **Template Schema Upgrade**: Added in-match routing fields to Template model: `innings_range`, `over_start`, `over_end`, `answer_deadline_over`, `phase_label`.
-3. **5-Template Auto-Engine**: Auto-generates 5 templates per match:
-   - Full Match Predictions (15 questions, match_end + toss triggers)
-   - Innings 1 Powerplay (10 questions, overs 1-6)
-   - Innings 1 Death Overs (10 questions, overs 16-20)
-   - Innings 2 Powerplay (8-10 questions, overs 1-6)
-   - Innings 2 Death Overs (10 questions, overs 16-20)
-4. **Admin UI**: Seed 200 button, Auto 5 Templates button per match, In-Match Routing Config in template form.
-5. **Idempotent**: Both seed and auto-template endpoints skip if data already exists.
-- Testing: 100% pass (iteration_20, 8/8 backend + 16/16 frontend)
+### CricketData.org Full API Integration — LOT1 to LOT5 (2026-03-30)
+All 17 APIs from LOT1-LOT5 documents integrated:
+
+**Backend APIs Created:**
+- `GET /api/cricket/ipl/points-table` — 10 IPL team standings (P/W/L/NR, team logos). LOT3 API 3.
+- `GET /api/cricket/live-ticker` — Lightweight live score feed (12 IPL matches). LOT1 API 2.
+- `GET /api/cricket/ipl/schedule` — Full 74-match IPL schedule. LOT2 API 4.
+- `GET /api/cricket/ipl/squads` — All 10 IPL team squads with player details. LOT5 API 3.
+- `GET /api/cricket/player/{player_id}` — Player profile + career stats. LOT5 API 1.
+- `GET /api/matches/{id}/squad` — Match squad (2 teams, player photos, roles). LOT5 API 2.
+- `GET /api/matches/{id}/fantasy-points` — Player fantasy points per innings. LOT3 API 2.
+- `GET /api/matches/{id}/match-info` — Toss winner/choice, match winner, scores. LOT2 API 5.
+- Caching: 60s live, 30min points table, 1hr squads/schedule.
+
+**Frontend Features Built:**
+1. **Live IPL Ticker** — Horizontal scroll banner on HomePage showing 12 IPL matches with team logos, scores, status
+2. **IPL 2026 Standings** — Points table on HomePage with team logos, P/W/L/NR columns, "View All" toggle
+3. **Match Cards** — Team-color gradients (MI blue, CSK yellow, RCB red etc.), countdown timer, live/completed states
+4. **4-Tab Match Detail** — Contests | Scorecard | Squad | Fantasy Pts
+5. **Toss + Result Info** — Hero card shows toss winner/choice + match winner
+6. **Squad Tab** — Team selector buttons, players grouped by role (WK/Batters/AR/Bowlers), player photos, country, batting/bowling style
+7. **Fantasy Points Tab** — Top Performers ranked list + innings breakdown (batting/bowling/catching)
+8. **Scorecard Tab** — Full batting/bowling/catching stats per innings (using ScorecardView component)
+
+Testing: 100% pass (iteration_21, 11/11 backend + 12/12 frontend)
 
 ## Key API Endpoints
 
 ### Auth
 - POST /api/auth/check-phone, /api/auth/register, /api/auth/login
 
-### Admin Settlement
-- POST /api/admin/settlement/{match_id}/run
-- GET /api/admin/settlement/status
-- GET /api/admin/settlement/{match_id}/metrics
-- POST /api/admin/settlement/{match_id}/link
-- POST /api/admin/questions/bulk-import-with-auto
+### Cricket Data (Public)
+- GET /api/cricket/ipl/points-table
+- GET /api/cricket/live-ticker
+- GET /api/cricket/ipl/schedule
+- GET /api/cricket/ipl/squads
+- GET /api/cricket/player/{player_id}
 
-### Auto-Pilot
-- POST /api/admin/autopilot/start
-- POST /api/admin/autopilot/stop
-- GET /api/admin/autopilot/status
+### Match Detail (Public)
+- GET /api/matches/{id}/squad
+- GET /api/matches/{id}/fantasy-points
+- GET /api/matches/{id}/match-info
+- GET /api/matches/{id}/scorecard
 
-### Scorecard
-- GET /api/admin/scorecard/{match_id}
-- GET /api/matches/{match_id}/scorecard (public)
-
-### Matches & Contests
-- POST /api/matches/live/sync (IPL-only default)
-- GET/POST /api/contests, /api/admin/contests
-- POST /api/contests/{id}/resolve, /api/contests/{id}/finalize
-
-### Questions & Templates
-- CRUD /api/admin/questions (with auto_resolution, min/max on options)
-- CRUD /api/admin/templates (with one-click create, edit add/remove questions)
-- POST /api/admin/seed-200-questions (idempotent seed)
-- POST /api/admin/matches/{match_id}/auto-templates (5-template auto-engine)
-- POST /api/admin/auto-templates-all (bulk auto-template for all upcoming matches)
+### Admin
+- POST /api/admin/seed-200-questions
+- POST /api/admin/matches/{id}/auto-templates
+- POST /api/admin/auto-templates-all
+- POST /api/admin/autopilot/start|stop
+- POST /api/admin/settlement/{id}/run
 
 ## Backlog
 
@@ -105,14 +105,6 @@ Fantasy Cricket Prediction PWA (IPL-only). "World's Best" standard with zero com
 ### P2 - Phase 8: UI Animations
 - Heavy visual feedback (sixes, wickets, prize winners)
 
-### P2 - Final PWA Polish
-- PWA manifest tuning, offline caching, service worker
-- Performance optimization, Lighthouse audit
-
-### P2 - Notifications
-- WebSocket/Push notifications for results & prize alerts
-
-### P2 - User Management
-- Ban/Unban users, coin adjustment, activity monitoring
-
-## Progress: 98%
+### P2 - PWA Polish & Notifications
+- PWA manifest, offline caching, push notifications
+- User Management tab (ban/unban, coin adjust)
