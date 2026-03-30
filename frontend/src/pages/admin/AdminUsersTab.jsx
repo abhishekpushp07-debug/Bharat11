@@ -49,7 +49,7 @@ function UserDetailModal({ userId, onClose }) {
       setActionResult({ type: 'success', msg: `Coins adjusted: ${res.data.amount > 0 ? '+' : ''}${res.data.amount}. New balance: ${res.data.new_balance}` });
       setData(prev => ({
         ...prev,
-        user: { ...prev.user, coins: res.data.new_balance }
+        user: { ...prev.user, coins_balance: res.data.new_balance }
       }));
       setCoinAmount('');
       setCoinReason('');
@@ -110,7 +110,7 @@ function UserDetailModal({ userId, onClose }) {
           {/* Quick Stats */}
           <div className="grid grid-cols-4 gap-2">
             {[
-              { label: 'Coins', value: user?.coins?.toLocaleString() || '0', Icon: Coins, color: COLORS.accent.gold },
+              { label: 'Coins', value: user?.coins_balance?.toLocaleString() || '0', Icon: Coins, color: COLORS.accent.gold },
               { label: 'Contests', value: stats?.total_contests || 0, Icon: Target, color: COLORS.info.main },
               { label: 'Accuracy', value: `${stats?.accuracy || 0}%`, Icon: TrendingUp, color: COLORS.success.main },
               { label: 'Streak', value: user?.prediction_streak || 0, Icon: Flame, color: '#FF6B00' },
@@ -306,7 +306,7 @@ export default function AdminUsersTab() {
                 <div className="flex items-center gap-3 mt-0.5">
                   <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{u.phone}</span>
                   <span className="text-[10px] flex items-center gap-0.5" style={{ color: COLORS.accent.gold }}>
-                    <Coins size={9} /> {u.coins?.toLocaleString() || 0}
+                    <Coins size={9} /> {u.coins_balance?.toLocaleString() || 0}
                   </span>
                   {(u.prediction_streak || 0) >= 3 && (
                     <span className="text-[10px] flex items-center gap-0.5" style={{ color: '#FF6B00' }}>
