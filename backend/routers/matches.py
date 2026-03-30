@@ -287,6 +287,105 @@ async def get_match_contests(
     return {"match_id": match_id, "contests": contests, "total": len(contests)}
 
 
+# ==================== NEW PLAYER APIs (LOT1-5) ====================
+
+IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
+
+
+@router.get(
+    "/{match_id}/squad",
+    summary="Get playing squad for a match (LOT5 API 2)"
+)
+async def get_match_squad(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Returns both teams with player details (name, role, batting/bowling style, photo)."""
+    from services.cricket_data import cricket_service
+    from services.settlement_engine import _auto_link_cricketdata_id
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        cd_id = await _auto_link_cricketdata_id(match, db)
+    if not cd_id:
+        return {"match_id": match_id, "error": "Squad not available", "squads": []}
+
+    data = await cricket_service.get_squad(cd_id)
+    if not data:
+        return {"match_id": match_id, "error": "Could not fetch squad", "squads": []}
+
+    return {"match_id": match_id, "squads": data}
+
+
+@router.get(
+    "/{match_id}/fantasy-points",
+    summary="Get fantasy points per player (LOT3 API 2)"
+)
+async def get_match_fantasy_points(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Player fantasy points by innings + totals. SLOW API - cached 5 min."""
+    from services.cricket_data import cricket_service
+    from services.settlement_engine import _auto_link_cricketdata_id
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        cd_id = await _auto_link_cricketdata_id(match, db)
+    if not cd_id:
+        return {"match_id": match_id, "error": "Fantasy points not available", "innings": [], "totals": []}
+
+    data = await cricket_service.get_match_points(cd_id)
+    if not data:
+        return {"match_id": match_id, "error": "Could not fetch points", "innings": [], "totals": []}
+
+    return {
+        "match_id": match_id,
+        "innings": data.get("innings", []),
+        "totals": data.get("totals", [])
+    }
+
+
+@router.get(
+    "/{match_id}/match-info",
+    summary="Get detailed match info - toss, winner (LOT2 API 5)"
+)
+async def get_match_info_detail(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Returns toss winner/choice, match winner, series_id, scores."""
+    from services.cricket_data import cricket_service
+    from services.settlement_engine import _auto_link_cricketdata_id
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        cd_id = await _auto_link_cricketdata_id(match, db)
+    if not cd_id:
+        return {"match_id": match_id, "error": "Info not available"}
+
+    data = await cricket_service.get_match_info(cd_id)
+    if not data:
+        return {"match_id": match_id, "error": "Could not fetch info"}
+
+    return {
+        "match_id": match_id,
+        "name": data.get("name", ""),
+        "venue": data.get("venue", ""),
+        "date": data.get("date", ""),
+        "status": data.get("status", ""),
+        "toss_winner": data.get("tossWinner", ""),
+        "toss_choice": data.get("tossChoice", ""),
+        "match_winner": data.get("matchWinner", ""),
+        "score": data.get("score", []),
+        "teams": data.get("teams", []),
+        "team_info": data.get("teamInfo", []),
+    }
+
+
 # ==================== ADMIN ENDPOINTS ====================
 
 @router.post(

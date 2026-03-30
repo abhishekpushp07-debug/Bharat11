@@ -2,14 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw } from 'lucide-react';
+import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft } from 'lucide-react';
 
 const TEAM_COLORS = {
   MI: ['#004BA0', '#00599E'], CSK: ['#F9CD05', '#F3A012'],
-  RCB: ['#D4213D', '#A0171F'], KKR: ['#3A225D', '#552583'],
-  DC: ['#0078BC', '#17479E'], PBKS: ['#ED1B24', '#AA1019'],
-  SRH: ['#FF822A', '#E35205'], RR: ['#EA1A85', '#C51D70'],
-  GT: ['#1C1C2B', '#0B4F6C'], LSG: ['#2E90A8', '#1B7B93'],
+  RCB: ['#D4213D', '#A0171F'], RCBW: ['#D4213D', '#A0171F'],
+  KKR: ['#3A225D', '#552583'], DC: ['#0078BC', '#17479E'],
+  PBKS: ['#ED1B24', '#AA1019'], SRH: ['#FF822A', '#E35205'],
+  RR: ['#EA1A85', '#C51D70'], GT: ['#1C1C2B', '#0B4F6C'],
+  LSG: ['#2E90A8', '#1B7B93'],
 };
 
 const getTeamGrad = (short) => {
@@ -17,10 +18,8 @@ const getTeamGrad = (short) => {
   return `linear-gradient(135deg, ${c[0]}, ${c[1]})`;
 };
 
-// Live countdown hook
 function useCountdown(targetTime) {
   const [remaining, setRemaining] = useState('');
-
   useEffect(() => {
     const update = () => {
       const diff = new Date(targetTime) - new Date();
@@ -37,17 +36,14 @@ function useCountdown(targetTime) {
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [targetTime]);
-
   return remaining;
 }
 
-// Countdown display component
 function Countdown({ time }) {
   const remaining = useCountdown(time);
   return <span>{remaining}</span>;
 }
 
-// Skeleton loader for match cards
 function MatchSkeleton() {
   return (
     <div className="rounded-2xl overflow-hidden animate-pulse" style={{ background: COLORS.background.card }}>
@@ -58,15 +54,14 @@ function MatchSkeleton() {
       <div className="px-4 py-5 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl" style={{ background: COLORS.background.tertiary }} />
-          <div className="space-y-1.5"><div className="h-3 w-8 rounded" style={{ background: COLORS.background.tertiary }} /><div className="h-2 w-16 rounded" style={{ background: COLORS.background.tertiary }} /></div>
+          <div className="space-y-1.5"><div className="h-3 w-8 rounded" style={{ background: COLORS.background.tertiary }} /></div>
         </div>
         <div className="h-6 w-8 rounded-lg" style={{ background: COLORS.background.tertiary }} />
         <div className="flex items-center gap-3 flex-row-reverse">
           <div className="w-11 h-11 rounded-xl" style={{ background: COLORS.background.tertiary }} />
-          <div className="space-y-1.5"><div className="h-3 w-8 rounded" style={{ background: COLORS.background.tertiary }} /><div className="h-2 w-16 rounded" style={{ background: COLORS.background.tertiary }} /></div>
+          <div className="space-y-1.5"><div className="h-3 w-8 rounded" style={{ background: COLORS.background.tertiary }} /></div>
         </div>
       </div>
-      <div className="px-4 py-2.5" style={{ background: COLORS.background.tertiary }}><div className="h-3 w-full rounded" style={{ background: COLORS.background.card }} /></div>
     </div>
   );
 }
@@ -77,27 +72,31 @@ export default function HomePage({ onMatchClick }) {
   const [hotContests, setHotContests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [liveTicker, setLiveTicker] = useState([]);
+  const [pointsTable, setPointsTable] = useState([]);
+  const [showFullTable, setShowFullTable] = useState(false);
   const refreshTimer = useRef(null);
+  const tickerRef = useRef(null);
 
   const fetchAll = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     try {
-      const [matchRes, contestRes] = await Promise.allSettled([
+      const [matchRes, contestRes, tickerRes, ptRes] = await Promise.allSettled([
         apiClient.get('/matches?limit=10'),
-        apiClient.get('/contests?limit=5')
+        apiClient.get('/contests?limit=5'),
+        apiClient.get('/cricket/live-ticker'),
+        apiClient.get('/cricket/ipl/points-table'),
       ]);
       if (matchRes.status === 'fulfilled') setMatches(matchRes.value.data.matches || []);
       if (contestRes.status === 'fulfilled') setHotContests(contestRes.value.data.contests || []);
-    } catch (_) { /* silent */ }
-    finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+      if (tickerRes.status === 'fulfilled') setLiveTicker(tickerRes.value.data.scores || []);
+      if (ptRes.status === 'fulfilled') setPointsTable(ptRes.value.data.teams || []);
+    } catch (_) {}
+    finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useEffect(() => {
     fetchAll();
-    // Auto-refresh every 30s for live matches
     refreshTimer.current = setInterval(() => fetchAll(), 30000);
     return () => clearInterval(refreshTimer.current);
   }, [fetchAll]);
@@ -105,6 +104,9 @@ export default function HomePage({ onMatchClick }) {
   const liveMatches = matches.filter(m => m.status === 'live');
   const upcomingMatches = matches.filter(m => m.status === 'upcoming');
   const completedMatches = matches.filter(m => m.status === 'completed');
+
+  // Sort points table by wins desc
+  const sortedTable = [...pointsTable].sort((a, b) => b.wins - a.wins || a.loss - b.loss);
 
   return (
     <div data-testid="home-page" className="pb-4 space-y-5">
@@ -115,12 +117,8 @@ export default function HomePage({ onMatchClick }) {
           <p className="text-xs mt-0.5" style={{ color: COLORS.text.secondary }}>Predict & Win Virtual Coins</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            data-testid="refresh-btn"
-            onClick={() => fetchAll(true)}
-            disabled={refreshing}
-            className="p-2 rounded-full"
-            style={{ background: COLORS.background.card }}>
+          <button data-testid="refresh-btn" onClick={() => fetchAll(true)} disabled={refreshing}
+            className="p-2 rounded-full" style={{ background: COLORS.background.card }}>
             <RefreshCw size={14} color={COLORS.text.secondary} className={refreshing ? 'animate-spin' : ''} />
           </button>
           <div data-testid="home-balance" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
@@ -130,7 +128,48 @@ export default function HomePage({ onMatchClick }) {
         </div>
       </div>
 
-      {/* Live Matches (Priority Section) */}
+      {/* Live Score Ticker (horizontal scroll) */}
+      {liveTicker.length > 0 && (
+        <div data-testid="live-ticker">
+          <div className="flex items-center gap-2 mb-2">
+            <Activity size={14} color={COLORS.primary.main} className="animate-pulse" />
+            <span className="text-xs font-bold" style={{ color: COLORS.primary.main }}>IPL LIVE</span>
+            <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{liveTicker.length} matches</span>
+          </div>
+          <div ref={tickerRef} className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+            {liveTicker.map((s, i) => {
+              const t1Short = (s.t1.match(/\[(\w+)\]/)?.[1]) || s.t1.split(' ')[0];
+              const t2Short = (s.t2.match(/\[(\w+)\]/)?.[1]) || s.t2.split(' ')[0];
+              const isLive = s.ms === 'result' || s.t1s;
+              return (
+                <div key={s.id || i} data-testid={`ticker-${i}`}
+                  className="shrink-0 rounded-xl p-2.5 min-w-[170px]"
+                  style={{ background: COLORS.background.card, border: `1px solid ${s.ms === 'result' ? COLORS.success.main + '33' : COLORS.border.light}` }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {s.t1img && <img src={s.t1img} alt="" className="w-4 h-4 rounded-sm" />}
+                      <span className="text-[10px] font-bold text-white">{t1Short}</span>
+                    </div>
+                    {s.t1s && <span className="text-[10px] font-bold" style={{ color: COLORS.primary.main }}>{s.t1s}</span>}
+                  </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      {s.t2img && <img src={s.t2img} alt="" className="w-4 h-4 rounded-sm" />}
+                      <span className="text-[10px] font-bold text-white">{t2Short}</span>
+                    </div>
+                    {s.t2s && <span className="text-[10px] font-bold" style={{ color: COLORS.primary.main }}>{s.t2s}</span>}
+                  </div>
+                  <div className="text-[8px] truncate" style={{ color: s.ms === 'result' ? COLORS.success.main : s.ms === 'live' ? COLORS.primary.main : COLORS.text.tertiary }}>
+                    {s.status}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Live Matches */}
       {liveMatches.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -138,8 +177,47 @@ export default function HomePage({ onMatchClick }) {
             <h2 className="text-base font-semibold text-white">Live Now</h2>
           </div>
           <div className="space-y-3">
-            {liveMatches.map(match => (
-              <MatchCard key={match.id} match={match} isLive onClick={onMatchClick} />
+            {liveMatches.map(match => <MatchCard key={match.id} match={match} isLive onClick={onMatchClick} />)}
+          </div>
+        </div>
+      )}
+
+      {/* IPL Points Table */}
+      {sortedTable.length > 0 && (
+        <div data-testid="ipl-points-table">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Trophy size={16} color={COLORS.accent.gold} />
+              <h2 className="text-base font-semibold text-white">IPL 2026 Standings</h2>
+            </div>
+            <button onClick={() => setShowFullTable(f => !f)} className="text-[10px] font-semibold" style={{ color: COLORS.primary.main }}>
+              {showFullTable ? 'Show Less' : 'View All'}
+            </button>
+          </div>
+          <div className="rounded-xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+            {/* Header */}
+            <div className="flex items-center px-3 py-2" style={{ background: COLORS.background.tertiary }}>
+              <span className="w-6 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
+              <span className="flex-1 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>TEAM</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>P</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.success.main }}>W</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.error.main }}>L</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>NR</span>
+            </div>
+            {(showFullTable ? sortedTable : sortedTable.slice(0, 4)).map((team, i) => (
+              <div key={team.shortname || i} data-testid={`pt-row-${team.shortname}`}
+                className="flex items-center px-3 py-2"
+                style={{ borderTop: `1px solid ${COLORS.border.light}`, background: i < 4 ? `${COLORS.success.main}06` : 'transparent' }}>
+                <span className="w-6 text-[10px] font-bold" style={{ color: i < 4 ? COLORS.success.main : COLORS.text.tertiary }}>{i + 1}</span>
+                <div className="flex-1 flex items-center gap-2">
+                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" />}
+                  <span className="text-xs font-semibold text-white">{team.shortname}</span>
+                </div>
+                <span className="w-7 text-center text-xs" style={{ color: COLORS.text.secondary }}>{team.matches}</span>
+                <span className="w-7 text-center text-xs font-bold" style={{ color: COLORS.success.main }}>{team.wins}</span>
+                <span className="w-7 text-center text-xs" style={{ color: COLORS.error.main }}>{team.loss}</span>
+                <span className="w-7 text-center text-xs" style={{ color: COLORS.text.tertiary }}>{team.nr}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -147,10 +225,7 @@ export default function HomePage({ onMatchClick }) {
 
       {/* Upcoming Matches */}
       {loading ? (
-        <div className="space-y-3">
-          <MatchSkeleton />
-          <MatchSkeleton />
-        </div>
+        <div className="space-y-3"><MatchSkeleton /><MatchSkeleton /></div>
       ) : upcomingMatches.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -158,16 +233,13 @@ export default function HomePage({ onMatchClick }) {
             <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{upcomingMatches.length} matches</span>
           </div>
           <div className="space-y-3">
-            {upcomingMatches.map(match => (
-              <MatchCard key={match.id} match={match} onClick={onMatchClick} />
-            ))}
+            {upcomingMatches.map(match => <MatchCard key={match.id} match={match} onClick={onMatchClick} />)}
           </div>
         </div>
       ) : liveMatches.length === 0 ? (
         <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
           <Trophy size={36} color={COLORS.text.tertiary} className="mx-auto mb-2" />
           <p className="text-sm" style={{ color: COLORS.text.secondary }}>No matches available right now</p>
-          <p className="text-xs mt-1" style={{ color: COLORS.text.tertiary }}>Check back soon!</p>
         </div>
       ) : null}
 
@@ -188,10 +260,7 @@ export default function HomePage({ onMatchClick }) {
                     <span className="text-xs" style={{ color: COLORS.accent.gold }}>Pool: {(c.prize_pool || 0).toLocaleString()}</span>
                   </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{
-                  background: c.entry_fee === 0 ? COLORS.success.bg : COLORS.primary.gradient,
-                  color: c.entry_fee === 0 ? COLORS.success.main : '#fff'
-                }}>
+                <div className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: c.entry_fee === 0 ? COLORS.success.bg : COLORS.primary.gradient, color: c.entry_fee === 0 ? COLORS.success.main : '#fff' }}>
                   {c.entry_fee === 0 ? 'FREE' : `${c.entry_fee}`}
                 </div>
               </div>
@@ -200,14 +269,12 @@ export default function HomePage({ onMatchClick }) {
         </div>
       )}
 
-      {/* Completed (Collapsible) */}
+      {/* Completed */}
       {completedMatches.length > 0 && (
         <div>
           <h2 className="text-base font-semibold mb-3" style={{ color: COLORS.text.tertiary }}>Completed</h2>
           <div className="space-y-2">
-            {completedMatches.slice(0, 3).map(match => (
-              <MatchCard key={match.id} match={match} onClick={onMatchClick} isCompleted />
-            ))}
+            {completedMatches.slice(0, 3).map(match => <MatchCard key={match.id} match={match} onClick={onMatchClick} isCompleted />)}
           </div>
         </div>
       )}
@@ -215,24 +282,17 @@ export default function HomePage({ onMatchClick }) {
   );
 }
 
-// Match Card Component
 function MatchCard({ match, isLive, isCompleted, onClick }) {
   const teamA = match.team_a || {};
   const teamB = match.team_b || {};
   const score = match.live_score;
+  const scores = score?.scores || [];
 
   return (
-    <div
-      data-testid={`match-card-${match.id}`}
+    <div data-testid={`match-card-${match.id}`}
       className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
-      style={{
-        background: COLORS.background.card,
-        border: `1px solid ${isLive ? COLORS.primary.main + '44' : COLORS.border.light}`,
-        boxShadow: isLive ? `0 0 12px ${COLORS.primary.main}22` : 'none',
-        opacity: isCompleted ? 0.7 : 1
-      }}
+      style={{ background: COLORS.background.card, border: `1px solid ${isLive ? COLORS.primary.main + '44' : COLORS.border.light}`, boxShadow: isLive ? `0 0 12px ${COLORS.primary.main}22` : 'none', opacity: isCompleted ? 0.7 : 1 }}
       onClick={() => onClick?.(match)}>
-      {/* Header */}
       <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border.light}` }}>
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium" style={{ color: COLORS.text.secondary }}>{match.tournament || match.venue || 'Cricket'}</span>
@@ -247,7 +307,6 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
         </div>
       </div>
 
-      {/* Teams */}
       <div className="px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white" style={{ background: getTeamGrad(teamA.short_name) }}>
@@ -255,8 +314,8 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
           </div>
           <div>
             <div className="text-sm font-bold text-white">{teamA.short_name || 'TBD'}</div>
-            {isLive && score?.batting_team === teamA.short_name ? (
-              <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{score.score} ({score.overs})</div>
+            {scores[0] ? (
+              <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{scores[0].runs}/{scores[0].wickets} ({scores[0].overs})</div>
             ) : (
               <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{teamA.name || ''}</div>
             )}
@@ -273,8 +332,8 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
           </div>
           <div className="text-right">
             <div className="text-sm font-bold text-white">{teamB.short_name || 'TBD'}</div>
-            {isLive && score?.batting_team === teamB.short_name ? (
-              <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{score.score} ({score.overs})</div>
+            {scores[1] ? (
+              <div className="text-xs font-semibold" style={{ color: COLORS.primary.main }}>{scores[1].runs}/{scores[1].wickets} ({scores[1].overs})</div>
             ) : (
               <div className="text-xs" style={{ color: COLORS.text.tertiary }}>{teamB.name || ''}</div>
             )}
@@ -282,7 +341,6 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
         </div>
       </div>
 
-      {/* Footer */}
       <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary }}>
         <div className="flex items-center gap-1">
           <Trophy size={12} color={COLORS.accent.gold} />

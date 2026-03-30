@@ -281,6 +281,55 @@ class CricketDataAPI:
             return None
         return data.get("data")
 
+    def fetch_match_info(self, cricapi_match_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch detailed match info (toss, winner, series_id). LOT2 API 5."""
+        data = self._call("match_info", {"id": cricapi_match_id})
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_match_points(self, cricapi_match_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch fantasy points per player per innings. LOT3 API 2. SLOW ~2s."""
+        data = self._call("match_points", {"id": cricapi_match_id, "ruleset": "0"})
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_series_points(self, series_id: str) -> Optional[list]:
+        """Fetch series point table (team standings). LOT3 API 3."""
+        data = self._call("series_points", {"id": series_id})
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_series_info(self, series_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch full series info + match list. LOT2 API 4."""
+        data = self._call("series_info", {"id": series_id})
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_cric_score(self) -> Optional[list]:
+        """Lightweight live score feed. LOT1 API 2. ms: fixture/result/live."""
+        data = self._call("cricScore")
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_player_info(self, player_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch player profile + career stats. LOT5 API 1."""
+        data = self._call("players_info", {"id": player_id})
+        if not data:
+            return None
+        return data.get("data")
+
+    def fetch_series_squad(self, series_id: str) -> Optional[list]:
+        """Fetch all team squads for entire series. LOT5 API 3. ~53KB response."""
+        data = self._call("series_squad", {"id": series_id})
+        if not data:
+            return None
+        return data.get("data")
+
     def get_api_info(self) -> dict:
         """Get API usage info without wasting a call."""
         return {
@@ -393,6 +442,93 @@ class UnifiedCricketService:
         data = await loop.run_in_executor(None, self.cricketdata.fetch_squad, cricapi_match_id)
         if data:
             self._set_cache(cache_key, data)
+        return data
+
+    async def get_match_info(self, cricapi_match_id: str) -> Optional[Dict]:
+        """Get detailed match info (toss, winner) from CricketData.org."""
+        cache_key = f"match_info_{cricapi_match_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_match_info, cricapi_match_id)
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def get_match_points(self, cricapi_match_id: str) -> Optional[Dict]:
+        """Get fantasy points per player. SLOW API (~2s) — cache heavily."""
+        cache_key = f"match_points_{cricapi_match_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_match_points, cricapi_match_id)
+        if data:
+            # Cache for 5 min (fantasy points don't change fast)
+            self._cache[cache_key] = data
+            self._cache_time[cache_key] = datetime.now(timezone.utc).timestamp() + 240  # extra 4 min
+        return data
+
+    async def get_series_points(self, series_id: str) -> Optional[list]:
+        """Get series point table (team standings)."""
+        cache_key = f"series_points_{series_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_series_points, series_id)
+        if data:
+            # Cache 30 min
+            self._cache[cache_key] = data
+            self._cache_time[cache_key] = datetime.now(timezone.utc).timestamp() + 1740
+        return data
+
+    async def get_series_info(self, series_id: str) -> Optional[Dict]:
+        """Get full series info + match schedule."""
+        cache_key = f"series_info_{series_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_series_info, series_id)
+        if data:
+            # Cache 1 hour
+            self._cache[cache_key] = data
+            self._cache_time[cache_key] = datetime.now(timezone.utc).timestamp() + 3540
+        return data
+
+    async def get_cric_score(self) -> Optional[list]:
+        """Get lightweight live score feed."""
+        cache_key = "cric_score_all"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_cric_score)
+        if data:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def get_player_info(self, player_id: str) -> Optional[Dict]:
+        """Get player profile with career stats."""
+        cache_key = f"player_{player_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_player_info, player_id)
+        if data:
+            # Cache 1 hour
+            self._cache[cache_key] = data
+            self._cache_time[cache_key] = datetime.now(timezone.utc).timestamp() + 3540
+        return data
+
+    async def get_series_squad(self, series_id: str) -> Optional[list]:
+        """Get all team squads for entire series."""
+        cache_key = f"series_squad_{series_id}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, self.cricketdata.fetch_series_squad, series_id)
+        if data:
+            # Cache 1 hour (53KB response)
+            self._cache[cache_key] = data
+            self._cache_time[cache_key] = datetime.now(timezone.utc).timestamp() + 3540
         return data
 
     @property
