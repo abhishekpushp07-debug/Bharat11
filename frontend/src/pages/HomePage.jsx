@@ -191,9 +191,9 @@ export default function HomePage({ onMatchClick }) {
       {/* Dual Points Banner - Vibrant */}
       <div data-testid="dual-banner" className="grid grid-cols-2 gap-2.5">
         <div className="p-3.5 rounded-2xl relative overflow-hidden animate-gradient-shift"
-          style={{ background: 'linear-gradient(135deg, #7EC8E3, #5BA3C9, #A8D8EA)', backgroundSize: '200% 200%', boxShadow: '0 4px 24px rgba(126,200,227,0.25)' }}>
-          <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #fff, transparent)' }} />
-          <div className="absolute bottom-0 left-0 w-full h-[1px] opacity-30" style={{ background: 'linear-gradient(90deg, transparent, #fff, transparent)' }} />
+          style={{ background: 'linear-gradient(135deg, #1a3a8a, #1e40af, #2563eb, #1a3a8a)', backgroundSize: '200% 200%', boxShadow: '0 4px 24px rgba(30,64,175,0.3)' }}>
+          <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #60a5fa, transparent)' }} />
+          <div className="absolute bottom-0 left-0 w-full h-[1px] opacity-30" style={{ background: 'linear-gradient(90deg, transparent, #60a5fa, transparent)' }} />
           <div className="relative">
             <div className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#ffffffcc' }}>Fantasy Points</div>
             <div className="text-2xl font-black text-white mt-0.5 animate-count" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
@@ -292,21 +292,30 @@ export default function HomePage({ onMatchClick }) {
               <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.error.main }}>L</span>
               <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>NR</span>
             </div>
-            {(showFullTable ? sortedTable : sortedTable.slice(0, 4)).map((team, i) => (
+            {(showFullTable ? sortedTable : sortedTable.slice(0, 4)).map((team, i) => {
+              const teamShort = (team.shortname || '').toUpperCase();
+              const tc = TEAM_COLORS[teamShort] || TEAM_COLORS[teamShort.replace('SH', 'SRH')] || {};
+              const teamPrimary = tc.primary || '#ffffff';
+              return (
               <div key={team.shortname || i} data-testid={`pt-row-${team.shortname}`}
-                className="flex items-center px-3 py-2"
-                style={{ borderTop: `1px solid ${COLORS.border.light}`, background: i < 4 ? `${COLORS.success.main}06` : 'transparent' }}>
-                <span className="w-6 text-[10px] font-bold" style={{ color: i < 4 ? COLORS.success.main : COLORS.text.tertiary }}>{i + 1}</span>
+                className="flex items-center px-3 py-2.5 relative overflow-hidden"
+                style={{
+                  borderTop: `1px solid rgba(255,255,255,0.04)`,
+                  background: `linear-gradient(90deg, ${teamPrimary}12, ${teamPrimary}06, transparent)`,
+                  borderLeft: `3px solid ${teamPrimary}88`,
+                }}>
+                <span className="w-6 text-[10px] font-black" style={{ color: i < 4 ? teamPrimary : COLORS.text.tertiary }}>{i + 1}</span>
                 <div className="flex-1 flex items-center gap-2">
                   {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" />}
-                  <span className="text-xs font-semibold text-white">{team.shortname}</span>
+                  <span className="text-xs font-bold" style={{ color: teamPrimary }}>{team.shortname}</span>
                 </div>
                 <span className="w-7 text-center text-xs" style={{ color: COLORS.text.secondary }}>{team.matches}</span>
                 <span className="w-7 text-center text-xs font-bold" style={{ color: COLORS.success.main }}>{team.wins}</span>
                 <span className="w-7 text-center text-xs" style={{ color: COLORS.error.main }}>{team.loss}</span>
                 <span className="w-7 text-center text-xs" style={{ color: COLORS.text.tertiary }}>{team.nr}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -379,10 +388,10 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
 
   return (
     <div data-testid={`match-card-${match.id}`}
-      className={`rounded-2xl overflow-hidden cursor-pointer transition-all active:scale-[0.97] ${isLive ? 'animate-border-glow' : 'card-hover'}`}
+      className={`rounded-2xl overflow-hidden cursor-pointer transition-all active:scale-[0.97] ${isLive ? 'animate-border-glow' : 'card-hover'} match-card-sparkle`}
       style={{
-        background: COLORS.background.card,
-        border: `1px solid ${isLive ? COLORS.primary.main + '55' : COLORS.border.light}`,
+        background: 'linear-gradient(135deg, #0d0d0d, #1a0a0f, #0d0d0d, #150810)',
+        border: `1px solid ${isLive ? COLORS.primary.main + '55' : 'rgba(180,30,50,0.15)'}`,
         opacity: isCompleted ? 0.75 : 1
       }}
       onClick={() => onClick?.(match)}>
