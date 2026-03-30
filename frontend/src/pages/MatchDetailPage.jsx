@@ -109,10 +109,16 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     }
     if (activeTab === 'live' && !bbbData && !bbbLoading) {
       setBbbLoading(true);
-      apiClient.get(`/matches/${match.id}/ball-by-ball`)
-        .then(res => setBbbData(res.data))
-        .catch(() => {})
-        .finally(() => setBbbLoading(false));
+      // Load both: AI commentary + scorecard for fallback
+      Promise.allSettled([
+        apiClient.get(`/matches/${match.id}/ai-commentary`),
+        apiClient.get(`/matches/${match.id}/scorecard`),
+      ]).then(([aiRes, scRes]) => {
+        const aiData = aiRes.status === 'fulfilled' ? aiRes.value.data : null;
+        const scData = scRes.status === 'fulfilled' ? scRes.value.data : null;
+        setBbbData({ ai: aiData, scorecard: scData });
+        if (scData && !scorecardData) setScorecardData(scData);
+      }).finally(() => setBbbLoading(false));
     }
   }, [activeTab, match?.id, squad, fantasyData, scorecardData, bbbData, squadLoading, fantasyLoading, scorecardLoading, bbbLoading]);
 
@@ -249,7 +255,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
 
       {/* Tab Content */}
       {activeTab === 'contests' && <ContestsTab contests={contests} loading={loading} joinedIds={joinedIds} joiningId={joiningId} onJoin={handleJoin} onOpenPrediction={onOpenPrediction} onOpenLeaderboard={onOpenLeaderboard} deadlines={deadlines} />}
-      {activeTab === 'live' && <LiveTab data={bbbData} loading={bbbLoading} scorecardData={scorecardData} matchInfo={matchInfo} />}
+      {activeTab === 'live' && <LiveTab data={bbbData} loading={bbbLoading} />}
       {activeTab === 'scorecard' && <ScorecardTab data={scorecardData} loading={scorecardLoading} />}
       {activeTab === 'squad' && <SquadTab squads={squad} loading={squadLoading} onPlayerClick={openPlayerProfile} />}
       {activeTab === 'fantasy' && <FantasyPointsTab data={fantasyData} loading={fantasyLoading} onPlayerClick={openPlayerProfile} />}
@@ -522,118 +528,108 @@ function FantasyPointsTab({ data, loading, onPlayerClick }) {
 }
 
 
-// ========== LIVE TAB (Ball-by-Ball Commentary) ==========
-function LiveTab({ data, loading, scorecardData, matchInfo }) {
+// ========== LIVE TAB (AI-Powered Commentary) ==========
+function LiveTab({ data, loading }) {
   if (loading) return <LoadingSpinner />;
 
-  // Build commentary from scorecard batting data
-  const commentary = [];
-  const scorecard = scorecardData?.scorecard || [];
+  const aiCommentary = data?.ai?.commentary || [];
+  const scorecard = data?.scorecard?.scorecard || [];
 
-  for (let innIdx = 0; innIdx < scorecard.length; innIdx++) {
-    const inn = scorecard[innIdx];
-    const batting = inn?.batting || [];
-    const bowling = inn?.bowling || [];
-    const inningLabel = inn?.inning || `Innings ${innIdx + 1}`;
-
-    // Add innings header
-    commentary.push({ type: 'header', text: inningLabel, key: `inn_${innIdx}` });
-
-    // Add batting milestones
-    for (const b of batting) {
-      const runs = parseInt(b.r) || 0;
-      const balls = parseInt(b.b) || 0;
-      const fours = parseInt(b['4s']) || 0;
-      const sixes = parseInt(b['6s']) || 0;
-
-      if (runs >= 50) {
-        commentary.push({ type: runs >= 100 ? 'century' : 'fifty', player: b.batsman, runs, balls, fours, sixes, dismissal: b.dismissal, key: `bat_${innIdx}_${b.batsman}` });
-      }
-      if (b.dismissal && b.dismissal !== 'not out') {
-        commentary.push({ type: 'wicket', player: b.batsman, runs, balls, dismissal: b.dismissal, key: `wkt_${innIdx}_${b.batsman}` });
-      }
-    }
-
-    // Add bowling highlights
-    for (const bw of bowling) {
-      const wickets = parseInt(bw.w) || 0;
-      if (wickets >= 3) {
-        commentary.push({ type: 'bowling', player: bw.bowler, wickets, overs: bw.o, runs: bw.r, econ: bw.eco, key: `bowl_${innIdx}_${bw.bowler}` });
-      }
-    }
-  }
-
-  // BBB extras events
-  if (data?.balls?.length > 0) {
-    commentary.push({ type: 'header', text: 'Ball Events', key: 'bbb_header' });
-    for (const ball of data.balls.slice(0, 20)) {
-      commentary.push({ type: 'event', ...ball, key: `bbb_${ball.over || ''}_${Math.random()}` });
-    }
-  }
-
-  if (commentary.length === 0) {
+  // If AI commentary available, show it beautifully
+  if (aiCommentary.length > 0) {
     return (
-      <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
-        <Radio size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
-        <p className="text-sm" style={{ color: COLORS.text.secondary }}>Live commentary not available yet</p>
-        <p className="text-xs mt-1" style={{ color: COLORS.text.tertiary }}>Available once match starts</p>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <Radio size={14} className="animate-pulse" color={COLORS.primary.main} />
+          <span className="text-xs font-bold" style={{ color: COLORS.primary.main }}>AI COMMENTARY</span>
+        </div>
+        {aiCommentary.map((item, i) => {
+          const colors = {
+            six: { bg: '#F59E0B15', border: '#F59E0B44', accent: '#F59E0B' },
+            four: { bg: '#3B82F615', border: '#3B82F644', accent: '#3B82F6' },
+            wicket: { bg: '#EF444415', border: '#EF444444', accent: '#EF4444' },
+            milestone: { bg: '#10B98115', border: '#10B98144', accent: '#10B981' },
+            bowling: { bg: '#8B5CF615', border: '#8B5CF644', accent: '#8B5CF6' },
+            result: { bg: '#F59E0B20', border: '#F59E0B66', accent: '#FFD700' },
+            header: { bg: COLORS.background.tertiary, border: COLORS.border.light, accent: COLORS.text.secondary },
+            general: { bg: COLORS.background.card, border: COLORS.border.light, accent: COLORS.text.secondary },
+          };
+          const c = colors[item.type] || colors.general;
+          const isHighlight = ['six', 'wicket', 'milestone', 'result'].includes(item.type);
+
+          return (
+            <div key={i} className={`px-3 py-2.5 rounded-xl transition-all ${isHighlight ? 'animate-[slideUp_0.3s_ease]' : ''}`}
+              style={{
+                background: c.bg,
+                border: `1px solid ${c.border}`,
+                animationDelay: `${i * 0.05}s`,
+                animationFillMode: 'backwards',
+              }}>
+              <p className="text-xs leading-relaxed" style={{ color: isHighlight ? '#fff' : COLORS.text.secondary }}>
+                {item.text}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Fallback: Build from scorecard
+  if (scorecard.length > 0) {
+    const items = [];
+    for (let idx = 0; idx < scorecard.length; idx++) {
+      const inn = scorecard[idx];
+      const batting = inn?.batting || [];
+      const bowling = inn?.bowling || [];
+      items.push({ type: 'header', text: `🏏 ${inn?.inning || `Innings ${idx + 1}`}` });
+
+      for (const b of batting) {
+        const runs = parseInt(b.r) || 0;
+        const sixes = parseInt(b['6s']) || 0;
+        const fours = parseInt(b['4s']) || 0;
+        const balls = parseInt(b.b) || 0;
+
+        if (runs >= 100) items.push({ type: 'milestone', text: `💯 CENTURY! ${b.batsman} smashes ${runs} off ${balls}! (${fours}x4 ${sixes}x6)` });
+        else if (runs >= 50) items.push({ type: 'milestone', text: `⭐ FIFTY! ${b.batsman} scores ${runs}(${balls}) with ${fours} fours!` });
+        if (sixes >= 3) items.push({ type: 'six', text: `🔥 ${b.batsman} hammers ${sixes} MASSIVE SIXES!` });
+        if (b.dismissal && b.dismissal !== 'not out') items.push({ type: 'wicket', text: `❌ OUT! ${b.batsman} ${runs}(${balls}) — ${b.dismissal}` });
+      }
+
+      for (const bw of bowling) {
+        if ((parseInt(bw.w) || 0) >= 3) items.push({ type: 'bowling', text: `🎯 ${bw.bowler} destroys with ${bw.w}/${bw.r} in ${bw.o} overs!` });
+      }
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <Radio size={14} color={COLORS.text.tertiary} />
+          <span className="text-xs font-bold" style={{ color: COLORS.text.tertiary }}>MATCH HIGHLIGHTS</span>
+        </div>
+        {items.map((item, i) => {
+          const isHeader = item.type === 'header';
+          const c = item.type === 'wicket' ? '#EF4444' : item.type === 'six' ? '#F59E0B' : item.type === 'milestone' ? '#10B981' : item.type === 'bowling' ? '#8B5CF6' : COLORS.text.secondary;
+          return (
+            <div key={i} className={isHeader ? 'mt-3' : ''}>
+              {isHeader ? (
+                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COLORS.primary.main }}>{item.text}</div>
+              ) : (
+                <div className="px-3 py-2 rounded-xl" style={{ background: `${c}12`, border: `1px solid ${c}33` }}>
+                  <p className="text-xs" style={{ color: '#fff' }}>{item.text}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   return (
-    <div className="space-y-1.5">
-      {commentary.map(item => (
-        <div key={item.key}>
-          {item.type === 'header' && (
-            <div className="text-[10px] font-bold uppercase tracking-wider mt-3 mb-1" style={{ color: COLORS.primary.main }}>{item.text}</div>
-          )}
-          {item.type === 'century' && (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl animate-pulse" style={{ background: `${COLORS.accent.gold}15`, border: `1px solid ${COLORS.accent.gold}44` }}>
-              <span className="text-xl">💯</span>
-              <div>
-                <span className="text-xs font-bold text-white">{item.player}</span>
-                <span className="text-xs ml-2" style={{ color: COLORS.accent.gold }}>{item.runs} ({item.balls}) | {item.fours}x4 {item.sixes}x6</span>
-              </div>
-            </div>
-          )}
-          {item.type === 'fifty' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${COLORS.success.main}12`, border: `1px solid ${COLORS.success.main}33` }}>
-              <span className="text-lg">🔥</span>
-              <div>
-                <span className="text-xs font-bold text-white">{item.player}</span>
-                <span className="text-xs ml-2" style={{ color: COLORS.success.main }}>{item.runs} ({item.balls}) | {item.fours}x4 {item.sixes}x6</span>
-              </div>
-            </div>
-          )}
-          {item.type === 'wicket' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${COLORS.error.main}12`, border: `1px solid ${COLORS.error.main}33` }}>
-              <span className="text-lg">🏏</span>
-              <div>
-                <span className="text-xs font-bold" style={{ color: COLORS.error.main }}>WICKET!</span>
-                <span className="text-xs ml-1 text-white">{item.player} {item.runs}({item.balls})</span>
-                <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{item.dismissal}</div>
-              </div>
-            </div>
-          )}
-          {item.type === 'bowling' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${COLORS.info.main}12`, border: `1px solid ${COLORS.info.main}33` }}>
-              <span className="text-lg">🎯</span>
-              <div>
-                <span className="text-xs font-bold text-white">{item.player}</span>
-                <span className="text-xs ml-2" style={{ color: COLORS.info.main }}>{item.wickets}/{item.runs} ({item.overs} ov) Eco: {item.econ}</span>
-              </div>
-            </div>
-          )}
-          {item.type === 'event' && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: COLORS.background.card }}>
-              <span className="text-[10px] font-mono" style={{ color: COLORS.text.tertiary }}>Ov {item.over || '?'}</span>
-              <span className="text-xs text-white">{item.batsman || ''} {item.score || ''}</span>
-              {item.extra && <span className="text-[9px] px-1 rounded" style={{ background: '#f59e0b22', color: '#f59e0b' }}>{item.extra}</span>}
-            </div>
-          )}
-        </div>
-      ))}
+    <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
+      <Radio size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
+      <p className="text-sm" style={{ color: COLORS.text.secondary }}>Commentary available after match starts</p>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { ArrowLeft, Trophy, Crown, Medal, Star, X, Check, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Trophy, Crown, Medal, Star, X, Check, AlertCircle, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
+import ShareCard from '../components/ShareCard';
 
 // User Answer Detail Modal
 function UserAnswerModal({ contestId, userId, onClose }) {
@@ -157,12 +158,13 @@ function UserAnswerModal({ contestId, userId, onClose }) {
   );
 }
 
-export default function LeaderboardPage({ contestId, onBack }) {
+export default function LeaderboardPage({ contestId, match, onBack }) {
   const [data, setData] = useState(null);
   const [myPos, setMyPos] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showShare, setShowShare] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -239,6 +241,15 @@ export default function LeaderboardPage({ contestId, onBack }) {
         </div>
       )}
 
+      {/* Share Button */}
+      {myPos && (
+        <button data-testid="share-result-btn" onClick={() => setShowShare(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm text-white"
+          style={{ background: '#25D366' }}>
+          <Share2 size={16} /> Share Result on WhatsApp
+        </button>
+      )}
+
       {/* Leaderboard List */}
       <div className="rounded-2xl overflow-hidden" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
         {displayList.map((entry, i) => (
@@ -292,6 +303,20 @@ export default function LeaderboardPage({ contestId, onBack }) {
           contestId={contestId}
           userId={selectedUserId}
           onClose={() => setSelectedUserId(null)}
+        />
+      )}
+
+      {/* Share Card */}
+      {showShare && myPos && (
+        <ShareCard
+          match={match}
+          rank={myPos.rank}
+          totalPlayers={data?.total_participants || 0}
+          score={myPos.total_points}
+          totalPoints={myPos.total_points + 100}
+          correctAnswers={myPos.correct_count || 0}
+          totalQuestions={myPos.predictions_count || 0}
+          onClose={() => setShowShare(false)}
         />
       )}
     </div>

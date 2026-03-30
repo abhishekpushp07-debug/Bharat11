@@ -117,6 +117,28 @@ export default function HomePage({ onMatchClick }) {
         </div>
       </div>
 
+      {/* Dual Points Banner */}
+      <div data-testid="dual-banner" className="grid grid-cols-2 gap-2.5">
+        <div className="p-3.5 rounded-2xl relative overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px #10b98133' }}>
+          <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-10" style={{ background: '#fff', transform: 'translate(30%, -30%)' }} />
+          <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#ffffffaa' }}>Fantasy Points</div>
+          <div className="text-2xl font-black text-white mt-0.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+            {(user?.total_fantasy_points || 0).toLocaleString()}
+          </div>
+          <div className="text-[9px] mt-0.5" style={{ color: '#ffffffaa' }}>From correct predictions</div>
+        </div>
+        <div className="p-3.5 rounded-2xl relative overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 20px #f59e0b33' }}>
+          <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-10" style={{ background: '#fff', transform: 'translate(30%, -30%)' }} />
+          <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#ffffffaa' }}>Contest Coins</div>
+          <div className="text-2xl font-black text-white mt-0.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+            {(user?.coins_balance || 0).toLocaleString()}
+          </div>
+          <div className="text-[9px] mt-0.5" style={{ color: '#ffffffaa' }}>Win by playing contests</div>
+        </div>
+      </div>
+
       {/* Live Score Ticker (horizontal scroll) */}
       {liveTicker.length > 0 && (
         <div data-testid="live-ticker">

@@ -5,7 +5,7 @@ Admin endpoints for match creation and management.
 Auto-contest creation on match create / go-live.
 """
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from typing import Annotated, Optional
@@ -735,6 +735,53 @@ async def get_match_bbb(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db
         "balls": bbb,
         "total_events": len(bbb)
     }
+
+
+@router.get(
+    "/{match_id}/ai-commentary",
+    summary="AI-powered cricket commentary from scorecard"
+)
+async def get_ai_commentary(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Generates exciting AI commentary from scorecard data. Cached per match."""
+    from services.ai_commentary import generate_ai_commentary
+
+    # Check cache first
+    cached = await db.commentary_cache.find_one({"match_id": match_id}, {"_id": 0})
+    if cached and cached.get("items"):
+        return {"match_id": match_id, "commentary": cached["items"], "cached": True}
+
+    # Get scorecard
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    scorecard = None
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if cd_id:
+        from services.cricket_data import cricket_service
+        scorecard = await cricket_service.get_scorecard(cd_id)
+
+    if not scorecard or not scorecard.get("scorecard"):
+        return {"match_id": match_id, "commentary": [], "error": "Scorecard not available yet"}
+
+    # Get match info for context
+    match_info = None
+    if cd_id:
+        from services.cricket_data import cricket_service
+        match_info = await cricket_service.get_match_info(cd_id)
+
+    # Generate AI commentary
+    items = await generate_ai_commentary(scorecard, match_info)
+
+    # Cache it
+    if items:
+        await db.commentary_cache.update_one(
+            {"match_id": match_id},
+            {"$set": {"match_id": match_id, "items": items, "generated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True
+        )
+
+    return {"match_id": match_id, "commentary": items, "cached": False}
 
 
 
