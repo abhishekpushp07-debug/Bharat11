@@ -10,7 +10,7 @@ import os
 import time
 from datetime import datetime, timezone
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://plan-then-build-1.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://fantasy-points.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_PHONE = "9876543210"

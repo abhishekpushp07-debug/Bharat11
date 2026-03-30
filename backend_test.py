@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class CrickPredictAPITester:
-    def __init__(self, base_url: str = "https://plan-then-build-1.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://fantasy-points.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
         self.tests_run = 0

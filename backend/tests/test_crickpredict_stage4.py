@@ -9,7 +9,7 @@ import random
 import string
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://plan-then-build-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://fantasy-points.preview.emergentagent.com')
 
 # Test credentials from test_credentials.md
 TEST_PHONE = "9876543210"
