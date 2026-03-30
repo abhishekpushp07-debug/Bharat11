@@ -36,6 +36,7 @@ from routers.user import router as user_router
 from routers.wallet import router as wallet_router
 from routers.admin import router as admin_router
 from routers.matches import router as matches_router
+from routers.contests import router as contests_router
 
 # Setup logging
 setup_logging()
@@ -273,6 +274,7 @@ app.include_router(user_router, prefix="/api")
 app.include_router(wallet_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(matches_router, prefix="/api")
+app.include_router(contests_router, prefix="/api")
 
 
 # Root endpoint
