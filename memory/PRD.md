@@ -6,12 +6,13 @@ IPL-focused fantasy cricket prediction platform where users predict match outcom
 ## Core Requirements
 1. **Prediction Model**: 200-question pool with fixed points per question
 2. **Template Routing**: `full_match` vs `in_match` templates with over/innings cutoffs
-3. **Match Auto-Engine**: 5 templates auto-attach 24h before match start
+3. **Match Auto-Engine**: 5 templates auto-attach (1 full + 4 in-match per match)
 4. **Auto-Settlement**: AI agent auto-resolves questions from live scorecard
 5. **Real-Time Updates**: Socket.IO for leaderboard, live scores, push notifications
 6. **Enhanced UX**: AI commentary, heavy animations, dual points banner, WhatsApp sharing
 7. **Admin Dashboard**: Template management, user management, AI question generation
 8. **IPL Only**: Only fetch and display IPL matches
+9. **Legal Compliance**: Platform is 100% legal under Indian gaming law (no deposits/withdrawals)
 
 ## Tech Stack
 - Frontend: React.js, Tailwind CSS, Shadcn/UI, Socket.IO client
@@ -26,9 +27,9 @@ IPL-focused fantasy cricket prediction platform where users predict match outcom
 ├── backend/
 │   ├── config/settings.py
 │   ├── core/database.py
-│   ├── models/schemas.py
+│   ├── models/schemas.py (TemplateType, innings_range, over routing)
 │   ├── routers/
-│   │   ├── admin.py (User management, template CRUD)
+│   │   ├── admin.py (Seed endpoint, 5-Template Engine, User management)
 │   │   ├── auth.py (JWT auth with PIN)
 │   │   ├── cricket.py (IPL data, team drill-down, match full-data)
 │   │   ├── matches.py (Match CRUD, scorecard, BBB, AI commentary)
@@ -37,6 +38,7 @@ IPL-focused fantasy cricket prediction platform where users predict match outcom
 │   ├── services/
 │   │   ├── api_cache.py (MongoDB caching layer for all API calls)
 │   │   ├── cricket_data.py (CricketData.org API wrapper)
+│   │   ├── question_seed.py (200 bilingual EN+HI questions)
 │   │   ├── settlement_engine.py (Auto-resolve + streak multiplier)
 │   │   ├── ai_commentary.py (LLM-powered match commentary)
 │   │   ├── socket_manager.py (Socket.IO event emitter)
@@ -48,6 +50,7 @@ IPL-focused fantasy cricket prediction platform where users predict match outcom
 │   ├── public/service-worker.js
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── BottomNav.jsx (Legal tab with Scale icon)
 │   │   │   ├── StreakBanner.jsx (Fire icon SVG, sparkling count)
 │   │   │   └── PredictionBadge.jsx
 │   │   ├── constants/
@@ -58,13 +61,15 @@ IPL-focused fantasy cricket prediction platform where users predict match outcom
 │   │   │   ├── authStore.js
 │   │   │   └── socketStore.js
 │   │   └── pages/
-│   │       ├── HomePage.jsx (Points table, ticker, team drill-down, match data view)
+│   │       ├── HomePage.jsx (Stories contests, Points table, ticker, team drill-down)
+│   │       ├── WalletPage.jsx (Balance + transactions + 6-point Legal section)
 │   │       ├── MatchDetailPage.jsx
 │   │       ├── MyContestsPage.jsx
 │   │       └── admin/AdminUsersTab.jsx
 ```
 
 ## What's Implemented
+
 ### Stages 1-14 (COMPLETE)
 - JWT Auth with phone/PIN
 - Match/Contest/Template/Question CRUD
@@ -78,30 +83,29 @@ IPL-focused fantasy cricket prediction platform where users predict match outcom
 - Prediction Badge (accuracy ranking)
 - Mood Meter (prediction sentiment)
 
-### Session Updates (Mar 30, 2026)
-- **MongoDB API Cache Layer** (api_cache.py): All CricketData.org API calls cached in MongoDB. Completed match data cached permanently. Live match data with short TTL. Prevents duplicate API hits — saves API quota.
-- **Team Drill-Down**: Click any team in IPL points table → see all 14 matches. Click any match → see full data (scorecard, squad, fantasy points, match info, metrics).
-- **Match Full Data View**: Combined endpoint fetches match_info + scorecard + fantasy_points + squad + BBB in parallel. Tabbed UI with Info, Scorecard, Squad, Fantasy, AI Commentary.
-- **TEAM_COLORS Fix**: Changed from arrays to objects {primary, secondary}. Fixed bug where team colors weren't applying to points table rows.
-- **UI Polish**: Team-colored rows in points table, vibrant live ticker with team-color accents, bold fire icon (orange/yellow/red gradient SVG), sparkling red streak count.
-- **Cache Stats Endpoint**: /api/cricket/cache-stats shows total cached items, by type, API hits today/remaining.
+### Session 1 Updates (Mar 30, 2026)
+- **MongoDB API Cache Layer**: All CricketData.org API calls cached. Completed match data permanent. API quota conserved.
+- **Team Drill-Down**: Click team in points table → see matches → click match → scorecard/squad/fantasy/AI commentary.
+- **TEAM_COLORS Fix**: Arrays → objects {primary, secondary}. Team colors now apply correctly.
+- **UI Polish**: Team-colored rows, vibrant ticker, bold fire icon SVG, sparkling red streak.
+
+### Session 2 Updates (Mar 31, 2026)
+- **Legal Page**: Bottom nav "Wallet" → "Legal" with Scale icon. Wallet content + 6-point Indian gaming law compliance section (bilingual EN+HI). Points: No deposits, No withdrawals, Entertainment/Skill-based, Information focus, Social gaming, IT Act compliant.
+- **Hot Contests → Instagram Stories**: Circular cards with slow rotating ring animation. Team-colored gradients, horizontal scroll.
+- **200-Question Pool Seeded**: `POST /api/admin/seed-question-pool` — 200 bilingual questions across 7 categories (batting=40, bowling=35, powerplay=25, death_overs=25, match=30, player_performance=25, special=20).
+- **5-Template Match Engine**: `POST /api/admin/matches/{id}/auto-templates` — Generates exactly 5 templates per match: 1 full_match (15 Qs) + 4 in_match (10 Qs each = 40) = 55 total questions. Templates have innings_range, over_start/end, answer_deadline_over for phase routing.
 
 ## Key API Endpoints
+- `POST /api/admin/seed-question-pool` — Seed 200 questions
+- `POST /api/admin/matches/{id}/auto-templates` — 5-Template Engine
+- `POST /api/admin/auto-templates-all` — Bulk template generation
 - `GET /api/cricket/ipl/points-table` — IPL standings
 - `GET /api/cricket/live-ticker` — Live IPL scores
 - `GET /api/cricket/ipl/team/{short}/matches` — Team's IPL matches
 - `GET /api/cricket/match/{id}/full-data` — Combined match data (17 APIs)
-- `GET /api/cricket/ipl/squads` — All team squads
 - `GET /api/cricket/cache-stats` — Cache statistics
-- `GET /api/matches/{id}/scorecard` — Match scorecard
-- `GET /api/matches/{id}/ai-commentary` — AI-generated commentary
 
 ## Remaining / Backlog
-### P0 (Critical)
-- 200-Question Pool seed (question_seed.py) — bilingual Hindi+English
-- Template routing schema upgrades (template_type, innings_range, over_start/end)
-- 5-Template Match Engine (1 full_match + 4 in_match per match)
-
 ### P1 (Important)
 - Performance optimization / Lighthouse audit
 - Socket.IO connection stability improvements
