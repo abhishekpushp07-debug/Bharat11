@@ -268,6 +268,7 @@ async def auto_create_contests_24h(db):
                 )
 
         template_id = full_template["id"] if full_template else None
+        template_qids = full_template.get("question_ids", []) if full_template else []
 
         # Create contest
         contest = {
@@ -276,6 +277,7 @@ async def auto_create_contests_24h(db):
             "match_id": match_id,
             "template_id": template_id,
             "templates_assigned": templates,
+            "question_ids": template_qids,
             "entry_fee": 1000,
             "prize_pool": 0,
             "max_participants": 100,

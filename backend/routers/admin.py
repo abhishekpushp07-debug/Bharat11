@@ -1092,50 +1092,6 @@ async def autopilot_status(
     return autopilot.get_status()
 
 
-# ==================== 200-QUESTION POOL SEED ====================
-
-@router.post(
-    "/seed-200-questions",
-    status_code=status.HTTP_201_CREATED,
-    summary="Seed the 200-question pool into DB (idempotent)"
-)
-async def seed_200_questions(
-    current_user: AdminUser,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """
-    Seeds 200 bilingual T20 cricket prediction questions.
-    Idempotent: skips if 150+ questions already exist.
-    """
-    existing_count = await db.questions.count_documents({"is_active": True})
-    if existing_count >= 150:
-        return {
-            "seeded": 0,
-            "existing": existing_count,
-            "message": f"Already have {existing_count} questions in DB. Seed skipped."
-        }
-
-    from services.question_seed import generate_200_questions
-    questions = generate_200_questions()
-
-    if questions:
-        await db.questions.insert_many(questions)
-
-    return {
-        "seeded": len(questions),
-        "total_in_db": existing_count + len(questions),
-        "categories": {
-            "batting": sum(1 for q in questions if q["category"] == "batting"),
-            "bowling": sum(1 for q in questions if q["category"] == "bowling"),
-            "powerplay": sum(1 for q in questions if q["category"] == "powerplay"),
-            "death_overs": sum(1 for q in questions if q["category"] == "death_overs"),
-            "match": sum(1 for q in questions if q["category"] == "match"),
-            "player_performance": sum(1 for q in questions if q["category"] == "player_performance"),
-            "special": sum(1 for q in questions if q["category"] == "special"),
-        },
-        "message": f"{len(questions)} questions seeded successfully!"
-    }
-
 
 # ==================== AUTO-ENGINE TRIGGERS ====================
 
@@ -1389,13 +1345,14 @@ async def admin_adjust_coins(
 async def seed_question_pool(
     current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    force: bool = Query(default=False, description="Force re-seed (deletes existing pool)")
+    force: bool = Query(default=False, description="Force re-seed (deletes existing pool)"),
+    count: int = Query(default=2000, description="Number of questions to seed (max 2000)", ge=50, le=2000)
 ):
-    """Insert the 200 bilingual (EN+HI) question pool into the database."""
-    from services.question_seed import generate_200_questions
+    """Insert bilingual (EN+HI) question pool into the database. Max 2000 questions."""
+    from services.question_seed import generate_expanded_pool
 
     existing = await db.questions.count_documents({})
-    if existing >= 200 and not force:
+    if existing >= count and not force:
         return {
             "seeded": 0,
             "total_in_db": existing,
@@ -1405,7 +1362,7 @@ async def seed_question_pool(
     if force:
         await db.questions.delete_many({})
 
-    questions = generate_200_questions()
+    questions = generate_expanded_pool(count)
     now = utc_now().isoformat()
 
     docs = []
@@ -1585,8 +1542,8 @@ async def auto_generate_templates(
             if qid in used_question_ids:
                 continue
             cat = q.get("category", "")
-            auto_res = q.get("auto_resolution", {})
-            trigger = auto_res.get("trigger", "")
+            auto_res = q.get("auto_resolution") or {}
+            trigger = auto_res.get("trigger", "") if auto_res else ""
 
             cat_match = cat in config["question_filter"]["categories"]
             trigger_match = trigger in config["question_filter"]["triggers"]
@@ -1711,8 +1668,8 @@ async def _create_5_templates(match_id: str, db: AsyncIOMotorDatabase):
             if qid in used_ids:
                 continue
             cat = q.get("category", "")
-            auto_res = q.get("auto_resolution", {})
-            trigger = auto_res.get("trigger", "")
+            auto_res = q.get("auto_resolution") or {}
+            trigger = auto_res.get("trigger", "") if auto_res else ""
             if cat in config["question_filter"]["categories"] or trigger in config["question_filter"]["triggers"]:
                 eligible.append(q)
 

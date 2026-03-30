@@ -393,14 +393,27 @@ export default function HomePage({ onMatchClick }) {
       ) : null}
 
       {/* Hot Contests - Instagram Stories Style */}
-      {hotContests.length > 0 && (
+      {hotContests.length > 0 && (() => {
+        const now = new Date();
+        const cutoff = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const liveContests = hotContests.filter(c => {
+          if (c.status !== 'open') return false;
+          const match = matches.find(m => m.id === c.match_id);
+          if (!match) return true;
+          const matchStart = new Date(match.start_time || match.dateTimeGMT || '');
+          if (isNaN(matchStart.getTime())) return true;
+          return matchStart <= cutoff;
+        });
+        if (liveContests.length === 0) return null;
+        return (
         <div data-testid="hot-contests-section">
           <div className="flex items-center gap-2 mb-3">
             <Zap size={16} color={COLORS.accent.gold} />
             <h2 className="text-base font-black text-white tracking-tight">Hot Contests</h2>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            {hotContests.filter(c => c.status === 'open').slice(0, 8).map((c, i) => {
+            {liveContests.slice(0, 8).map((c, i) => {
+              const match = matches.find(m => m.id === c.match_id);
               const matchName = c.name || '';
               const teams = matchName.split(' vs ');
               const t1 = (teams[0] || '').replace(' Mega Contest', '').replace(' - Mega Contest', '').trim();
@@ -412,8 +425,8 @@ export default function HomePage({ onMatchClick }) {
               return (
                 <div key={c.id} data-testid={`contest-story-${i}`}
                   className="shrink-0 flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
+                  onClick={() => { if (match && onMatchClick) onMatchClick(match); }}
                   style={{ width: '72px' }}>
-                  {/* Rotating ring */}
                   <div className="relative w-[68px] h-[68px]">
                     <svg className="absolute inset-0 w-full h-full contest-ring-spin" viewBox="0 0 68 68">
                       <defs>
@@ -428,7 +441,6 @@ export default function HomePage({ onMatchClick }) {
                         strokeWidth="2.5" strokeLinecap="round"
                         strokeDasharray="8 4" />
                     </svg>
-                    {/* Inner circle with team avatars */}
                     <div className="absolute inset-[4px] rounded-full overflow-hidden flex items-center justify-center"
                       style={{
                         background: `linear-gradient(135deg, ${t1Color}20, #0d0d14, ${t2Color}20)`,
@@ -440,7 +452,6 @@ export default function HomePage({ onMatchClick }) {
                         <span className="text-[9px] font-black text-white" style={{ textShadow: `0 0 4px ${t2Color}` }}>{t2Short || '?'}</span>
                       </div>
                     </div>
-                    {/* Entry badge */}
                     <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[7px] font-black"
                       style={{
                         background: c.entry_fee === 0 ? 'rgba(34,197,94,0.9)' : `linear-gradient(135deg, ${t1Color}, ${t2Color})`,
@@ -458,7 +469,8 @@ export default function HomePage({ onMatchClick }) {
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Completed */}
       {completedMatches.length > 0 && (
