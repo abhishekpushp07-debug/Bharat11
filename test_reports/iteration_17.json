@@ -1,0 +1,92 @@
+{
+  "summary": "Iteration 17 - Unified Cricket Data Service Testing Complete. All 13 backend tests pass (100%). Cricbuzz scraping working as PRIMARY source (fetched 14 matches). CricketData.org API key configured as FALLBACK. Sync pipeline creates matches + auto-contests. Admin UI 'Sync IPL Live' button functional. Player view clean with zero admin traces.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": {
+    "cricbuzz_primary": {
+      "live_cricket_returns_matches": "PASS - GET /api/matches/live/cricket returns matches with source=cricbuzz",
+      "ipl_only_filter": "PASS - GET /api/matches/live/cricket?ipl_only=true returns only IPL matches"
+    },
+    "cricketdata_fallback": {
+      "live_status_shows_key_set": "PASS - GET /api/matches/live/status shows cricketdata_key_set=true"
+    },
+    "sync_pipeline": {
+      "sync_creates_matches": "PASS - POST /api/matches/live/sync creates matches from Cricbuzz",
+      "sync_auto_creates_contests": "PASS - Sync auto-creates contests with 1000 entry fee",
+      "second_sync_updates_existing": "PASS - Second sync updates existing (no duplicates)"
+    },
+    "auto_contest_linked": {
+      "synced_matches_have_contests": "PASS - Matches created by sync have auto-created contests"
+    },
+    "regression_auth": {
+      "super_admin_login": "PASS - 7004186276/5524 logs in with is_admin=true",
+      "regular_player_login": "PASS - 9111111111/5678 logs in with is_admin=false"
+    },
+    "regression_economy": {
+      "contest_join_deducts_coins": "PASS - Contest join deducts 1000 coins",
+      "new_user_gets_100000_coins": "PASS - New user signup gives 100000 coins"
+    },
+    "admin_restrictions": {
+      "player_cannot_sync": "PASS - Regular player gets 403 on sync endpoint",
+      "player_cannot_create_match": "PASS - Regular player gets 403 when creating match"
+    },
+    "frontend_ui": {
+      "admin_app_loads": "PASS - Admin App with gold header and Super Admin label",
+      "admin_nav_tabs": "PASS - Dashboard, Content, Matches, Resolve tabs visible",
+      "sync_ipl_live_button": "PASS - 'Sync IPL Live' button visible in Admin Matches tab",
+      "sync_shows_cricbuzz_source": "PASS - Sync shows 'Source: cricbuzz | Created: X | Updated: Y'",
+      "matches_displayed": "PASS - 27 matches displayed including IPL teams (MI, CSK, RCB, KKR, SRH, RR)",
+      "player_view_clean": "PASS - Player view has zero admin traces",
+      "player_nav_tabs": "PASS - Home, My Contest, Wallet, Profile tabs visible"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17_cricket_data.py",
+    "/app/test_reports/pytest/pytest_iteration17.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CricbuzzScraper correctly scrapes www.cricbuzz.com/cricket-match/live-scores",
+    "CricketDataAPI correctly configured with CRICKET_API_KEY from .env",
+    "UnifiedCricketService uses Cricbuzz as PRIMARY, CricketData.org as FALLBACK",
+    "Sync pipeline in matches.py correctly creates matches + auto-contests",
+    "_auto_create_contest() helper creates contests with 1000 entry fee",
+    "AdminMatchesTab.jsx has 'Sync IPL Live' button with data-testid='sync-live-btn'"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17_cricket_data.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "super_admin": {"phone": "7004186276", "pin": "5524", "is_admin": true},
+    "regular_player": {"phone": "9111111111", "pin": "5678", "is_admin": false}
+  },
+  "seed_data_creation": "Sync created/updated IPL matches from Cricbuzz",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 17 tested Unified Cricket Data Service. Cricbuzz scraping is PRIMARY (unlimited, no API key). CricketData.org is FALLBACK (100 calls/day, key: 32bc41b7-...). Sync endpoint POST /api/matches/live/sync creates matches from live data and auto-creates contests with 1000 entry fee. Admin UI has 'Sync IPL Live' button in Matches tab. All features working correctly.",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  },
+  "features_verified": {
+    "cricbuzz_primary_source": "VERIFIED - Fetched 14 matches from www.cricbuzz.com",
+    "cricketdata_fallback_configured": "VERIFIED - CRICKET_API_KEY set in .env",
+    "sync_creates_matches": "VERIFIED - POST /api/matches/live/sync creates matches",
+    "sync_auto_creates_contests": "VERIFIED - Auto-creates contests with 1000 entry fee",
+    "sync_updates_existing": "VERIFIED - Second sync updates, no duplicates",
+    "admin_sync_button": "VERIFIED - 'Sync IPL Live' button in Admin Matches tab",
+    "player_view_clean": "VERIFIED - No admin traces in player view",
+    "ipl_filter_works": "VERIFIED - ?ipl_only=true filters IPL matches"
+  }
+}

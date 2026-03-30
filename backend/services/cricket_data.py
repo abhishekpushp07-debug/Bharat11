@@ -1,269 +1,357 @@
 """
-CrickPredict - Live Cricket Data Service
-Uses pycricbuzz for real Cricbuzz data with graceful fallback.
-When deployed to production (with internet access), this provides real live scores.
-In restricted environments, returns cached/demo data.
+Bharat 11 - Unified Cricket Data Service
+PRIMARY: Cricbuzz HTML scraping (unlimited, no key)
+FALLBACK: CricketData.org REST API (100 calls/day, free key)
+
+Provides: match list, live scores, match status
+Auto-pipeline: fetch → create matches → create contests → update scores
 """
 import asyncio
 import logging
+import re
+import os
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, List, Any
+from typing import Dict, List, Any, Optional
+
+import requests
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# Try to import pycricbuzz
-try:
-    from pycricbuzz import Cricbuzz
-    CRICBUZZ_AVAILABLE = True
-except ImportError:
-    CRICBUZZ_AVAILABLE = False
-    logger.warning("pycricbuzz not installed. Live cricket data unavailable.")
+# ==================== TEAM MAPPINGS ====================
+
+IPL_TEAMS = {
+    "Mumbai Indians": "MI", "Chennai Super Kings": "CSK",
+    "Royal Challengers Bangalore": "RCB", "Royal Challengers Bengaluru": "RCB",
+    "Kolkata Knight Riders": "KKR", "Delhi Capitals": "DC",
+    "Punjab Kings": "PBKS", "Rajasthan Royals": "RR",
+    "Sunrisers Hyderabad": "SRH", "Gujarat Titans": "GT",
+    "Lucknow Super Giants": "LSG",
+    "MI": "MI", "CSK": "CSK", "RCB": "RCB", "KKR": "KKR",
+    "DC": "DC", "PBKS": "PBKS", "RR": "RR", "SRH": "SRH",
+    "GT": "GT", "LSG": "LSG",
+}
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0'
+}
 
 
-class CricketDataService:
-    """
-    Live cricket data service using Cricbuzz.
-    - Fetches real matches, live scores, scorecards
-    - Caches data to reduce API calls (max 100 entries)
-    - Graceful fallback when Cricbuzz unreachable
-    """
+def _get_short_name(name: str) -> str:
+    """Get IPL short name or first 3 chars."""
+    name = name.strip()
+    if name in IPL_TEAMS:
+        return IPL_TEAMS[name]
+    for full, short in IPL_TEAMS.items():
+        if full.lower() in name.lower() or name.lower() in full.lower():
+            return short
+    return name[:3].upper()
 
-    MAX_CACHE_ENTRIES = 100
 
-    def __init__(self):
-        self._cb = Cricbuzz() if CRICBUZZ_AVAILABLE else None
-        self._cache: Dict[str, Any] = {}
-        self._cache_ttl = 30  # seconds
-        self._last_fetch: Dict[str, float] = {}
-        self._connected = False
+def _parse_match_status(status_text: str) -> str:
+    """Convert status text to our status enum."""
+    s = status_text.lower().strip()
+    if any(w in s for w in ['won', 'drawn', 'tied', 'no result', 'abandoned']):
+        return 'completed'
+    if any(w in s for w in ['live', 'batting', 'bowling', 'break', 'innings']):
+        return 'live'
+    if any(w in s for w in ['preview', 'upcoming', 'starts', 'toss']):
+        return 'upcoming'
+    return 'upcoming'
 
-    def _is_cache_valid(self, key: str) -> bool:
-        last = self._last_fetch.get(key, 0)
-        return (datetime.now(timezone.utc).timestamp() - last) < self._cache_ttl
 
-    def _evict_stale_cache(self):
-        """Remove expired entries if cache exceeds max size."""
-        if len(self._cache) <= self.MAX_CACHE_ENTRIES:
-            return
-        now = datetime.now(timezone.utc).timestamp()
-        stale_keys = [k for k, t in self._last_fetch.items() if (now - t) > self._cache_ttl]
-        for k in stale_keys:
-            self._cache.pop(k, None)
-            self._last_fetch.pop(k, None)
+# ==================== CRICBUZZ SCRAPER ====================
 
-    async def fetch_live_matches(self) -> List[Dict]:
-        """
-        Fetch all current matches from Cricbuzz.
-        Returns list of match dicts with id, teams, status, scores.
-        """
-        cache_key = "matches"
-        if self._is_cache_valid(cache_key):
-            return self._cache.get(cache_key, [])
+class CricbuzzScraper:
+    """Scrapes Cricbuzz for live match data. No API key needed."""
 
-        if not self._cb:
+    BASE_URL = "https://www.cricbuzz.com"
+
+    def fetch_matches(self) -> List[Dict[str, Any]]:
+        """Fetch current matches from Cricbuzz live scores page."""
+        try:
+            r = requests.get(
+                f"{self.BASE_URL}/cricket-match/live-scores",
+                headers=HEADERS, timeout=10
+            )
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, 'html.parser')
+            
+            links = soup.find_all('a', href=lambda x: x and '/live-cricket-scores/' in str(x))
+            
+            matches = []
+            seen_ids = set()
+            
+            for link in links:
+                href = link.get('href', '')
+                text = link.text.strip()
+                parts = href.split('/')
+                cb_id = parts[2] if len(parts) > 2 else ''
+                
+                if cb_id in seen_ids or not cb_id:
+                    continue
+                seen_ids.add(cb_id)
+                
+                # Parse teams and status
+                text_parts = text.split(' - ')
+                teams_part = text_parts[0]
+                status_text = text_parts[1].strip() if len(text_parts) > 1 else 'Preview'
+                
+                team_split = re.split(r'\s+vs\s+', teams_part, maxsplit=1)
+                team_a_name = team_split[0].strip()
+                team_b_raw = team_split[1].strip() if len(team_split) > 1 else ''
+                
+                # Clean team_b (remove "2nd Match" etc)
+                team_b_name = re.sub(r'\d+\w*\s+Match.*$', '', team_b_raw).strip()
+                if not team_b_name:
+                    team_b_name = team_b_raw
+                
+                is_ipl = 'indian-premier-league' in href or 'ipl' in href.lower()
+                
+                matches.append({
+                    'source': 'cricbuzz',
+                    'source_id': cb_id,
+                    'team_a': {'name': team_a_name, 'short_name': _get_short_name(team_a_name)},
+                    'team_b': {'name': team_b_name, 'short_name': _get_short_name(team_b_name)},
+                    'status': _parse_match_status(status_text),
+                    'status_text': status_text,
+                    'is_ipl': is_ipl,
+                    'slug': href,
+                    'url': f"{self.BASE_URL}{href}",
+                })
+            
+            logger.info(f"Cricbuzz: fetched {len(matches)} matches")
+            return matches
+            
+        except Exception as e:
+            logger.error(f"Cricbuzz fetch failed: {e}")
             return []
 
+    def fetch_match_score(self, slug: str) -> Optional[Dict[str, Any]]:
+        """Fetch detailed score for a specific match."""
         try:
-            # Run sync pycricbuzz in executor to not block async loop
-            loop = asyncio.get_running_loop()
-            raw_matches = await loop.run_in_executor(None, self._cb.matches)
-            self._connected = True
-
-            matches = []
-            for m in raw_matches:
-                match = self._parse_match(m)
-                if match:
-                    matches.append(match)
-
-            self._cache[cache_key] = matches
-            self._last_fetch[cache_key] = datetime.now(timezone.utc).timestamp()
-            self._evict_stale_cache()
-            logger.info(f"Fetched {len(matches)} matches from Cricbuzz")
-            return matches
-
+            url = f"{self.BASE_URL}{slug}" if not slug.startswith('http') else slug
+            r = requests.get(url, headers=HEADERS, timeout=10)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, 'html.parser')
+            
+            # Extract score from meta description or page content
+            meta = soup.find('meta', attrs={'name': 'description'})
+            desc = meta.get('content', '') if meta else ''
+            
+            # Extract title for match info
+            title = soup.find('title')
+            title_text = title.text if title else ''
+            
+            return {
+                'source': 'cricbuzz',
+                'description': desc[:200],
+                'title': title_text[:100],
+                'raw_html_size': len(r.text)
+            }
         except Exception as e:
-            logger.warning(f"Cricbuzz fetch failed: {e}")
-            self._connected = False
-            return self._cache.get(cache_key, [])
-
-    async def fetch_live_score(self, cricbuzz_match_id: str) -> Optional[Dict]:
-        """
-        Fetch live score for a specific match.
-        """
-        cache_key = f"score:{cricbuzz_match_id}"
-        if self._is_cache_valid(cache_key):
-            return self._cache.get(cache_key)
-
-        if not self._cb:
+            logger.error(f"Cricbuzz score fetch failed: {e}")
             return None
 
+
+# ==================== CRICKETDATA.ORG API ====================
+
+class CricketDataAPI:
+    """CricketData.org REST API. 100 calls/day free tier."""
+
+    BASE_URL = "https://api.cricapi.com/v1"
+
+    def __init__(self):
+        self.api_key = None
+
+    def _get_key(self):
+        if self.api_key is None:
+            from config.settings import settings
+            self.api_key = settings.CRICKET_API_KEY or os.environ.get("CRICKET_API_KEY", "")
+        return self.api_key
+
+    def _call(self, endpoint: str, params: dict = None) -> Optional[dict]:
+        """Make API call with key."""
+        key = self._get_key()
+        if not key:
+            logger.warning("CRICKET_API_KEY not set")
+            return None
         try:
-            loop = asyncio.get_running_loop()
-            raw = await loop.run_in_executor(None, self._cb.livescore, cricbuzz_match_id)
-            self._connected = True
-
-            score = self._parse_live_score(raw)
-            self._cache[cache_key] = score
-            self._last_fetch[cache_key] = datetime.now(timezone.utc).timestamp()
-            self._evict_stale_cache()
-            return score
-
+            p = {"apikey": key, **(params or {})}
+            r = requests.get(f"{self.BASE_URL}/{endpoint}", params=p, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            if data.get("status") != "success":
+                logger.error(f"CricketData API error: {data}")
+                return None
+            return data
         except Exception as e:
-            logger.warning(f"Cricbuzz live score fetch failed for {cricbuzz_match_id}: {e}")
-            return self._cache.get(cache_key)
-
-    async def fetch_scorecard(self, cricbuzz_match_id: str) -> Optional[Dict]:
-        """Fetch full scorecard for a match."""
-        cache_key = f"scorecard:{cricbuzz_match_id}"
-        if self._is_cache_valid(cache_key):
-            return self._cache.get(cache_key)
-
-        if not self._cb:
+            logger.error(f"CricketData API failed: {e}")
             return None
 
-        try:
-            loop = asyncio.get_running_loop()
-            raw = await loop.run_in_executor(None, self._cb.scorecard, cricbuzz_match_id)
-            self._connected = True
-            self._cache[cache_key] = raw
-            self._last_fetch[cache_key] = datetime.now(timezone.utc).timestamp()
-            self._evict_stale_cache()
-            return raw
+    def fetch_matches(self) -> List[Dict[str, Any]]:
+        """Fetch current matches."""
+        data = self._call("currentMatches")
+        if not data:
+            return []
 
-        except Exception as e:
-            logger.warning(f"Cricbuzz scorecard fetch failed: {e}")
-            return self._cache.get(cache_key)
+        matches = []
+        for m in data.get("data", []):
+            team_info = m.get("teamInfo", [])
+            if len(team_info) < 2:
+                continue
 
-    def _parse_match(self, raw: Dict) -> Optional[Dict]:
-        """Parse raw Cricbuzz match into our format."""
-        try:
-            match_id = raw.get("id", "")
-            status_raw = raw.get("mchstate", "").lower()
+            t1_name = team_info[0].get("name", "?")
+            t1_short = team_info[0].get("shortname", _get_short_name(t1_name))
+            t2_name = team_info[1].get("name", "?")
+            t2_short = team_info[1].get("shortname", _get_short_name(t2_name))
 
-            # Map Cricbuzz states to our states
-            if "live" in status_raw or "progress" in status_raw or "innings" in status_raw:
-                status = "live"
-            elif "complete" in status_raw or "result" in status_raw:
+            status_text = m.get("status", "")
+            match_started = m.get("matchStarted", False)
+            match_ended = m.get("matchEnded", False)
+
+            if match_ended:
                 status = "completed"
-            elif "upcoming" in status_raw or "toss" in status_raw:
-                status = "upcoming"
+            elif match_started:
+                status = "live"
             else:
                 status = "upcoming"
 
-            # Extract team names from match description
-            mchdesc = raw.get("mchdesc", "")
-            teams = mchdesc.split(" vs ") if " vs " in mchdesc else [mchdesc, ""]
-
-            team_a_name = teams[0].strip() if len(teams) > 0 else "Team A"
-            team_b_name = teams[1].strip() if len(teams) > 1 else "Team B"
-
-            # Generate short names (first 2-3 chars or known abbreviations)
-            IPL_TEAMS = {
-                "Mumbai Indians": "MI", "Chennai Super Kings": "CSK",
-                "Royal Challengers": "RCB", "Royal Challengers Bengaluru": "RCB",
-                "Kolkata Knight Riders": "KKR", "Delhi Capitals": "DC",
-                "Punjab Kings": "PBKS", "Sunrisers Hyderabad": "SRH",
-                "Rajasthan Royals": "RR", "Gujarat Titans": "GT",
-                "Lucknow Super Giants": "LSG",
-                "India": "IND", "Australia": "AUS", "England": "ENG",
-                "Pakistan": "PAK", "South Africa": "SA", "New Zealand": "NZ",
-                "Sri Lanka": "SL", "Bangladesh": "BAN", "West Indies": "WI",
-                "Afghanistan": "AFG", "Zimbabwe": "ZIM", "Ireland": "IRE",
-            }
-
-            def get_short(name):
-                for full, short in IPL_TEAMS.items():
-                    if full.lower() in name.lower():
-                        return short
-                return name[:3].upper()
-
-            return {
-                "cricbuzz_id": str(match_id),
-                "team_a": {
-                    "name": team_a_name,
-                    "short_name": get_short(team_a_name)
-                },
-                "team_b": {
-                    "name": team_b_name,
-                    "short_name": get_short(team_b_name)
-                },
-                "series": raw.get("srs", ""),
-                "match_number": raw.get("mnum", ""),
-                "status": status,
-                "status_text": raw.get("status", ""),
-                "venue": raw.get("venue", {}).get("name", "") if isinstance(raw.get("venue"), dict) else raw.get("vcity", ""),
-                "match_type": raw.get("type", "T20").upper()
-            }
-        except Exception as e:
-            logger.warning(f"Error parsing match: {e}")
-            return None
-
-    def _parse_live_score(self, raw: Dict) -> Optional[Dict]:
-        """Parse live score data."""
-        try:
-            innings = raw.get("innings", [])
-            current = innings[-1] if innings else {}
-
-            batting_team = current.get("batting_team", "")
-            score = current.get("score", "0/0")
-            overs = current.get("overs", "0.0")
-
-            # Parse score components
-            parts = score.split("/")
-            runs = int(parts[0]) if parts else 0
-            wickets = int(parts[1]) if len(parts) > 1 else 0
-
-            # Parse batsmen
-            batsmen = []
-            for b in current.get("batsmen", []):
-                batsmen.append({
-                    "name": b.get("name", ""),
-                    "runs": b.get("runs", 0),
-                    "balls": b.get("balls", 0),
-                    "fours": b.get("fours", 0),
-                    "sixes": b.get("sixes", 0),
-                    "strike_rate": b.get("strike_rate", "0.0")
+            # Parse scores
+            scores = []
+            for s in m.get("score", []):
+                scores.append({
+                    "inning": s.get("inning", ""),
+                    "runs": s.get("r", 0),
+                    "wickets": s.get("w", 0),
+                    "overs": s.get("o", 0)
                 })
 
-            # Parse bowler
-            bowlers = []
-            for b in current.get("bowlers", []):
-                bowlers.append({
-                    "name": b.get("name", ""),
-                    "overs": b.get("overs", "0"),
-                    "maidens": b.get("maidens", 0),
-                    "runs": b.get("runs_conceded", 0),
-                    "wickets": b.get("wickets", 0)
-                })
+            name_str = m.get("name", "")
+            is_ipl = any(k in name_str.lower() for k in ['ipl', 'indian premier league'])
 
-            return {
-                "batting_team": batting_team,
-                "score": score,
-                "runs": runs,
-                "wickets": wickets,
-                "overs": overs,
-                "run_rate": current.get("runrate", "0.00"),
-                "batsmen": batsmen,
-                "bowlers": bowlers,
-                "recent_balls": current.get("recent_balls", ""),
-                "innings_count": len(innings),
-                "all_innings": [
-                    {
-                        "batting_team": inn.get("batting_team", ""),
-                        "score": inn.get("score", "0/0"),
-                        "overs": inn.get("overs", "0.0")
-                    }
-                    for inn in innings
-                ]
-            }
-        except Exception as e:
-            logger.warning(f"Error parsing live score: {e}")
-            return None
+            matches.append({
+                'source': 'cricketdata',
+                'source_id': m.get("id", ""),
+                'team_a': {'name': t1_name, 'short_name': t1_short},
+                'team_b': {'name': t2_name, 'short_name': t2_short},
+                'status': status,
+                'status_text': status_text,
+                'is_ipl': is_ipl,
+                'scores': scores,
+                'venue': m.get("venue", ""),
+                'date': m.get("dateTimeGMT", ""),
+                'match_type': m.get("matchType", ""),
+            })
+
+        logger.info(f"CricketData: fetched {len(matches)} matches (API call used)")
+        return matches
+
+    def get_api_info(self) -> dict:
+        """Get API usage info."""
+        data = self._call("currentMatches")
+        if data:
+            return data.get("info", {})
+        return {}
+
+
+# ==================== UNIFIED SERVICE ====================
+
+class UnifiedCricketService:
+    """
+    Unified cricket data service.
+    PRIMARY: Cricbuzz (unlimited, scraping)
+    FALLBACK: CricketData.org (100/day, REST API)
+    
+    Cache: In-memory with TTL to minimize calls.
+    """
+
+    def __init__(self):
+        self.cricbuzz = CricbuzzScraper()
+        self.cricketdata = CricketDataAPI()
+        self._cache: Dict[str, Any] = {}
+        self._cache_time: Dict[str, float] = {}
+        self._cache_ttl = 60  # 60 seconds cache
+        self._last_source = "none"
+
+    def _is_cached(self, key: str) -> bool:
+        return key in self._cache and \
+            (datetime.now(timezone.utc).timestamp() - self._cache_time.get(key, 0)) < self._cache_ttl
+
+    def _set_cache(self, key: str, value: Any):
+        self._cache[key] = value
+        self._cache_time[key] = datetime.now(timezone.utc).timestamp()
+        # Evict old entries
+        if len(self._cache) > 50:
+            oldest = min(self._cache_time, key=self._cache_time.get)
+            self._cache.pop(oldest, None)
+            self._cache_time.pop(oldest, None)
+
+    async def get_live_matches(self, ipl_only: bool = False) -> Dict[str, Any]:
+        """
+        Get current matches. Tries Cricbuzz first, falls back to CricketData.
+        Returns: {matches: [], source: str, cached: bool}
+        """
+        cache_key = f"matches_ipl_{ipl_only}"
+        if self._is_cached(cache_key):
+            return {**self._cache[cache_key], "cached": True}
+
+        # Try Cricbuzz first (unlimited)
+        loop = asyncio.get_running_loop()
+        matches = await loop.run_in_executor(None, self.cricbuzz.fetch_matches)
+
+        if matches:
+            self._last_source = "cricbuzz"
+            if ipl_only:
+                matches = [m for m in matches if m.get('is_ipl')]
+            result = {"matches": matches, "source": "cricbuzz", "cached": False, "count": len(matches)}
+            self._set_cache(cache_key, result)
+            return result
+
+        # Fallback to CricketData.org
+        logger.info("Cricbuzz failed, falling back to CricketData.org")
+        matches = await loop.run_in_executor(None, self.cricketdata.fetch_matches)
+
+        if matches:
+            self._last_source = "cricketdata"
+            if ipl_only:
+                matches = [m for m in matches if m.get('is_ipl')]
+            result = {"matches": matches, "source": "cricketdata", "cached": False, "count": len(matches)}
+            self._set_cache(cache_key, result)
+            return result
+
+        # Both failed
+        self._last_source = "none"
+        return {"matches": [], "source": "none", "cached": False, "count": 0, "error": "Both sources failed"}
+
+    async def get_match_score(self, slug: str) -> Optional[Dict]:
+        """Get detailed score for a Cricbuzz match."""
+        cache_key = f"score_{slug}"
+        if self._is_cached(cache_key):
+            return self._cache[cache_key]
+
+        loop = asyncio.get_running_loop()
+        score = await loop.run_in_executor(None, self.cricbuzz.fetch_match_score, slug)
+        if score:
+            self._set_cache(cache_key, score)
+        return score
 
     @property
     def is_connected(self) -> bool:
-        return self._connected
+        return self._last_source != "none"
+
+    @property
+    def last_source(self) -> str:
+        return self._last_source
+
+    def get_status(self) -> dict:
+        return {
+            "connected": self.is_connected,
+            "last_source": self._last_source,
+            "cache_size": len(self._cache),
+            "cricketdata_key_set": bool(self.cricketdata._get_key()),
+        }
 
 
-# Singleton instance
-cricket_data_service = CricketDataService()
+# Singleton
+cricket_service = UnifiedCricketService()

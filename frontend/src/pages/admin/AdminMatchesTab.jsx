@@ -75,6 +75,19 @@ export default function AdminMatchesTab() {
     } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncLive = async () => {
+    setSyncing(true);
+    try {
+      const res = await apiClient.post('/matches/live/sync?ipl_only=true');
+      const d = res.data;
+      setMsg(`Synced! Source: ${d.source} | Created: ${d.created} | Updated: ${d.updated} | Auto-Contests: ${d.contests_auto_created || 0}`);
+      fetchAll();
+    } catch (e) { setMsg(`Sync error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setSyncing(false); }
+  };
+
   const handleAssignTemplates = async (matchId) => {
     if (selectedTemplateIds.length === 0) { setMsg('Select at least 1 template'); return; }
     try {
@@ -96,10 +109,17 @@ export default function AdminMatchesTab() {
     <div className="space-y-3">
       {msg && <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{msg}</div>}
 
-      <button data-testid="create-match-btn" onClick={() => setShowCreate(!showCreate)}
-        className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: COLORS.primary.main, color: '#fff' }}>
-        <Plus size={14} /> Create Match
-      </button>
+      <div className="flex gap-2">
+        <button data-testid="sync-live-btn" onClick={handleSyncLive} disabled={syncing}
+          className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
+          style={{ background: COLORS.success.main + '22', color: COLORS.success.main, border: `1px solid ${COLORS.success.main}33` }}>
+          {syncing ? 'Syncing...' : 'Sync IPL Live'}
+        </button>
+        <button data-testid="create-match-btn" onClick={() => setShowCreate(!showCreate)}
+          className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: COLORS.primary.main, color: '#fff' }}>
+          <Plus size={14} /> Create Match
+        </button>
+      </div>
 
       {showCreate && (
         <div className="space-y-3 p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>

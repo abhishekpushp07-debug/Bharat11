@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     SCRAPER_RETRY_ATTEMPTS: int = Field(default=3)
     SCORE_UPDATE_INTERVAL_SECONDS: int = Field(default=5)
     
+    # Cricket Data API
+    CRICKET_API_KEY: str = Field(default="")
+    
     @field_validator('CORS_ORIGINS', mode='before')
     @classmethod
     def parse_cors_origins(cls, v: str) -> str:

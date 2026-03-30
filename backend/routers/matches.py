@@ -399,127 +399,158 @@ async def assign_template(
 
 
 
-# ==================== LIVE CRICKET DATA (Cricbuzz) ====================
+# ==================== LIVE CRICKET DATA (Unified) ====================
 
 @router.get(
-    "/live/cricbuzz",
-    summary="Fetch live matches from Cricbuzz",
-    description="Returns real-time match data from Cricbuzz. Free, 2-ball delay."
+    "/live/cricket",
+    summary="Fetch live matches from Cricbuzz + CricketData.org fallback"
 )
-async def get_cricbuzz_live():
-    from services.cricket_data import cricket_data_service
-    matches = await cricket_data_service.fetch_live_matches()
-    return {
-        "source": "cricbuzz",
-        "connected": cricket_data_service.is_connected,
-        "matches": matches,
-        "total": len(matches)
-    }
+async def get_live_cricket(ipl_only: bool = Query(default=False)):
+    from services.cricket_data import cricket_service
+    data = await cricket_service.get_live_matches(ipl_only=ipl_only)
+    return data
+
+
+@router.get(
+    "/live/status",
+    summary="Get cricket data service status"
+)
+async def get_cricket_status():
+    from services.cricket_data import cricket_service
+    return cricket_service.get_status()
 
 
 @router.post(
     "/live/sync",
-    summary="Sync live matches from Cricbuzz to DB (Admin)",
-    description="Fetch matches from Cricbuzz and create/update them in our database"
+    summary="Sync live matches to DB (Admin) - auto creates matches + contests"
 )
-async def sync_cricbuzz_matches(
+async def sync_live_matches(
     current_user: AdminUser,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    ipl_only: bool = Query(default=True)
 ):
-    from services.cricket_data import cricket_data_service
+    from services.cricket_data import cricket_service
 
-    cb_matches = await cricket_data_service.fetch_live_matches()
-    if not cb_matches:
-        return {"synced": 0, "message": "No matches from Cricbuzz (might be offline)"}
+    data = await cricket_service.get_live_matches(ipl_only=ipl_only)
+    live_matches = data.get("matches", [])
+
+    if not live_matches:
+        return {
+            "synced": 0,
+            "source": data.get("source", "none"),
+            "message": "No matches found from any source"
+        }
 
     created = 0
     updated = 0
+    contests_created = 0
     now = utc_now().isoformat()
 
-    for cb in cb_matches:
-        cricbuzz_id = cb.get("cricbuzz_id", "")
-        if not cricbuzz_id:
+    for lm in live_matches:
+        source_id = lm.get("source_id", "")
+        if not source_id:
             continue
 
+        # Check if already exists
         existing = await db.matches.find_one(
-            {"external_match_id": cricbuzz_id},
-            {"_id": 0, "id": 1}
+            {"external_match_id": source_id}, {"_id": 0}
         )
 
         if existing:
-            # Update status
+            # Update status if changed
+            new_status = lm.get("status", "upcoming")
+            old_status = existing.get("status", "upcoming")
+            updates = {"updated_at": now, "status_text": lm.get("status_text", "")}
+
+            if new_status != old_status:
+                VALID = {"upcoming": ["live", "completed"], "live": ["completed"]}
+                if new_status in VALID.get(old_status, []):
+                    updates["status"] = new_status
+
+            # Update scores if available
+            if lm.get("scores"):
+                updates["live_score"] = {"scores": lm["scores"], "updated_at": now}
+
             await db.matches.update_one(
-                {"external_match_id": cricbuzz_id},
-                {"$set": {
-                    "status": cb["status"],
-                    "updated_at": now
-                }}
+                {"external_match_id": source_id}, {"$set": updates}
             )
             updated += 1
+
+            # Auto-contest on status change to live
+            if updates.get("status") == "live":
+                contest_count = await db.contests.count_documents({"match_id": existing["id"]})
+                if contest_count == 0:
+                    match_data = await db.matches.find_one({"id": existing["id"]}, {"_id": 0})
+                    ac = await _auto_create_contest(db, match_data)
+                    if ac:
+                        contests_created += 1
         else:
             # Create new match
+            team_a = lm.get("team_a", {})
+            team_b = lm.get("team_b", {})
+            start_time = lm.get("date", now)
+
             match = {
                 "id": generate_id(),
-                "external_match_id": cricbuzz_id,
-                "team_a": cb["team_a"],
-                "team_b": cb["team_b"],
-                "match_type": cb.get("match_type", "T20"),
-                "venue": cb.get("venue", ""),
-                "start_time": now,
-                "tournament": cb.get("series", ""),
-                "status": cb["status"],
-                "live_score": None,
+                "external_match_id": source_id,
+                "source": lm.get("source", "unknown"),
+                "team_a": team_a,
+                "team_b": team_b,
+                "match_type": lm.get("match_type", "T20"),
+                "venue": lm.get("venue", ""),
+                "start_time": start_time,
+                "status": lm.get("status", "upcoming"),
+                "status_text": lm.get("status_text", ""),
+                "live_score": {"scores": lm.get("scores", []), "updated_at": now} if lm.get("scores") else None,
                 "templates_assigned": [],
                 "created_at": now,
                 "updated_at": now
             }
             await db.matches.insert_one(match)
+            del match["_id"]
             created += 1
 
+            # Auto-create contest for new match
+            ac = await _auto_create_contest(db, match)
+            if ac:
+                contests_created += 1
+
     return {
-        "synced": created + updated,
+        "source": data.get("source", "none"),
+        "total_from_source": len(live_matches),
         "created": created,
         "updated": updated,
-        "source_matches": len(cb_matches),
-        "connected": cricket_data_service.is_connected
+        "contests_auto_created": contests_created,
+        "synced": created + updated,
     }
 
 
 @router.post(
     "/{match_id}/sync-score",
-    summary="Sync live score from Cricbuzz for a match",
-    description="Pull latest score from Cricbuzz and update match live_score"
+    summary="Sync live score for a match"
 )
 async def sync_match_score(
     match_id: str,
     current_user: AdminUser,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    from services.cricket_data import cricket_data_service
+    from services.cricket_data import cricket_service
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
 
-    cricbuzz_id = match.get("external_match_id")
-    if not cricbuzz_id:
-        raise HTTPException(status_code=400, detail="No Cricbuzz ID linked to this match")
+    slug = match.get("slug") or match.get("external_match_id")
+    if not slug:
+        raise HTTPException(status_code=400, detail="No external ID linked")
 
-    score = await cricket_data_service.fetch_live_score(cricbuzz_id)
+    score = await cricket_service.get_match_score(slug)
     if not score:
         return {"match_id": match_id, "updated": False, "message": "Could not fetch score"}
 
     await db.matches.update_one(
         {"id": match_id},
-        {"$set": {
-            "live_score": score,
-            "status": "live",
-            "updated_at": utc_now().isoformat()
-        }}
+        {"$set": {"live_score": score, "updated_at": utc_now().isoformat()}}
     )
 
-    return {
-        "match_id": match_id,
-        "updated": True,
-        "score": score
-    }
+    return {"match_id": match_id, "updated": True, "score": score}
