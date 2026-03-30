@@ -40,12 +40,12 @@ export default function AdminDashboard({ onNavigate }) {
   }
 
   const statCards = [
-    { label: 'Users', value: stats?.users || 0, Icon: Users, color: COLORS.primary.main },
-    { label: 'Questions', value: stats?.questions || 0, Icon: HelpCircle, color: COLORS.info.main },
-    { label: 'Templates', value: stats?.templates || 0, Icon: FileText, color: COLORS.warning.main },
-    { label: 'Matches', value: stats?.matches || 0, Icon: Calendar, color: COLORS.success.main },
-    { label: 'Contests', value: stats?.contests || 0, Icon: Trophy, color: COLORS.accent.gold },
-    { label: 'Entries', value: stats?.active_entries || 0, Icon: Zap, color: COLORS.accent.purple },
+    { label: 'Users', value: stats?.users || 0, Icon: Users, color: COLORS.primary.main, tab: null },
+    { label: 'Questions', value: stats?.questions || 0, Icon: HelpCircle, color: COLORS.info.main, tab: 'content' },
+    { label: 'Templates', value: stats?.templates || 0, Icon: FileText, color: COLORS.warning.main, tab: 'content' },
+    { label: 'Matches', value: stats?.matches || 0, Icon: Calendar, color: COLORS.success.main, tab: 'matches' },
+    { label: 'Contests', value: stats?.contests || 0, Icon: Trophy, color: COLORS.accent.gold, tab: 'matches' },
+    { label: 'Entries', value: stats?.active_entries || 0, Icon: Zap, color: COLORS.accent.purple, tab: 'resolve' },
   ];
 
   const liveCount = stats?.live_matches || 0;
@@ -65,14 +65,18 @@ export default function AdminDashboard({ onNavigate }) {
         </div>
       )}
 
-      {/* Stats Grid */}
+      {/* Stats Grid - All Clickable */}
       <div className="grid grid-cols-3 gap-2.5">
-        {statCards.map(({ label, value, Icon, color }) => (
-          <div key={label} className="text-center p-3.5 rounded-xl transition-all" style={{ background: COLORS.background.card, border: `1px solid ${color}18` }}>
+        {statCards.map(({ label, value, Icon, color, tab }) => (
+          <button key={label} data-testid={`stat-${label.toLowerCase()}`}
+            onClick={() => tab && onNavigate(tab)}
+            className="text-center p-3.5 rounded-xl transition-all active:scale-95 cursor-pointer card-hover relative overflow-hidden"
+            style={{ background: COLORS.background.card, border: `1px solid ${color}18` }}>
+            {tab && <div className="absolute top-1.5 right-1.5"><ChevronRight size={10} color={`${color}66`} /></div>}
             <Icon size={18} color={color} className="mx-auto mb-1.5" strokeWidth={1.5} />
-            <div className="text-xl font-bold" style={{ color, fontFamily: "'Rajdhani', sans-serif" }}>{value.toLocaleString()}</div>
-            <div className="text-[10px] font-medium mt-0.5" style={{ color: COLORS.text.tertiary }}>{label}</div>
-          </div>
+            <div className="text-xl font-black" style={{ color, fontFamily: "'Rajdhani', sans-serif" }}>{value.toLocaleString()}</div>
+            <div className="text-[10px] font-semibold mt-0.5" style={{ color: COLORS.text.tertiary }}>{label}</div>
+          </button>
         ))}
       </div>
 
@@ -125,19 +129,22 @@ export default function AdminDashboard({ onNavigate }) {
           ].map(({ label, tab, Icon, color }) => (
             <button key={label} data-testid={`quick-${label.toLowerCase().replace(/\s/g, '-')}`}
               onClick={() => onNavigate(tab)}
-              className="flex items-center gap-2.5 p-3 rounded-xl text-left transition-all"
+              className="flex items-center gap-2.5 p-3.5 rounded-xl text-left transition-all active:scale-95 card-hover"
               style={{ background: COLORS.background.card, border: `1px solid ${color}18` }}>
-              <Icon size={16} color={color} />
-              <span className="text-xs font-semibold text-white">{label}</span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}15` }}>
+                <Icon size={16} color={color} />
+              </div>
+              <span className="text-xs font-bold text-white flex-1">{label}</span>
+              <ChevronRight size={14} color={`${color}66`} />
             </button>
           ))}
         </div>
       </div>
 
       {/* Admin Workflow Guide */}
-      <div className="p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: COLORS.text.tertiary }}>Admin Workflow</h3>
-        <div className="space-y-2.5">
+      <div className="p-4 rounded-2xl" style={{ background: COLORS.background.card, border: `1px solid rgba(255,255,255,0.06)` }}>
+        <h3 className="text-[10px] font-black uppercase tracking-[0.12em] mb-3" style={{ color: COLORS.text.tertiary }}>Admin Workflow</h3>
+        <div className="space-y-1.5">
           {[
             { step: 1, text: 'Create questions with bilingual text & points', tab: 'content', color: COLORS.info.main },
             { step: 2, text: 'Build templates (1 Full Match required)', tab: 'content', color: COLORS.warning.main },
@@ -146,11 +153,14 @@ export default function AdminDashboard({ onNavigate }) {
             { step: 5, text: 'Set match LIVE when it starts', tab: 'matches', color: '#FF4444' },
             { step: 6, text: 'Resolve questions & finalize prizes', tab: 'resolve', color: COLORS.accent.purple },
           ].map(({ step, text, tab, color }) => (
-            <button key={step} onClick={() => onNavigate(tab)} className="flex items-center gap-3 w-full text-left">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: color + '22', color }}>
+            <button key={step} onClick={() => onNavigate(tab)}
+              className="flex items-center gap-3 w-full text-left p-2.5 rounded-xl transition-all active:scale-[0.98] card-hover"
+              style={{ background: 'rgba(255,255,255,0.02)' }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: color + '18', color }}>
                 {step}
               </div>
-              <span className="text-xs" style={{ color: COLORS.text.secondary }}>{text}</span>
+              <span className="text-xs font-medium flex-1" style={{ color: COLORS.text.secondary }}>{text}</span>
+              <ChevronRight size={12} color={`${color}55`} />
             </button>
           ))}
         </div>

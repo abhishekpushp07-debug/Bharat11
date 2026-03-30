@@ -3,8 +3,9 @@ import html2canvas from 'html2canvas';
 import { COLORS } from '../constants/design';
 import { getTeamLogo, getTeamGradient, getTeamCardImage } from '../constants/teams';
 import { Share2, X } from 'lucide-react';
+import { BadgeInline } from './PredictionBadge';
 
-export default function ShareCard({ match, rank, totalPlayers, score, totalPoints, correctAnswers, totalQuestions, onClose, moodData }) {
+export default function ShareCard({ match, rank, totalPlayers, score, totalPoints, correctAnswers, totalQuestions, onClose, moodData, badgeData }) {
   const cardRef = useRef(null);
   const [sharing, setSharing] = useState(false);
 
@@ -149,6 +150,9 @@ export default function ShareCard({ match, rank, totalPlayers, score, totalPoint
                 <div className="text-center text-[8px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{moodData.total_votes} votes</div>
               </div>
             )}
+
+            {/* Badge */}
+            {badgeData && badgeData.badge && <BadgeInline badgeData={badgeData} />}
 
             {/* Footer */}
             <div className="text-center">

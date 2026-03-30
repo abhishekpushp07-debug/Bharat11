@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_CARD_IMAGES, getTeamLogo, getTeamGradient, getTeamCardImage, normalizeTeam } from '../constants/teams';
 import { Coins, ChevronRight, Clock, Trophy, Zap, RefreshCw, Activity, ChevronLeft, MapPin } from 'lucide-react';
+import PredictionBadge from '../components/PredictionBadge';
 
 const getTeamGrad = (short) => getTeamGradient(short);
 
@@ -116,6 +117,9 @@ export default function HomePage({ onMatchClick }) {
           </div>
         </div>
       </div>
+
+      {/* Prediction Accuracy Badge */}
+      <PredictionBadge />
 
       {/* Dual Points Banner - Vibrant */}
       <div data-testid="dual-banner" className="grid grid-cols-2 gap-2.5">

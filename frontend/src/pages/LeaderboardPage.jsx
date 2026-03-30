@@ -166,6 +166,7 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
   const [loading, setLoading] = useState(true);
   const [showShare, setShowShare] = useState(false);
   const [moodData, setMoodData] = useState(null);
+  const [badgeData, setBadgeData] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -183,6 +184,11 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
           setMoodData(moodRes.data);
         } catch (_) {}
       }
+      // Fetch badge data
+      try {
+        const badgeRes = await apiClient.get('/contests/global/my-badge');
+        setBadgeData(badgeRes.data);
+      } catch (_) {}
     } catch (_) { /* silent */ }
     finally { setLoading(false); }
   }, [contestId, match?.id]);
@@ -331,6 +337,7 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
           correctAnswers={myPos.correct_count || 0}
           totalQuestions={myPos.predictions_count || 0}
           moodData={moodData}
+          badgeData={badgeData}
           onClose={() => setShowShare(false)}
         />
       )}

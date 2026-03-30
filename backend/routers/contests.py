@@ -897,3 +897,144 @@ async def get_user_answers(
         "predictions": questions,
         "contest_name": contest.get("name", "") if contest else ""
     }
+
+
+# ==================== GLOBAL PREDICTION ACCURACY LEADERBOARD ====================
+
+@router.get(
+    "/global/prediction-leaderboard",
+    summary="Global Prediction Accuracy Leaderboard",
+    description="Ranks ALL users by total correct answers across ALL contests, irrespective of wins."
+)
+async def global_prediction_leaderboard(
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Aggregates correct predictions across every contest for every user.
+    Returns ranked list with badge info (Pink Diamond #1, Gold #2, Silver #3, Blue Crystal #4+).
+    """
+    pipeline = [
+        # Unwind predictions array
+        {"$unwind": "$predictions"},
+        # Only count settled predictions (is_correct not null)
+        {"$match": {"predictions.is_correct": {"$ne": None}}},
+        # Group by user
+        {"$group": {
+            "_id": "$user_id",
+            "total_correct": {"$sum": {"$cond": ["$predictions.is_correct", 1, 0]}},
+            "total_attempted": {"$sum": 1},
+            "total_points_earned": {"$sum": "$predictions.points_earned"},
+            "contests_played": {"$addToSet": "$contest_id"},
+        }},
+        # Add computed fields
+        {"$addFields": {
+            "accuracy_pct": {
+                "$round": [{"$multiply": [{"$divide": ["$total_correct", {"$max": ["$total_attempted", 1]}]}, 100]}, 1]
+            },
+            "contests_count": {"$size": "$contests_played"},
+        }},
+        # Sort by total_correct DESC, then accuracy DESC
+        {"$sort": {"total_correct": -1, "accuracy_pct": -1}},
+        {"$limit": limit},
+    ]
+
+    results = await db.contest_entries.aggregate(pipeline).to_list(limit)
+
+    # Fetch user details
+    user_ids = [r["_id"] for r in results]
+    users_cursor = db.users.find(
+        {"id": {"$in": user_ids}},
+        {"_id": 0, "id": 1, "username": 1, "phone": 1, "avatar_url": 1}
+    )
+    users_list = await users_cursor.to_list(len(user_ids))
+    users_map = {u["id"]: u for u in users_list}
+
+    leaderboard = []
+    for rank, r in enumerate(results, 1):
+        u = users_map.get(r["_id"], {})
+        badge = "pink_diamond" if rank == 1 else "gold" if rank == 2 else "silver" if rank == 3 else "blue_crystal"
+        leaderboard.append({
+            "rank": rank,
+            "user_id": r["_id"],
+            "username": u.get("username", "Unknown"),
+            "avatar_url": u.get("avatar_url"),
+            "total_correct": r["total_correct"],
+            "total_attempted": r["total_attempted"],
+            "accuracy_pct": r["accuracy_pct"],
+            "total_points_earned": r["total_points_earned"],
+            "contests_count": r["contests_count"],
+            "badge": badge,
+        })
+
+    return {"leaderboard": leaderboard, "total_ranked": len(leaderboard)}
+
+
+@router.get(
+    "/global/my-badge",
+    summary="Get current user's prediction badge",
+    description="Returns the user's global prediction rank, badge, accuracy stats."
+)
+async def get_my_badge(
+    current_user: CurrentUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Get the current user's global prediction accuracy badge."""
+    user_id = current_user.id
+
+    # Get this user's stats
+    pipeline = [
+        {"$match": {"user_id": user_id}},
+        {"$unwind": "$predictions"},
+        {"$match": {"predictions.is_correct": {"$ne": None}}},
+        {"$group": {
+            "_id": "$user_id",
+            "total_correct": {"$sum": {"$cond": ["$predictions.is_correct", 1, 0]}},
+            "total_attempted": {"$sum": 1},
+            "total_points_earned": {"$sum": "$predictions.points_earned"},
+            "contests_played": {"$addToSet": "$contest_id"},
+        }},
+    ]
+    user_stats = await db.contest_entries.aggregate(pipeline).to_list(1)
+
+    if not user_stats:
+        return {
+            "rank": None,
+            "badge": None,
+            "total_correct": 0,
+            "total_attempted": 0,
+            "accuracy_pct": 0,
+            "total_points_earned": 0,
+            "contests_count": 0,
+        }
+
+    stats = user_stats[0]
+    total_correct = stats["total_correct"]
+    total_attempted = stats["total_attempted"]
+    accuracy_pct = round((total_correct / max(total_attempted, 1)) * 100, 1)
+
+    # Count how many users have more correct answers
+    rank_pipeline = [
+        {"$unwind": "$predictions"},
+        {"$match": {"predictions.is_correct": {"$ne": None}}},
+        {"$group": {
+            "_id": "$user_id",
+            "total_correct": {"$sum": {"$cond": ["$predictions.is_correct", 1, 0]}},
+        }},
+        {"$match": {"total_correct": {"$gt": total_correct}}},
+        {"$count": "above"},
+    ]
+    above = await db.contest_entries.aggregate(rank_pipeline).to_list(1)
+    rank = (above[0]["above"] if above else 0) + 1
+
+    badge = "pink_diamond" if rank == 1 else "gold" if rank == 2 else "silver" if rank == 3 else "blue_crystal"
+
+    return {
+        "rank": rank,
+        "badge": badge,
+        "total_correct": total_correct,
+        "total_attempted": total_attempted,
+        "accuracy_pct": accuracy_pct,
+        "total_points_earned": stats["total_points_earned"],
+        "contests_count": len(stats["contests_played"]),
+    }
