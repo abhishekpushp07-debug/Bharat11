@@ -1,11 +1,12 @@
 /**
- * Admin Resolve Page - Auto-Settlement Engine UI
- * Manual resolve + Auto-settle toggle + Live scorecard metrics
+ * Admin Resolve Page - Auto-Settlement + Auto-Pilot + Rich Scorecard
+ * Manual resolve + Auto-settle + Auto-Pilot Mode (45s polling)
  */
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
-import { ArrowLeft, CheckCircle, Award, AlertCircle, Zap, RefreshCw, Activity, Target, TrendingUp, Clock } from 'lucide-react';
+import ScorecardView from '../../components/ScorecardView';
+import { ArrowLeft, CheckCircle, Award, AlertCircle, Zap, RefreshCw, Activity, Target, Eye, Power } from 'lucide-react';
 
 export default function AdminResolvePage() {
   const [contests, setContests] = useState([]);
@@ -19,7 +20,11 @@ export default function AdminResolvePage() {
   const [settlementStatus, setSettlementStatus] = useState([]);
   const [settlingMatch, setSettlingMatch] = useState(null);
   const [settlementResult, setSettlementResult] = useState(null);
-  const [activeTab, setActiveTab] = useState('contests'); // 'contests' | 'settlement'
+  const [activeTab, setActiveTab] = useState('settlement');
+  const [autopilot, setAutopilot] = useState({ running: false, run_count: 0, recent_log: [] });
+  const [showScorecard, setShowScorecard] = useState(null);
+  const [scorecardData, setScorecardData] = useState(null);
+  const [scorecardLoading, setScorecardLoading] = useState(false);
 
   const fetchContests = async () => {
     try {
@@ -36,13 +41,29 @@ export default function AdminResolvePage() {
     } catch (_) {}
   }, []);
 
+  const fetchAutopilotStatus = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/admin/autopilot/status');
+      setAutopilot(res.data);
+    } catch (_) {}
+  }, []);
+
   useEffect(() => {
     fetchContests();
     fetchSettlementStatus();
-  }, [fetchSettlementStatus]);
+    fetchAutopilotStatus();
+    // Poll autopilot status every 10s
+    const interval = setInterval(() => {
+      if (activeTab === 'settlement') {
+        fetchAutopilotStatus();
+        fetchSettlementStatus();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchSettlementStatus, fetchAutopilotStatus, activeTab]);
 
   const loadQuestions = async (contestId) => {
-    setActionMsg('Loading questions...');
+    setActionMsg('Loading...');
     try {
       const res = await apiClient.get(`/contests/${contestId}/questions`);
       const qs = res.data.questions || [];
@@ -51,70 +72,78 @@ export default function AdminResolvePage() {
       const resolved = {};
       qs.forEach(q => { if (q.correct_option) resolved[q.id] = q.correct_option; });
       setResolvedMap(resolved);
-      setActionMsg(qs.length > 0 ? '' : 'No questions found');
-    } catch (e) {
-      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
-    }
+      setActionMsg('');
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
   const resolveQuestion = async (contestId, questionId, correctOption) => {
     setResolvingQ(questionId);
     try {
-      const res = await apiClient.post(`/contests/${contestId}/resolve`, {
-        question_id: questionId, correct_option: correctOption
-      });
-      if (res.data.message === 'Question already resolved') {
-        setActionMsg(`Already resolved: ${res.data.correct_option}`);
-      } else {
-        setActionMsg(`Resolved: ${correctOption} | ${res.data.correct}/${res.data.entries_evaluated} correct`);
-      }
+      const res = await apiClient.post(`/contests/${contestId}/resolve`, { question_id: questionId, correct_option: correctOption });
+      setActionMsg(res.data.message === 'Question already resolved'
+        ? `Already: ${res.data.correct_option}`
+        : `${correctOption} | ${res.data.correct}/${res.data.entries_evaluated} correct`);
       setResolvedMap(prev => ({ ...prev, [questionId]: correctOption }));
-    } catch (e) {
-      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
-    } finally { setResolvingQ(null); }
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setResolvingQ(null); }
   };
 
   const finalizeContest = async (contestId) => {
     setFinalizing(true);
     try {
       const res = await apiClient.post(`/contests/${contestId}/finalize`);
-      const topNames = res.data.top_3?.map(t => `#${t.rank} ${t.username}`).join(', ') || 'N/A';
-      setActionMsg(`Finalized! ${res.data.prizes_distributed} coins distributed. Winners: ${topNames}`);
+      setActionMsg(`Finalized! ${res.data.prizes_distributed} coins distributed`);
       setSelectedContest(null);
-      setResolvedMap({});
       fetchContests();
-    } catch (e) {
-      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
-    } finally { setFinalizing(false); }
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setFinalizing(false); }
   };
 
-  // AUTO-SETTLEMENT
   const runAutoSettlement = async (matchId) => {
     setSettlingMatch(matchId);
     setSettlementResult(null);
     try {
       const res = await apiClient.post(`/admin/settlement/${matchId}/run`);
       setSettlementResult(res.data);
-      if (res.data.error) {
-        setActionMsg(`Settlement: ${res.data.error}`);
-      } else {
-        setActionMsg(`Auto-settled: ${res.data.total_resolved} resolved, ${res.data.total_skipped} skipped`);
-      }
+      setActionMsg(res.data.error
+        ? `Settlement: ${res.data.error}`
+        : `Auto-settled: ${res.data.total_resolved} resolved`);
       fetchSettlementStatus();
       fetchContests();
-    } catch (e) {
-      setActionMsg(`Settlement Error: ${e?.response?.data?.detail || e.message}`);
-    } finally { setSettlingMatch(null); }
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+    finally { setSettlingMatch(null); }
+  };
+
+  const toggleAutopilot = async () => {
+    try {
+      if (autopilot.running) {
+        const res = await apiClient.post('/admin/autopilot/stop');
+        setAutopilot(prev => ({ ...prev, running: false }));
+        setActionMsg('Auto-Pilot stopped');
+      } else {
+        const res = await apiClient.post('/admin/autopilot/start');
+        setAutopilot(prev => ({ ...prev, running: true }));
+        setActionMsg('Auto-Pilot started! Polling every 45s');
+      }
+      fetchAutopilotStatus();
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+  };
+
+  const loadScorecard = async (matchId) => {
+    setScorecardLoading(true);
+    try {
+      const res = await apiClient.get(`/admin/scorecard/${matchId}`);
+      setScorecardData(res.data);
+      setShowScorecard(matchId);
+    } catch (e) { setActionMsg(`Scorecard: ${e?.response?.data?.detail || e.message}`); }
+    finally { setScorecardLoading(false); }
   };
 
   const seedAutoQuestions = async () => {
     try {
       const res = await apiClient.post('/admin/questions/bulk-import-with-auto');
-      setActionMsg(`${res.data.message}`);
-      fetchSettlementStatus();
-    } catch (e) {
-      setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`);
-    }
+      setActionMsg(res.data.message);
+    } catch (e) { setActionMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
   };
 
   const resolvedCount = Object.keys(resolvedMap).length;
@@ -122,31 +151,22 @@ export default function AdminResolvePage() {
   const allResolved = totalQuestions > 0 && resolvedCount >= totalQuestions;
   const progressPct = totalQuestions > 0 ? Math.round((resolvedCount / totalQuestions) * 100) : 0;
 
-  // TAB HEADER
-  const TabHeader = () => (
-    <div className="flex gap-1 p-1 rounded-xl mb-3" style={{ background: COLORS.background.tertiary }}>
-      {[
-        { key: 'contests', label: 'Manual Resolve', icon: Target },
-        { key: 'settlement', label: 'Auto-Settle', icon: Zap }
-      ].map(tab => (
-        <button
-          key={tab.key}
-          data-testid={`tab-${tab.key}`}
-          onClick={() => { setActiveTab(tab.key); setSelectedContest(null); setSettlementResult(null); setActionMsg(''); }}
-          className="flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-          style={{
-            background: activeTab === tab.key ? COLORS.accent.gold : 'transparent',
-            color: activeTab === tab.key ? '#000' : COLORS.text.tertiary
-          }}
-        >
-          <tab.icon size={14} />
-          {tab.label}
+  // ==================== SCORECARD VIEW ====================
+  if (showScorecard && scorecardData) {
+    return (
+      <div className="space-y-3">
+        <button onClick={() => { setShowScorecard(null); setScorecardData(null); }}
+          className="text-xs flex items-center gap-1" style={{ color: COLORS.text.secondary }}>
+          <ArrowLeft size={14} /> Back to Settlement
         </button>
-      ))}
-    </div>
-  );
+        <div className="text-sm font-bold text-white">{scorecardData.match_name}</div>
+        <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{scorecardData.venue}</div>
+        <ScorecardView data={scorecardData} />
+      </div>
+    );
+  }
 
-  // ==================== RESOLUTION VIEW ====================
+  // ==================== MANUAL RESOLUTION VIEW ====================
   if (selectedContest) {
     const contest = contests.find(c => c.id === selectedContest);
     return (
@@ -169,9 +189,7 @@ export default function AdminResolvePage() {
         </div>
 
         {actionMsg && (
-          <div className="text-xs text-center py-2 rounded-xl" style={{ background: COLORS.background.card, color: COLORS.info.main }}>
-            {actionMsg}
-          </div>
+          <div className="text-xs text-center py-2 rounded-xl" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>
         )}
 
         <div className="space-y-2.5">
@@ -188,41 +206,30 @@ export default function AdminResolvePage() {
                 <div className="flex items-start justify-between gap-2 mb-2.5">
                   <div className="flex-1">
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2" style={{ background: COLORS.background.tertiary, color: COLORS.text.tertiary }}>Q{i + 1}</span>
-                    {hasAutoRes && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2" style={{ background: '#f59e0b22', color: '#f59e0b' }}>AUTO</span>
-                    )}
-                    <span className="text-xs font-medium text-white">{q.question_text_hi || q.question_text_en}</span>
-                    {q.question_text_hi && q.question_text_en && (
-                      <div className="text-[10px] mt-1" style={{ color: COLORS.text.tertiary }}>{q.question_text_en}</div>
-                    )}
+                    {hasAutoRes && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2" style={{ background: '#f59e0b22', color: '#f59e0b' }}>AUTO</span>}
+                    <span className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>{q.points}pts</span>
+                    <div className="text-xs font-medium text-white mt-1">{q.question_text_hi || q.question_text_en}</div>
                   </div>
                   {isResolved && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: COLORS.success.bg, color: COLORS.success.main }}>
-                      {correctOpt}
-                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: COLORS.success.bg, color: COLORS.success.main }}>{correctOpt}</span>
                   )}
                 </div>
-
                 <div className="flex gap-2 flex-wrap">
                   {(q.options || []).map(opt => {
                     const isCorrect = isResolved && opt.key === correctOpt;
                     return (
-                      <button key={opt.key}
-                        data-testid={`resolve-${q.id}-${opt.key}`}
+                      <button key={opt.key} data-testid={`resolve-${q.id}-${opt.key}`}
                         onClick={() => resolveQuestion(selectedContest, q.id, opt.key)}
                         disabled={resolvingQ === q.id || isResolved}
-                        className="flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-bold disabled:opacity-40 transition-all"
+                        className="flex-1 min-w-[70px] py-2.5 rounded-xl text-xs font-bold disabled:opacity-40 transition-all"
                         style={{
                           background: isCorrect ? COLORS.success.main : COLORS.background.tertiary,
-                          color: '#fff',
-                          border: `1.5px solid ${isCorrect ? COLORS.success.main : COLORS.border.light}`
+                          color: '#fff', border: `1.5px solid ${isCorrect ? COLORS.success.main : COLORS.border.light}`
                         }}>
                         <span className="opacity-60 mr-1">{opt.key}.</span>
                         {opt.text_hi || opt.text_en || opt.key}
                         {opt.min_value != null && (
-                          <span className="block text-[9px] opacity-50 mt-0.5">
-                            {opt.min_value}-{opt.max_value === 999 ? '+' : opt.max_value}
-                          </span>
+                          <span className="block text-[9px] opacity-50 mt-0.5">{opt.min_value}-{opt.max_value === 999 ? '+' : opt.max_value}</span>
                         )}
                       </button>
                     );
@@ -233,134 +240,169 @@ export default function AdminResolvePage() {
           })}
         </div>
 
-        <button data-testid="finalize-contest-btn"
-          onClick={() => finalizeContest(selectedContest)}
+        <button data-testid="finalize-contest-btn" onClick={() => finalizeContest(selectedContest)}
           disabled={!allResolved || finalizing}
           className="w-full py-3.5 rounded-xl text-sm font-bold disabled:opacity-30 transition-all"
-          style={{
-            background: allResolved ? COLORS.accent.gold : COLORS.background.tertiary,
-            color: allResolved ? '#000' : COLORS.text.tertiary
-          }}>
-          {finalizing ? 'Finalizing...'
-            : !allResolved ? `Resolve All Questions First (${resolvedCount}/${totalQuestions})`
-            : <><Award size={16} className="inline mr-1" /> Finalize & Distribute Prizes</>}
+          style={{ background: allResolved ? COLORS.accent.gold : COLORS.background.tertiary, color: allResolved ? '#000' : COLORS.text.tertiary }}>
+          {finalizing ? 'Finalizing...' : !allResolved ? `Resolve All First (${resolvedCount}/${totalQuestions})` : <><Award size={16} className="inline mr-1" /> Finalize & Distribute Prizes</>}
         </button>
       </div>
     );
   }
 
+  // ==================== TAB HEADER ====================
+  const TabHeader = () => (
+    <div className="flex gap-1 p-1 rounded-xl mb-3" style={{ background: COLORS.background.tertiary }}>
+      {[
+        { key: 'settlement', label: 'Auto-Settle', icon: Zap },
+        { key: 'contests', label: 'Manual', icon: Target },
+      ].map(tab => (
+        <button key={tab.key} data-testid={`tab-${tab.key}`}
+          onClick={() => { setActiveTab(tab.key); setSettlementResult(null); setActionMsg(''); }}
+          className="flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+          style={{
+            background: activeTab === tab.key ? COLORS.accent.gold : 'transparent',
+            color: activeTab === tab.key ? '#000' : COLORS.text.tertiary
+          }}>
+          <tab.icon size={14} />{tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
   // ==================== SETTLEMENT TAB ====================
   if (activeTab === 'settlement') {
-    const matchesWithData = settlementStatus.filter(m => m.has_external_id || m.contests_count > 0);
     return (
       <div data-testid="settlement-page" className="space-y-3">
         <TabHeader />
 
-        {actionMsg && (
-          <div className="text-xs text-center py-2.5 rounded-xl" style={{ background: COLORS.background.card, color: COLORS.info.main }}>
-            {actionMsg}
+        {/* AUTO-PILOT CONTROL */}
+        <div className="rounded-xl p-4" style={{
+          background: autopilot.running ? '#10b98110' : COLORS.background.card,
+          border: `1px solid ${autopilot.running ? '#10b98140' : COLORS.border.light}`
+        }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                <Power size={16} color={autopilot.running ? '#10b981' : COLORS.text.tertiary} />
+                Auto-Pilot Mode
+              </div>
+              <div className="text-[10px] mt-0.5" style={{ color: autopilot.running ? '#10b981' : COLORS.text.tertiary }}>
+                {autopilot.running
+                  ? `Running | Cycle #{autopilot.run_count} | 45s interval`
+                  : 'Hands-free settlement. Har 45 sec auto-check.'}
+              </div>
+            </div>
+            <button data-testid="autopilot-toggle" onClick={toggleAutopilot}
+              className="px-4 py-2 rounded-xl text-xs font-bold transition-all"
+              style={{
+                background: autopilot.running ? '#ef444420' : '#10b98120',
+                color: autopilot.running ? '#ef4444' : '#10b981',
+                border: `1px solid ${autopilot.running ? '#ef444440' : '#10b98140'}`
+              }}>
+              {autopilot.running ? 'STOP' : 'START'}
+            </button>
           </div>
+
+          {/* Auto-Pilot Log */}
+          {autopilot.recent_log?.length > 0 && (
+            <div className="mt-3 max-h-24 overflow-y-auto rounded-lg p-2 space-y-0.5" style={{ background: COLORS.background.tertiary }}>
+              {[...autopilot.recent_log].reverse().map((log, i) => (
+                <div key={i} className="text-[10px] font-mono" style={{ color: log.includes('FINALIZED') ? '#10b981' : log.includes('Error') ? '#ef4444' : COLORS.text.tertiary }}>
+                  {log}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {actionMsg && (
+          <div className="text-xs text-center py-2.5 rounded-xl" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>
         )}
 
         {/* Settlement Result */}
         {settlementResult && !settlementResult.error && (
-          <div data-testid="settlement-result" className="rounded-xl p-4 space-y-3" style={{ background: '#10b98120', border: '1px solid #10b98140' }}>
+          <div data-testid="settlement-result" className="rounded-xl p-4 space-y-3" style={{ background: '#10b98115', border: '1px solid #10b98130' }}>
             <div className="flex items-center gap-2 text-sm font-bold" style={{ color: '#10b981' }}>
-              <Zap size={16} /> Auto-Settlement Report
+              <Zap size={16} /> Settlement Report
             </div>
-
-            {/* Key Metrics */}
             {settlementResult.key_metrics && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 {[
-                  { label: '1st Inn', value: `${settlementResult.key_metrics.innings_1_runs} runs` },
-                  { label: '2nd Inn', value: `${settlementResult.key_metrics.innings_2_runs} runs` },
+                  { label: '1st Inn', value: `${settlementResult.key_metrics.innings_1_runs}r` },
+                  { label: '2nd Inn', value: `${settlementResult.key_metrics.innings_2_runs}r` },
                   { label: 'Sixes', value: settlementResult.key_metrics.total_sixes },
                   { label: 'Fours', value: settlementResult.key_metrics.total_fours },
-                  { label: 'Top Scorer', value: settlementResult.key_metrics.highest_scorer },
-                  { label: 'Best Bowler', value: settlementResult.key_metrics.best_bowler },
+                  { label: 'Top', value: (settlementResult.key_metrics.highest_scorer || '').slice(0, 15) },
+                  { label: 'Bowler', value: (settlementResult.key_metrics.best_bowler || '').slice(0, 15) },
                 ].map((m, i) => (
                   <div key={i} className="rounded-lg p-2" style={{ background: COLORS.background.card }}>
-                    <div className="text-[10px] uppercase" style={{ color: COLORS.text.tertiary }}>{m.label}</div>
+                    <div className="text-[9px] uppercase" style={{ color: COLORS.text.tertiary }}>{m.label}</div>
                     <div className="text-xs font-bold text-white">{m.value}</div>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Contest Reports */}
             {settlementResult.contests?.map((c, i) => (
               <div key={i} className="rounded-lg p-2.5 flex items-center justify-between" style={{ background: COLORS.background.card }}>
                 <div>
                   <div className="text-xs font-semibold text-white">{c.contest_name}</div>
                   <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
-                    {c.auto_resolved} resolved | {c.skipped} skipped | {c.total_questions} total
+                    {c.auto_resolved} auto | {c.skipped} skip | {c.total_questions} total
                   </div>
                 </div>
-                {c.auto_finalized ? (
-                  <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: '#10b98120', color: '#10b981' }}>
-                    Finalized
-                  </span>
-                ) : c.all_resolved ? (
-                  <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: '#f59e0b20', color: '#f59e0b' }}>
-                    Ready
-                  </span>
-                ) : (
-                  <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: COLORS.background.tertiary, color: COLORS.text.tertiary }}>
-                    {c.already_resolved + c.auto_resolved}/{c.total_questions}
-                  </span>
-                )}
+                <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{
+                  background: c.auto_finalized ? '#10b98120' : c.all_resolved ? '#f59e0b20' : COLORS.background.tertiary,
+                  color: c.auto_finalized ? '#10b981' : c.all_resolved ? '#f59e0b' : COLORS.text.tertiary
+                }}>
+                  {c.auto_finalized ? 'FINALIZED' : c.all_resolved ? 'READY' : `${c.already_resolved + c.auto_resolved}/${c.total_questions}`}
+                </span>
               </div>
             ))}
-
-            <div className="text-[10px] text-center" style={{ color: COLORS.text.tertiary }}>
-              Match completed: {settlementResult.match_completed ? 'Yes' : 'No'} | Winner: {settlementResult.match_winner || 'TBD'}
-            </div>
           </div>
         )}
 
         {settlementResult?.error && (
-          <div className="rounded-xl p-3 text-xs font-medium" style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef444440' }}>
-            {settlementResult.error}
-          </div>
+          <div className="rounded-xl p-3 text-xs font-medium" style={{ background: '#ef444420', color: '#ef4444' }}>{settlementResult.error}</div>
         )}
 
-        {/* Seed Button */}
-        <button
-          data-testid="seed-auto-questions"
-          onClick={seedAutoQuestions}
-          className="w-full py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-          style={{ background: COLORS.background.card, color: COLORS.accent.gold, border: `1px solid ${COLORS.accent.gold}33` }}
-        >
-          <TrendingUp size={14} /> Seed 11 Auto-Resolution Questions + Template
-        </button>
+        {/* Quick Actions */}
+        <div className="flex gap-2">
+          <button data-testid="seed-auto-questions" onClick={seedAutoQuestions}
+            className="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
+            style={{ background: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b22' }}>
+            <Zap size={13} /> Seed 11 Auto Questions
+          </button>
+          <button data-testid="refresh-settlement" onClick={() => { fetchSettlementStatus(); fetchAutopilotStatus(); setActionMsg(''); }}
+            className="px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5"
+            style={{ background: COLORS.background.tertiary, color: COLORS.text.secondary }}>
+            <RefreshCw size={13} />
+          </button>
+        </div>
 
         {/* Matches List */}
         <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: COLORS.text.tertiary }}>
-          Matches ({matchesWithData.length})
+          IPL Matches ({settlementStatus.length})
         </div>
 
-        {matchesWithData.length === 0 ? (
+        {settlementStatus.length === 0 ? (
           <div className="text-center py-8">
             <Activity size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
-            <div className="text-xs" style={{ color: COLORS.text.tertiary }}>
-              No active matches. Sync matches from the Matches tab first.
-            </div>
+            <div className="text-xs" style={{ color: COLORS.text.tertiary }}>No active matches. Sync from Matches tab.</div>
           </div>
         ) : (
           <div className="space-y-2">
-            {matchesWithData.map(m => {
+            {settlementStatus.map(m => {
               const ta = m.team_a?.short_name || m.team_a?.name || '?';
               const tb = m.team_b?.short_name || m.team_b?.name || '?';
-              const progress = m.total_questions > 0
-                ? Math.round((m.resolved_questions / m.total_questions) * 100) : 0;
+              const progress = m.total_questions > 0 ? Math.round((m.resolved_questions / m.total_questions) * 100) : 0;
               const isSettling = settlingMatch === m.match_id;
-              const isCompleted = m.resolved_questions > 0 && m.resolved_questions >= m.total_questions;
+              const isDone = m.resolved_questions > 0 && m.resolved_questions >= m.total_questions;
 
               return (
                 <div key={m.match_id} className="rounded-xl p-3.5 space-y-2.5" style={{
                   background: COLORS.background.card,
-                  border: `1px solid ${isCompleted ? '#10b98130' : m.has_external_id ? COLORS.accent.gold + '22' : COLORS.border.light}`
+                  border: `1px solid ${isDone ? '#10b98130' : COLORS.border.light}`
                 }}>
                   <div className="flex items-center justify-between">
                     <div>
@@ -369,75 +411,48 @@ export default function AdminResolvePage() {
                         <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{
                           background: m.match_status === 'live' ? '#ef444420' : m.match_status === 'completed' ? '#10b98120' : COLORS.background.tertiary,
                           color: m.match_status === 'live' ? '#ef4444' : m.match_status === 'completed' ? '#10b981' : COLORS.text.tertiary
-                        }}>
-                          {m.match_status?.toUpperCase()}
-                        </span>
+                        }}>{m.match_status?.toUpperCase()}</span>
                         <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
-                          {m.contests_count} contests | {m.settlement_progress} questions
+                          {m.contests_count} contests | {m.settlement_progress} Qs
                         </span>
                       </div>
                     </div>
-                    {!m.has_external_id && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#f59e0b15', color: '#f59e0b' }}>
-                        No API Link
-                      </span>
-                    )}
+                    {/* View Scorecard */}
+                    <button data-testid={`view-scorecard-${m.match_id}`}
+                      onClick={() => loadScorecard(m.match_id)}
+                      disabled={scorecardLoading}
+                      className="p-2 rounded-lg" style={{ background: COLORS.background.tertiary }}>
+                      <Eye size={14} color={COLORS.text.secondary} />
+                    </button>
                   </div>
 
-                  {/* Progress Bar */}
                   {m.total_questions > 0 && (
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: COLORS.background.tertiary }}>
-                        <div className="h-full rounded-full transition-all duration-700" style={{
-                          width: `${progress}%`,
-                          background: isCompleted ? '#10b981' : COLORS.accent.gold
-                        }} />
+                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: isDone ? '#10b981' : COLORS.accent.gold }} />
                       </div>
-                      <span className="text-[10px] font-bold" style={{ color: isCompleted ? '#10b981' : COLORS.text.tertiary }}>
-                        {progress}%
-                      </span>
+                      <span className="text-[10px] font-bold" style={{ color: isDone ? '#10b981' : COLORS.text.tertiary }}>{progress}%</span>
                     </div>
                   )}
 
-                  {/* Auto-Settle Button */}
-                  <button
-                    data-testid={`settle-${m.match_id}`}
-                    onClick={() => runAutoSettlement(m.match_id)}
-                    disabled={isSettling || isCompleted}
+                  <button data-testid={`settle-${m.match_id}`} onClick={() => runAutoSettlement(m.match_id)}
+                    disabled={isSettling || isDone}
                     className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-30 transition-all flex items-center justify-center gap-2"
-                    style={{
-                      background: isCompleted ? '#10b98120' : COLORS.accent.gold,
-                      color: isCompleted ? '#10b981' : '#000'
-                    }}
-                  >
-                    {isSettling ? (
-                      <><RefreshCw size={14} className="animate-spin" /> Settling...</>
-                    ) : isCompleted ? (
-                      <><CheckCircle size={14} /> All Settled</>
-                    ) : (
-                      <><Zap size={14} /> Auto-Settle Now</>
-                    )}
+                    style={{ background: isDone ? '#10b98120' : COLORS.accent.gold, color: isDone ? '#10b981' : '#000' }}>
+                    {isSettling ? <><RefreshCw size={14} className="animate-spin" /> Settling...</>
+                      : isDone ? <><CheckCircle size={14} /> All Settled</>
+                      : <><Zap size={14} /> Auto-Settle Now</>}
                   </button>
                 </div>
               );
             })}
           </div>
         )}
-
-        {/* Refresh Button */}
-        <button
-          data-testid="refresh-settlement"
-          onClick={() => { fetchSettlementStatus(); setActionMsg(''); }}
-          className="w-full py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2"
-          style={{ background: COLORS.background.tertiary, color: COLORS.text.secondary }}
-        >
-          <RefreshCw size={13} /> Refresh Status
-        </button>
       </div>
     );
   }
 
-  // ==================== CONTESTS LIST (Manual Resolve) ====================
+  // ==================== MANUAL RESOLVE TAB ====================
   const openContests = contests.filter(c => c.status !== 'completed');
   const completedContests = contests.filter(c => c.status === 'completed');
 
@@ -446,9 +461,7 @@ export default function AdminResolvePage() {
       <TabHeader />
 
       {actionMsg && (
-        <div className="text-xs text-center py-2 rounded-xl" style={{ background: COLORS.background.card, color: COLORS.info.main }}>
-          {actionMsg}
-        </div>
+        <div className="text-xs text-center py-2 rounded-xl" style={{ background: COLORS.background.card, color: COLORS.info.main }}>{actionMsg}</div>
       )}
 
       {loading ? (
@@ -460,7 +473,7 @@ export default function AdminResolvePage() {
           {openContests.length === 0 && completedContests.length === 0 && (
             <div className="text-center py-10">
               <AlertCircle size={32} color={COLORS.text.tertiary} className="mx-auto mb-2" />
-              <div className="text-sm" style={{ color: COLORS.text.tertiary }}>No contests to resolve</div>
+              <div className="text-sm" style={{ color: COLORS.text.tertiary }}>No contests</div>
             </div>
           )}
 
@@ -470,19 +483,16 @@ export default function AdminResolvePage() {
                 Needs Resolution ({openContests.length})
               </div>
               {openContests.map(c => (
-                <button key={c.id} data-testid={`resolve-contest-${c.id}`}
-                  onClick={() => loadQuestions(c.id)}
+                <button key={c.id} data-testid={`resolve-contest-${c.id}`} onClick={() => loadQuestions(c.id)}
                   className="w-full rounded-xl p-3.5 flex items-center justify-between text-left transition-all"
                   style={{ background: COLORS.background.card, border: `1px solid ${COLORS.warning.main}22` }}>
                   <div>
                     <div className="text-sm font-semibold text-white">{c.name}</div>
                     <div className="text-[10px] mt-0.5" style={{ color: COLORS.text.tertiary }}>
-                      {c.current_participants || 0} players | {c.prize_pool} coins | {c.status}
+                      {c.current_participants || 0} players | {c.prize_pool} coins
                     </div>
                   </div>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: COLORS.warning.bg, color: COLORS.warning.main }}>
-                    Resolve
-                  </span>
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: COLORS.warning.bg, color: COLORS.warning.main }}>Resolve</span>
                 </button>
               ))}
             </div>

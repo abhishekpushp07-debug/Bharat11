@@ -1038,3 +1038,92 @@ async def bulk_import_auto_questions(
         "total_points": total_pts,
         "message": f"{len(docs)} auto-resolvable questions + 1 default template created!"
     }
+
+
+
+# ==================== AUTO-PILOT MODE ====================
+
+@router.post(
+    "/autopilot/start",
+    summary="Start Auto-Pilot Mode (45s polling)"
+)
+async def start_autopilot(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.autopilot import autopilot
+    return await autopilot.start(db)
+
+
+@router.post(
+    "/autopilot/stop",
+    summary="Stop Auto-Pilot Mode"
+)
+async def stop_autopilot(
+    current_user: AdminUser,
+):
+    from services.autopilot import autopilot
+    return await autopilot.stop()
+
+
+@router.get(
+    "/autopilot/status",
+    summary="Get Auto-Pilot status"
+)
+async def autopilot_status(
+    current_user: AdminUser,
+):
+    from services.autopilot import autopilot
+    return autopilot.get_status()
+
+
+# ==================== RICH SCORECARD (Admin + Users) ====================
+
+@router.get(
+    "/scorecard/{match_id}",
+    summary="Get rich scorecard for a match (batting/bowling/catching details)"
+)
+async def get_rich_scorecard(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Returns full scorecard with batting/bowling/catching for display."""
+    from services.cricket_data import cricket_service
+    from services.settlement_engine import parse_scorecard_to_metrics
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        # Try auto-link
+        from services.settlement_engine import _auto_link_cricketdata_id
+        cd_id = await _auto_link_cricketdata_id(match, db)
+    if not cd_id:
+        raise HTTPException(status_code=400, detail="No CricketData ID linked")
+
+    data = await cricket_service.get_scorecard(cd_id)
+    if not data:
+        api_info = cricket_service.cricketdata.get_api_info()
+        if api_info.get("remaining", 100) <= 0:
+            raise HTTPException(status_code=429, detail=f"API rate limit reached ({api_info.get('hits_today',0)}/{api_info.get('hits_limit',100)}). Resets daily.")
+        raise HTTPException(status_code=502, detail="Could not fetch scorecard from CricketData API")
+
+    metrics = parse_scorecard_to_metrics(data)
+
+    return {
+        "match_id": match_id,
+        "match_name": data.get("name", ""),
+        "venue": data.get("venue", ""),
+        "date": data.get("date", ""),
+        "status": data.get("status", ""),
+        "teams": data.get("teams", []),
+        "toss_winner": data.get("tossWinner", ""),
+        "toss_choice": data.get("tossChoice", ""),
+        "match_winner": data.get("matchWinner", ""),
+        "score_summary": data.get("score", []),
+        "scorecard": data.get("scorecard", []),
+        "metrics": metrics,
+    }

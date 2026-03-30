@@ -188,7 +188,11 @@ class CricketDataAPI:
             self._hits_today = info.get("hitsToday", self._hits_today)
             self._hits_limit = info.get("hitsLimit", self._hits_limit)
             if data.get("status") != "success":
-                logger.error(f"CricketData API error: {data}")
+                error_info = info if info else data
+                logger.error(f"CricketData API error: status={data.get('status')}, info={error_info}")
+                # Check if rate limited
+                if self._hits_today >= self._hits_limit:
+                    logger.warning(f"API rate limit reached: {self._hits_today}/{self._hits_limit}")
                 return None
             return data
         except Exception as e:
@@ -234,6 +238,14 @@ class CricketDataAPI:
 
             name_str = m.get("name", "")
             is_ipl = any(k in name_str.lower() for k in ['ipl', 'indian premier league'])
+            # Also check team names against IPL teams
+            if not is_ipl:
+                is_ipl = (
+                    any(t1_name.lower() in k.lower() or k.lower() in t1_name.lower() for k in IPL_TEAMS)
+                    and any(t2_name.lower() in k.lower() or k.lower() in t2_name.lower() for k in IPL_TEAMS)
+                )
+
+            match_status = "completed" if match_ended else ("live" if match_started else "upcoming")
 
             matches.append({
                 'source': 'cricketdata',

@@ -216,6 +216,53 @@ async def get_live_score(
 
 
 @router.get(
+    "/{match_id}/scorecard",
+    summary="Get detailed scorecard for a match (public)",
+    description="Returns full batting/bowling/catching stats from CricketData.org"
+)
+async def get_match_scorecard_public(
+    match_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Public scorecard endpoint — no admin required."""
+    from services.cricket_data import cricket_service
+    from services.settlement_engine import parse_scorecard_to_metrics, _auto_link_cricketdata_id
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        cd_id = await _auto_link_cricketdata_id(match, db)
+    if not cd_id:
+        return {"match_id": match_id, "error": "Scorecard not available", "scorecard": None}
+
+    data = await cricket_service.get_scorecard(cd_id)
+    if not data:
+        return {"match_id": match_id, "error": "Could not fetch scorecard", "scorecard": None}
+
+    metrics = parse_scorecard_to_metrics(data)
+
+    return {
+        "match_id": match_id,
+        "match_name": data.get("name", ""),
+        "venue": data.get("venue", ""),
+        "date": data.get("date", ""),
+        "status": data.get("status", ""),
+        "teams": data.get("teams", []),
+        "toss_winner": data.get("tossWinner", ""),
+        "toss_choice": data.get("tossChoice", ""),
+        "match_winner": data.get("matchWinner", ""),
+        "score_summary": data.get("score", []),
+        "scorecard": data.get("scorecard", []),
+        "metrics": metrics,
+    }
+
+
+
+
+@router.get(
     "/{match_id}/contests",
     summary="Get match contests",
     description="Get all contests for a match"
@@ -493,6 +540,7 @@ async def sync_live_matches(
             match = {
                 "id": generate_id(),
                 "external_match_id": source_id,
+                "cricketdata_id": source_id if lm.get("source") == "cricketdata" else None,
                 "source": lm.get("source", "unknown"),
                 "team_a": team_a,
                 "team_b": team_b,
