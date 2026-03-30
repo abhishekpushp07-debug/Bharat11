@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import apiClient from '../api/client';
 import { COLORS, RANKS } from '../constants/design';
-import { User, Wallet, Trophy, Gift, ChevronRight, Copy, Check, LogOut, Shield } from 'lucide-react';
+import { Gift, Copy, Check, LogOut } from 'lucide-react';
 
-export default function ProfilePage({ onAdminClick }) {
+export default function ProfilePage() {
   const { user, logout } = useAuthStore();
   const [rankProgress, setRankProgress] = useState(null);
   const [referralStats, setReferralStats] = useState(null);
@@ -110,13 +110,6 @@ export default function ProfilePage({ onAdminClick }) {
             {referralStats.total_referrals} friend{referralStats.total_referrals !== 1 ? 's' : ''} invited
           </div>
         </div>
-      )}
-
-      {/* Admin Panel - only for admins */}
-      {user?.is_admin && (
-        <button data-testid="admin-btn" onClick={onAdminClick} className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors" style={{ background: COLORS.background.card, color: COLORS.warning.main, border: `1px solid ${COLORS.warning.main}33` }}>
-          <Shield size={16} /> Admin Panel
-        </button>
       )}
 
       {/* Logout */}

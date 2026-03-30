@@ -1,6 +1,6 @@
 /**
  * Bharat 11 - Main App Component
- * Fantasy Cricket Prediction PWA
+ * Complete separation: Admin sees AdminApp, Player sees PlayerApp
  */
 import { useEffect, useState, useCallback } from "react";
 import "@/App.css";
@@ -14,7 +14,7 @@ import MatchDetailPage from "@/pages/MatchDetailPage";
 import MyContestsPage from "@/pages/MyContestsPage";
 import PredictionPage from "@/pages/PredictionPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
-import AdminPage from "@/pages/AdminPage";
+import AdminApp from "@/pages/AdminApp";
 import { COLORS } from "@/constants/design";
 
 // Splash Screen
@@ -28,8 +28,8 @@ const SplashScreen = () => (
   </div>
 );
 
-// Main App Shell (after login)
-const AppShell = () => {
+// ====== PLAYER APP - Zero admin traces ======
+const PlayerApp = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [selectedContestId, setSelectedContestId] = useState(null);
@@ -91,9 +91,8 @@ const AppShell = () => {
       case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
       case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
       case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} onBack={handleBackFromLeaderboard} />;
-      case 'admin': return <AdminPage onBack={() => setActiveTab('profile')} />;
       case 'wallet': return <WalletPage />;
-      case 'profile': return <ProfilePage onAdminClick={() => setActiveTab('admin')} />;
+      case 'profile': return <ProfilePage />;
       default: return <HomePage onMatchClick={handleMatchClick} />;
     }
   };
@@ -104,11 +103,10 @@ const AppShell = () => {
     setActiveTab(tab);
   };
 
-  const hiddenNavTabs = ['matchDetail', 'prediction', 'leaderboard', 'admin'];
+  const hiddenNavTabs = ['matchDetail', 'prediction', 'leaderboard'];
 
   return (
     <div className="min-h-screen" style={{ background: COLORS.background.primary }}>
-      {/* Header */}
       <header className="sticky top-0 z-40 px-4 py-3 safe-top" style={{ background: `${COLORS.background.primary}F0`, backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.border.light}` }}>
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <h1 data-testid="app-title" className="text-lg font-bold tracking-wider" style={{ color: COLORS.primary.main, fontFamily: "'Orbitron', sans-serif" }}>
@@ -117,21 +115,19 @@ const AppShell = () => {
         </div>
       </header>
 
-      {/* Page Content */}
       <main className="px-4 pt-3 pb-20 max-w-lg mx-auto">
         {renderPage()}
       </main>
 
-      {/* Bottom Navigation */}
       <BottomNav active={hiddenNavTabs.includes(activeTab) ? 'home' : activeTab} onChange={handleTabChange} />
     </div>
   );
 };
 
-// Main App
+// ====== MAIN APP - Routes Admin vs Player ======
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const { fetchUser, isAuthenticated } = useAuthStore();
+  const { fetchUser, isAuthenticated, user } = useAuthStore();
 
   useEffect(() => {
     const initApp = async () => {
@@ -148,11 +144,20 @@ function App() {
 
   if (isLoading) return <SplashScreen />;
 
-  return (
-    <div className="App min-h-screen" style={{ background: COLORS.background.primary }}>
-      {isAuthenticated ? <AppShell /> : <AuthFlow />}
-    </div>
-  );
+  if (!isAuthenticated) {
+    return (
+      <div className="App min-h-screen" style={{ background: COLORS.background.primary }}>
+        <AuthFlow />
+      </div>
+    );
+  }
+
+  // COMPLETE SEPARATION: Admin gets AdminApp, Player gets PlayerApp
+  if (user?.is_admin) {
+    return <AdminApp />;
+  }
+
+  return <PlayerApp />;
 }
 
 export default App;

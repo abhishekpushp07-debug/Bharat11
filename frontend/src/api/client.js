@@ -87,6 +87,7 @@ export const api = {
     refresh: (refreshToken) => apiClient.post('/auth/refresh', { refresh_token: refreshToken }),
     me: () => apiClient.get('/auth/me'),
     changePin: (data) => apiClient.put('/auth/change-pin', data),
+    checkPhone: (phone) => apiClient.post('/auth/check-phone', { phone }),
   },
 
   // User

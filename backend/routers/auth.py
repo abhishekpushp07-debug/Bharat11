@@ -32,6 +32,25 @@ class ChangePinBody(BaseModel):
     new_pin: str
 
 
+class CheckPhoneBody(BaseModel):
+    """Request body for phone check."""
+    phone: str
+
+
+@router.post(
+    "/check-phone",
+    summary="Check if phone number is registered",
+    description="Returns whether a phone number already has an account."
+)
+async def check_phone(
+    data: CheckPhoneBody,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+) -> dict:
+    """Check if phone exists. Returns {exists: true/false}."""
+    user = await db.users.find_one({"phone": data.phone}, {"_id": 0, "id": 1})
+    return {"exists": user is not None}
+
+
 @router.post(
     "/register",
     response_model=AuthResponse,

@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/api/client';
 import WelcomeScreen from './WelcomeScreen';
 import PhoneScreen from './PhoneScreen';
 import PinScreen from './PinScreen';
@@ -25,12 +26,21 @@ const AuthFlow = () => {
     setPhone(phoneNumber);
     setError('');
     
-    // For now, we'll try to determine if user exists by attempting login
-    // In a real app, you might have a separate endpoint to check
-    // For Bharat 11, we'll just go to PIN creation flow first
-    // If they enter wrong PIN during login, they can register
-    setStep('pin-create');
-    setIsExistingUser(false);
+    // Check if user exists
+    try {
+      const res = await api.auth.checkPhone(phoneNumber);
+      if (res.data?.exists) {
+        setIsExistingUser(true);
+        setStep('pin-login');
+      } else {
+        setIsExistingUser(false);
+        setStep('pin-create');
+      }
+    } catch (_) {
+      // Fallback: assume new user
+      setIsExistingUser(false);
+      setStep('pin-create');
+    }
   };
 
   const handlePinCreate = (pin) => {
