@@ -187,6 +187,26 @@ export default function HomePage({ onMatchClick }) {
         </div>
       </div>
 
+      {/* Live Now — TOP OF PAGE */}
+      {liveMatches.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: COLORS.primary.main }} />
+            <h2 className="text-base font-semibold text-white">Live Now</h2>
+          </div>
+          <div className="space-y-3">
+            {liveMatches.map((match, i) => (
+              <motion.div key={match.id}
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: i * 0.08, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}>
+                <MatchCard match={match} isLive onClick={onMatchClick} />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Prediction Accuracy Badge */}
       <PredictionBadge />
 
@@ -221,31 +241,75 @@ export default function HomePage({ onMatchClick }) {
         </div>
       </div>
 
+      {/* IPL Points Table */}
+      {sortedTable.length > 0 && (
+        <div data-testid="ipl-points-table">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Trophy size={16} color={COLORS.accent.gold} />
+              <h2 className="text-base font-black text-white tracking-tight">IPL 2026 Standings</h2>
+            </div>
+            <button onClick={() => setShowFullTable(f => !f)} className="text-[10px] font-semibold" style={{ color: COLORS.primary.main }}>
+              {showFullTable ? 'Show Less' : 'View All'}
+            </button>
+          </div>
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid rgba(255,255,255,0.06)` }}>
+            <div className="flex items-center px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <span className="w-6 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
+              <span className="flex-1 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>TEAM</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>P</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: '#4ade80' }}>W</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: '#f87171' }}>L</span>
+              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>NR</span>
+              <span className="w-6"></span>
+            </div>
+            {(showFullTable ? sortedTable : sortedTable.slice(0, 4)).map((team, i) => {
+              const teamShort = normalizeTeam((team.shortname || '').toUpperCase());
+              const tc = TEAM_COLORS[teamShort] || TEAM_COLORS[(team.shortname || '').toUpperCase()] || { primary: '#666', secondary: '#444' };
+              const teamPrimary = tc.primary;
+              const teamSecondary = tc.secondary;
+              return (
+              <div key={team.shortname || i} data-testid={`pt-row-${team.shortname}`}
+                className="flex items-center px-3 py-2.5 relative overflow-hidden cursor-pointer transition-all duration-200 active:scale-[0.98]"
+                onClick={() => setSelectedTeam({ shortname: teamShort, ...team })}
+                style={{
+                  borderTop: '1px solid rgba(0,0,0,0.3)',
+                  background: `linear-gradient(90deg, ${teamPrimary}40, ${teamPrimary}25, ${teamSecondary}15, transparent)`,
+                  borderLeft: `3px solid ${teamPrimary}`,
+                }}>
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: `linear-gradient(90deg, ${teamPrimary}18, ${teamPrimary}08, transparent 70%)`,
+                }} />
+                <span className="w-6 text-[11px] font-black relative z-10" style={{ color: '#fff', textShadow: `0 0 10px ${teamPrimary}` }}>{i + 1}</span>
+                <div className="flex-1 flex items-center gap-2 relative z-10">
+                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" style={{ filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.4))' }} />}
+                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}66` }}>{teamShort}</span>
+                </div>
+                <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: 'rgba(255,255,255,0.85)' }}>{team.matches}</span>
+                <span className="w-7 text-center text-xs font-black relative z-10" style={{ color: '#4ade80' }}>{team.wins}</span>
+                <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: '#f87171' }}>{team.loss}</span>
+                <span className="w-7 text-center text-xs font-medium relative z-10" style={{ color: 'rgba(255,255,255,0.5)' }}>{team.nr}</span>
+                <ChevronRight size={12} className="relative z-10" color="rgba(255,255,255,0.3)" />
+              </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Team Matches Drawer */}
+      {selectedTeam && (
+        <TeamMatchesDrawer
+          team={selectedTeam}
+          onClose={() => setSelectedTeam(null)}
+        />
+      )}
+
       {/* Matches Section with Tabs — Upcoming | Completed */}
       {loading ? (
         <div className="space-y-3"><MatchSkeleton /><MatchSkeleton /></div>
       ) : (
         <div>
-          {/* Live Now */}
-          {liveMatches.length > 0 && (
-            <div className="mb-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: COLORS.primary.main }} />
-                <h2 className="text-base font-semibold text-white">Live Now</h2>
-              </div>
-              <div className="space-y-3">
-                {liveMatches.map((match, i) => (
-                  <motion.div key={match.id}
-                    initial={{ opacity: 0, y: 20, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ delay: i * 0.08, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}>
-                    <MatchCard match={match} isLive onClick={onMatchClick} />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Sub-Tabs: Upcoming | Completed */}
           <div className="flex items-center gap-0 p-1 rounded-xl mb-4" style={{ background: COLORS.background.tertiary }}>
             <button data-testid="match-tab-upcoming"
@@ -311,70 +375,6 @@ export default function HomePage({ onMatchClick }) {
             )
           )}
         </div>
-      )}
-
-      {/* IPL Points Table */}
-      {sortedTable.length > 0 && (
-        <div data-testid="ipl-points-table">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Trophy size={16} color={COLORS.accent.gold} />
-              <h2 className="text-base font-black text-white tracking-tight">IPL 2026 Standings</h2>
-            </div>
-            <button onClick={() => setShowFullTable(f => !f)} className="text-[10px] font-semibold" style={{ color: COLORS.primary.main }}>
-              {showFullTable ? 'Show Less' : 'View All'}
-            </button>
-          </div>
-          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid rgba(255,255,255,0.06)` }}>
-            <div className="flex items-center px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
-              <span className="w-6 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
-              <span className="flex-1 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>TEAM</span>
-              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>P</span>
-              <span className="w-7 text-center text-[9px] font-bold" style={{ color: '#4ade80' }}>W</span>
-              <span className="w-7 text-center text-[9px] font-bold" style={{ color: '#f87171' }}>L</span>
-              <span className="w-7 text-center text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>NR</span>
-              <span className="w-6"></span>
-            </div>
-            {(showFullTable ? sortedTable : sortedTable.slice(0, 4)).map((team, i) => {
-              const teamShort = normalizeTeam((team.shortname || '').toUpperCase());
-              const tc = TEAM_COLORS[teamShort] || TEAM_COLORS[(team.shortname || '').toUpperCase()] || { primary: '#666', secondary: '#444' };
-              const teamPrimary = tc.primary;
-              const teamSecondary = tc.secondary;
-              return (
-              <div key={team.shortname || i} data-testid={`pt-row-${team.shortname}`}
-                className="flex items-center px-3 py-2.5 relative overflow-hidden cursor-pointer transition-all duration-200 active:scale-[0.98]"
-                onClick={() => setSelectedTeam({ shortname: teamShort, ...team })}
-                style={{
-                  borderTop: '1px solid rgba(0,0,0,0.3)',
-                  background: `linear-gradient(90deg, ${teamPrimary}40, ${teamPrimary}25, ${teamSecondary}15, transparent)`,
-                  borderLeft: `3px solid ${teamPrimary}`,
-                }}>
-                <div className="absolute inset-0 pointer-events-none" style={{
-                  background: `linear-gradient(90deg, ${teamPrimary}18, ${teamPrimary}08, transparent 70%)`,
-                }} />
-                <span className="w-6 text-[11px] font-black relative z-10" style={{ color: '#fff', textShadow: `0 0 10px ${teamPrimary}` }}>{i + 1}</span>
-                <div className="flex-1 flex items-center gap-2 relative z-10">
-                  {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" style={{ filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.4))' }} />}
-                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}66` }}>{teamShort}</span>
-                </div>
-                <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: 'rgba(255,255,255,0.85)' }}>{team.matches}</span>
-                <span className="w-7 text-center text-xs font-black relative z-10" style={{ color: '#4ade80' }}>{team.wins}</span>
-                <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: '#f87171' }}>{team.loss}</span>
-                <span className="w-7 text-center text-xs font-medium relative z-10" style={{ color: 'rgba(255,255,255,0.5)' }}>{team.nr}</span>
-                <ChevronRight size={12} className="relative z-10" color="rgba(255,255,255,0.3)" />
-              </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Team Matches Drawer */}
-      {selectedTeam && (
-        <TeamMatchesDrawer
-          team={selectedTeam}
-          onClose={() => setSelectedTeam(null)}
-        />
       )}
 
       {/* Hot Contests - Instagram Stories Style */}
