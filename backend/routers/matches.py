@@ -1055,11 +1055,11 @@ async def get_ai_commentary(match_id: str, force: bool = False, db: AsyncIOMotor
     """Generates structured AI commentary. Returns match_pulse, key_moments, star_performers, turning_point, verdict."""
     from services.ai_commentary import generate_ai_commentary
 
-    # Check cache — for live matches, expire after 3 minutes so commentary stays fresh
+    # Check cache — for live matches, expire after 40 seconds so commentary stays synced with scorecard
     if not force:
         cached = await db.commentary_cache.find_one({"match_id": match_id}, {"_id": 0})
         if cached and cached.get("data"):
-            # Check if cache is still fresh (3 min TTL for live matches)
+            # Check if cache is still fresh (40s TTL for live matches)
             generated_at = cached.get("generated_at", "")
             is_stale = False
             if generated_at:
@@ -1068,8 +1068,8 @@ async def get_ai_commentary(match_id: str, force: bool = False, db: AsyncIOMotor
                     if gen_time.tzinfo is None:
                         gen_time = gen_time.replace(tzinfo=timezone.utc)
                     age_seconds = (datetime.now(timezone.utc) - gen_time).total_seconds()
-                    # 3 minute TTL for live matches
-                    if age_seconds > 180:
+                    # 40 second TTL — fresh commentary every scorecard cycle
+                    if age_seconds > 40:
                         is_stale = True
                 except (ValueError, TypeError):
                     is_stale = True
