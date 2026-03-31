@@ -1055,13 +1055,32 @@ async def get_ai_commentary(match_id: str, force: bool = False, db: AsyncIOMotor
     """Generates structured AI commentary. Returns match_pulse, key_moments, star_performers, turning_point, verdict."""
     from services.ai_commentary import generate_ai_commentary
 
-    # Check cache first (unless force refresh)
+    # Check cache — for live matches, expire after 3 minutes so commentary stays fresh
     if not force:
         cached = await db.commentary_cache.find_one({"match_id": match_id}, {"_id": 0})
         if cached and cached.get("data"):
-            return {"match_id": match_id, "cached": True, **cached["data"]}
+            # Check if cache is still fresh (3 min TTL for live matches)
+            generated_at = cached.get("generated_at", "")
+            is_stale = False
+            if generated_at:
+                try:
+                    gen_time = datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
+                    if gen_time.tzinfo is None:
+                        gen_time = gen_time.replace(tzinfo=timezone.utc)
+                    age_seconds = (datetime.now(timezone.utc) - gen_time).total_seconds()
+                    # 3 minute TTL for live matches
+                    if age_seconds > 180:
+                        is_stale = True
+                except (ValueError, TypeError):
+                    is_stale = True
+            else:
+                is_stale = True
+
+            if not is_stale:
+                return {"match_id": match_id, "cached": True, **cached["data"]}
+
         # Backwards compat: old cache format
-        if cached and cached.get("items"):
+        if cached and cached.get("items") and not force:
             return {"match_id": match_id, "commentary": cached["items"], "cached": True}
 
     # Get scorecard

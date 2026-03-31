@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS, normalizeTeam } from '../constants/teams';
-import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X, RefreshCw } from 'lucide-react';
 import ScorecardView from '../components/ScorecardView';
 import MoodMeter from '../components/MoodMeter';
 import AICommentaryTab from '../components/AICommentaryTab';
@@ -59,6 +59,8 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const [playerProfile, setPlayerProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [celebration, setCelebration] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [pollCount, setPollCount] = useState(0);
 
   // Last score tracking for auto-celebration detection
   const lastScoreRef = useRef(null);
@@ -87,13 +89,17 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
 
   // ===== LIVE DATA POLLING (45s) =====
   // Fetches: scorecard, AI commentary, and detects events for celebrations
-  const fetchLiveData = useCallback(async () => {
+  const fetchLiveData = useCallback(async (forceAi = false) => {
     if (!match?.id) return;
 
     try {
+      const aiUrl = forceAi
+        ? `/matches/${match.id}/ai-commentary?force=true`
+        : `/matches/${match.id}/ai-commentary`;
+
       const [scRes, aiRes] = await Promise.allSettled([
         apiClient.get(`/matches/${match.id}/scorecard`),
-        apiClient.get(`/matches/${match.id}/ai-commentary`),
+        apiClient.get(aiUrl),
       ]);
 
       const newScorecard = scRes.status === 'fulfilled' ? scRes.value.data : null;
@@ -102,9 +108,10 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
       // Update scorecard
       if (newScorecard && !newScorecard.error) {
         setScorecardData(newScorecard);
+        setLastUpdated(new Date());
+        setPollCount(c => c + 1);
 
         // ===== AUTO-CELEBRATION DETECTION =====
-        // Parse all batting data from all innings to get aggregate stats
         const allInnings = newScorecard?.scorecard || [];
         let totalFours = 0, totalSixes = 0, totalWickets = 0;
         for (const inn of allInnings) {
@@ -112,13 +119,12 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
           for (const b of batting) {
             totalSixes += parseInt(b['6s']) || 0;
             totalFours += parseInt(b['4s']) || 0;
-            if (b.dismissal && b.dismissal !== 'not out') totalWickets++;
+            if (b.dismissal && b.dismissal !== 'not out' && b.dismissal !== '') totalWickets++;
           }
         }
 
         const prevScore = lastScoreRef.current;
         if (prevScore) {
-          // Compare with previous poll to detect new events
           if (totalWickets > prevScore.wickets) {
             setCelebration('wicket');
           } else if (totalSixes > prevScore.sixes) {
@@ -128,11 +134,10 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
           }
         }
 
-        // Store current stats for next comparison
         lastScoreRef.current = { wickets: totalWickets, sixes: totalSixes, fours: totalFours };
       }
 
-      // Update AI commentary — use functional update to avoid stale closure
+      // Update AI commentary
       if (newAi || newScorecard) {
         setBbbData(prev => ({
           ai: newAi || prev?.ai,
@@ -156,7 +161,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     }
   }, [match?.id, fetchContests, fetchMatchInfo]);
 
-  // ===== 45-SECOND POLLING for LIVE/OPEN matches =====
+  // ===== 30-SECOND POLLING for LIVE/OPEN matches =====
   useEffect(() => {
     if (!match?.id) return;
     const isMatchRunning = match?.status === 'live' || match?.status === 'open';
@@ -165,11 +170,19 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     // Initial fetch immediately
     fetchLiveData();
 
-    // Poll every 45 seconds
-    const pollInterval = setInterval(fetchLiveData, 45000);
+    // Poll every 30 seconds for responsive live experience
+    const pollInterval = setInterval(() => fetchLiveData(), 30000);
 
     return () => clearInterval(pollInterval);
   }, [match?.id, match?.status, fetchLiveData]);
+
+  // Update the "Updated Xs ago" display every 5 seconds
+  useEffect(() => {
+    if (!lastUpdated) return;
+    const tick = setInterval(() => setLastUpdated(prev => prev ? new Date(prev.getTime()) : null), 5000);
+    return () => clearInterval(tick);
+  }, [lastUpdated]);
+
 
   // Lazy load tabs
   useEffect(() => {
@@ -427,6 +440,32 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
           </button>
         ))}
       </div>
+
+      {/* Live Update Indicator */}
+      {(isLive || match?.status === 'open') && (
+        <div className="flex items-center justify-between px-1" data-testid="live-update-indicator">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22C55E' }} />
+            <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
+              {lastUpdated
+                ? `Updated ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s ago`
+                : 'Connecting...'}
+            </span>
+            {pollCount > 0 && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: COLORS.primary.main + '22', color: COLORS.primary.main }}>
+                Poll #{pollCount}
+              </span>
+            )}
+          </div>
+          <button
+            data-testid="force-refresh-btn"
+            onClick={() => fetchLiveData(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold active:scale-95 transition-all"
+            style={{ background: COLORS.background.card, color: COLORS.accent.gold, border: `1px solid ${COLORS.accent.gold}33` }}>
+            <RefreshCw size={10} /> Refresh
+          </button>
+        </div>
+      )}
 
       {/* Tab Bar - Glass morphism, scroll on mobile */}
       <div className="flex rounded-xl overflow-x-auto scrollbar-hide glass" style={{ border: `1px solid ${COLORS.border.light}`, scrollbarWidth: 'none' }}>

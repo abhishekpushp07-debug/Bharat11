@@ -1,0 +1,89 @@
+{
+  "summary": "Iteration 60 - AI Commentary Cache TTL Bug Fix Verification COMPLETE. All reported bugs have been FIXED: 1) AI Commentary now returns fresh data with 12 key moments covering overs 1.3 to 12.2 (was stuck at 4 overs), 2) Commentary cache has 3-min TTL for live matches (was infinite), 3) Force refresh parameter bypasses cache, 4) Scorecard cache TTL reduced to 45s, 5) Polling interval reduced to 30s. All celebration animations working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration60_commentary_cache.py",
+    "/app/test_reports/pytest/pytest_iteration60.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BUG 1 FIX VERIFIED: matches.py Lines 1058-1080 - AI commentary cache now has 3-min TTL for live matches, checks generated_at timestamp and regenerates if stale",
+    "BUG 2 FIX VERIFIED: api_cache.py Line 24 - TTL_SCORECARD = 45 (was 60s, now matches polling interval)",
+    "BUG 3 FIX VERIFIED: matches.py Line 1054 - force=true parameter bypasses cache and regenerates commentary",
+    "BUG 4 FIX VERIFIED: MatchDetailPage.jsx Lines 166-177 - Polling interval is 30 seconds for live/open matches",
+    "BUG 5 FIX VERIFIED: MatchDetailPage.jsx Lines 446-467 - Live Update Indicator shows 'Updated Xs ago | Poll #N | Refresh' button",
+    "CELEBRATION FIX VERIFIED: CelebrationOverlay.jsx - SIX/FOUR/WICKET/WINNER animations all trigger correctly from demo buttons"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all UI flows working)"
+  },
+  "test_credentials": "Super Admin: Phone: 7004186276, PIN: 5524",
+  "seed_data_creation": "None - used existing live match 9c53d4ca-10c2-4e18-a723-77d4bd205640",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 60 verified all AI Commentary cache TTL bug fixes. Key findings: 1) AI commentary endpoint returns 12 key moments covering overs 1.3 to 12.2 (previously stuck at 4 overs due to infinite cache), 2) Commentary cache TTL is 3 minutes for live matches, 3) force=true parameter regenerates commentary, 4) Scorecard cache TTL is 45s, 5) Frontend polling is 30s. Live match ID: 9c53d4ca-10c2-4e18-a723-77d4bd205640 (PBKS vs GT). All celebration overlays (SIX/FOUR/WICKET/WINNER) working with canvas particle effects. Live Update Indicator shows 'Updated Xs ago | Poll #N | Refresh' button.",
+  "features_tested": {
+    "ai_commentary_cache_ttl": {
+      "api_test": "PASSED - GET /api/matches/{id}/ai-commentary returns 12 key moments covering overs 1.3 to 12.2",
+      "cache_ttl": "PASSED - 3-minute TTL for live matches (was infinite before fix)",
+      "force_refresh": "PASSED - force=true parameter bypasses cache and returns cached=false"
+    },
+    "scorecard_cache_ttl": {
+      "api_test": "PASSED - TTL_SCORECARD = 45 seconds (was 60s before fix)",
+      "data_freshness": "PASSED - Scorecard shows current match state"
+    },
+    "live_update_indicator": {
+      "ui_test": "PASSED - Shows 'Updated Xs ago | Poll #N | Refresh' button",
+      "refresh_button": "PASSED - Force refresh button triggers fetchLiveData(true)"
+    },
+    "celebration_overlays": {
+      "six_animation": "PASSED - Golden 'MAXIMUM!' overlay with fire particles",
+      "four_animation": "PASSED - Blue 'BOUNDARY!' overlay",
+      "wicket_animation": "PASSED - Red 'WICKET!' overlay with stump debris",
+      "demo_buttons": "PASSED - All 4 demo buttons (SIX/FOUR/WICKET/WINNER) visible and clickable"
+    },
+    "polling_interval": {
+      "config": "PASSED - 30-second polling for live/open matches (was 45s before fix)"
+    },
+    "live_tab_timeline": {
+      "key_moments": "PASSED - 12 key moments displayed in Timeline tab",
+      "over_coverage": "PASSED - Moments cover overs 1.3 to 12.2 (not stuck at 4 overs)"
+    },
+    "match_pulse": {
+      "ui_test": "PASSED - Match Pulse shows 'Gill glides, Jansen strikes—Mullanpur crackles'"
+    },
+    "login_flow": {
+      "phone_entry": "PASSED",
+      "pin_entry": "PASSED",
+      "admin_dashboard": "PASSED",
+      "player_view_switch": "PASSED"
+    }
+  },
+  "backend_tests_summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "test_classes": [
+      "TestLogin (1 test)",
+      "TestAICommentaryCache (5 tests)",
+      "TestScorecardCache (2 tests)",
+      "TestMatchEndpoints (3 tests)",
+      "TestCacheTTLConfig (1 test)"
+    ]
+  },
+  "rca_of_the_issue": {
+    "root_cause": "AI commentary_cache had NO TTL - once generated at over 4, it was cached forever and never regenerated even as match progressed to 12+ overs. Scorecard cache was 60s while polling was 45s causing timing mismatches.",
+    "fix_applied": "1) Added 3-minute TTL check in get_ai_commentary endpoint (Lines 1058-1080 in matches.py), 2) Reduced TTL_SCORECARD from 60s to 45s in api_cache.py, 3) Reduced polling from 45s to 30s in MatchDetailPage.jsx, 4) Added force=true parameter to bypass cache",
+    "verification": "API now returns 12 key moments covering overs 1.3 to 12.2. Force refresh works. Live Update Indicator shows poll count and refresh button."
+  }
+}
