@@ -161,6 +161,13 @@ async def list_matches(
 
     skip = (page - 1) * limit
 
+    # Redis cache for match listing
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cache_key = f"matches:s={match_status or 'all'}:p={page}:l={limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
     # Smart sorting: when no filter, return live + nearest upcoming + recent completed
     if not match_status and page == 1:
         from datetime import timezone as tz
@@ -207,13 +214,15 @@ async def list_matches(
             except Exception:
                 m["start_time_ist"] = str(st)
 
-    return {
+    result = {
         "matches": matches,
         "page": page,
         "limit": limit,
         "total": total,
         "has_more": (page * limit) < total
     }
+    await cache_set(cache_key, result, CacheTTL.MATCHES_LIST)
+    return result
 
 
 @router.get(
@@ -508,6 +517,10 @@ async def update_match_status(
             "updated_at": utc_now().isoformat()
         }}
     )
+
+    # Invalidate match caches
+    from services.redis_cache import cache_invalidate_match
+    await cache_invalidate_match(match_id)
 
     # AUTO-CONTEST: When match goes live, ensure it has a contest
     if new_status == "live":

@@ -264,6 +264,11 @@ async def join_contest(
     )
 
     del entry["_id"]
+
+    # Invalidate contest caches
+    from services.redis_cache import cache_invalidate_contest
+    await cache_invalidate_contest(contest_id)
+
     return {
         "entry": entry,
         "new_balance": new_balance,

@@ -24,16 +24,22 @@ IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
     summary="IPL Points Table — team standings (LOT3 API 3)"
 )
 async def get_ipl_points_table(db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Team standings: matches, wins, losses, ties, NR. Cached in MongoDB."""
+    """Team standings: matches, wins, losses, ties, NR. Redis 5min + MongoDB cache."""
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cached = await cache_get("points_table")
+    if cached:
+        return cached
+
     from services.cricket_data import _get_short_name
     data = await cached_cricket.get_series_points(db, IPL_SERIES_ID)
     if not data:
         return {"error": "Could not fetch points table", "teams": []}
-    # Normalize shortnames (RCBW -> RCB etc.)
     for team in data:
         sn = team.get("shortname", "")
         team["shortname"] = _get_short_name(sn)
-    return {"series_id": IPL_SERIES_ID, "teams": data}
+    result = {"series_id": IPL_SERIES_ID, "teams": data}
+    await cache_set("points_table", result, CacheTTL.POINTS_TABLE)
+    return result
 
 
 @router.get(
@@ -59,7 +65,13 @@ async def get_live_ticker(
     ipl_only: bool = Query(default=True),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """cricScore feed: ms=fixture/result/live. Cached 45s in MongoDB."""
+    """cricScore feed: ms=fixture/result/live. Cached 45s in MongoDB + 30s in Redis."""
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cache_key = f"live_ticker:ipl={ipl_only}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
     data = await cached_cricket.get_cric_score(db)
     if not data:
         return {"scores": [], "error": "Could not fetch live scores"}
@@ -114,7 +126,9 @@ async def get_live_ticker(
             "ist_display": ist_display,
         })
 
-    return {"scores": scores, "count": len(scores)}
+    result = {"scores": scores, "count": len(scores)}
+    await cache_set(cache_key, result, CacheTTL.LIVE_TICKER)
+    return result
 
 
 @router.get(

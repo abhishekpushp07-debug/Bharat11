@@ -10,6 +10,7 @@ Architecture: Clean Architecture with Repository Pattern
 - Core: Shared utilities (database, redis, security)
 """
 import sys
+import os
 import uuid
 import time as time_module
 from pathlib import Path
@@ -130,6 +131,11 @@ async def lifespan(app: FastAPI):
         # Connect to databases
         await db_manager.connect()
         
+        # Connect to Redis (non-critical — falls back gracefully)
+        from services.redis_cache import init_redis, close_redis
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        await init_redis(redis_url)
+        
         # Create indexes (idempotent)
         await create_indexes()
         
@@ -160,6 +166,11 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Shutting down application")
+    try:
+        from services.redis_cache import close_redis
+        await close_redis()
+    except Exception:
+        pass
     await db_manager.disconnect()
     logger.info("Application shutdown complete")
 
@@ -178,7 +189,7 @@ async def create_indexes():
         IndexModel([("username", TEXT)]),
     ])
     
-    # Matches collection indexes
+    # Matches collection indexes — optimized for hot queries
     await db.matches.create_indexes([
         IndexModel([("id", ASCENDING)], unique=True),
         IndexModel([("external_match_id", ASCENDING)], sparse=True),
@@ -186,15 +197,19 @@ async def create_indexes():
         IndexModel([("status", ASCENDING)]),
         IndexModel([("start_time", ASCENDING)]),
         IndexModel([("status", ASCENDING), ("start_time", ASCENDING)]),
+        IndexModel([("status", ASCENDING), ("start_time", DESCENDING)]),
+        IndexModel([("status", ASCENDING), ("manual_override", ASCENDING), ("start_time", ASCENDING)]),
     ])
     
-    # Contests collection indexes
+    # Contests collection indexes — optimized for match lookup + status filtering
     await db.contests.create_indexes([
         IndexModel([("id", ASCENDING)], unique=True),
         IndexModel([("match_id", ASCENDING)]),
         IndexModel([("status", ASCENDING)]),
         IndexModel([("match_id", ASCENDING), ("status", ASCENDING)]),
         IndexModel([("lock_time", ASCENDING)]),
+        IndexModel([("match_id", ASCENDING), ("manual_override", ASCENDING), ("status", ASCENDING)]),
+        IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
     ])
     
     # Contest entries collection indexes

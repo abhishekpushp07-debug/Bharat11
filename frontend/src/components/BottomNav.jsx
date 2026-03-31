@@ -76,8 +76,8 @@ export default function BottomNav({ active, onChange }) {
               data-testid={`nav-${id}`}
               key={id}
               onClick={() => onChange(id)}
-              className="flex flex-col items-center py-2 px-4 transition-all relative"
-              style={{ opacity: isActive ? 1 : 0.5 }}
+              className="flex flex-col items-center py-3 px-4 transition-all relative"
+              style={{ opacity: isActive ? 1 : 0.5, minHeight: '48px' }}
             >
               {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full" style={{ background: COLORS.primary.main }} />}
               <Icon size={20} color={isActive ? COLORS.primary.main : COLORS.text.secondary} strokeWidth={isActive ? 2.5 : 1.5} />

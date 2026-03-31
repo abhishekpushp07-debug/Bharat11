@@ -119,7 +119,7 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
       </div>
 
       {/* Question Navigation Dots */}
-      <div className="flex gap-1.5 justify-center flex-wrap">
+      <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide justify-center" style={{ scrollbarWidth: 'none' }}>
         {data.questions.map((q, i) => {
           const pred = data.my_predictions?.find(p => p.question_id === q.id);
           const resolved = pred?.is_correct !== undefined && pred?.is_correct !== null;
@@ -200,8 +200,8 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="flex gap-3">
+      {/* Navigation - Sticky bottom */}
+      <div className="flex gap-3 sticky bottom-0 pt-3 pb-2" style={{ background: COLORS.background.primary }}>
         <button
           data-testid="prev-q-btn"
           disabled={currentQ === 0}

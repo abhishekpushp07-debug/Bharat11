@@ -136,7 +136,7 @@ const PlayerApp = () => {
         </div>
       </header>
 
-      <main className="px-4 pt-3 pb-20 max-w-lg mx-auto">
+      <main className="px-4 pt-3 max-w-lg mx-auto" style={{ paddingBottom: 'calc(70px + env(safe-area-inset-bottom, 0px))' }}>
         {renderPage()}
       </main>
 
