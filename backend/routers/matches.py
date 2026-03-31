@@ -935,12 +935,17 @@ async def sync_ipl_schedule(
             if schedule_time:
                 updates["start_time"] = schedule_time
 
-            # Update status — schedule API is authoritative (SKIP if admin overrode manually)
+            # Update status from API data
             old_status = existing.get("status", "upcoming")
             is_manual = existing.get("manual_override", False)
-            if m_status != old_status and not is_manual:
-                # Allow both forward AND correction transitions from schedule
-                updates["status"] = m_status
+
+            if m_status != old_status:
+                # COMPLETED is ALWAYS applied — match khatam ho gaya toh khatam
+                if m_status == "completed":
+                    updates["status"] = "completed"
+                # For other transitions (upcoming→live etc.), respect manual_override
+                elif not is_manual:
+                    updates["status"] = m_status
 
             # Update scores — NEVER overwrite non-zero scores with zeros
             if scores:
