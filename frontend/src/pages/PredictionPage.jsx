@@ -66,7 +66,7 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
   const totalQ = data?.questions?.length || 0;
   const isLocked = data?.is_locked;
   const contestStatus = data?.contest_status || '';
-  const isStatusLocked = contestStatus && !['open', 'live'].includes(contestStatus);
+  const isStatusLocked = contestStatus && contestStatus !== 'live';
   const canEdit = !isLocked && !isStatusLocked;
 
   if (!data) {

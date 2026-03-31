@@ -1,0 +1,83 @@
+{
+  "summary": "Iteration 57 - Contest Status Access Control Bug Fix Testing Complete. CRITICAL BUG FIX VERIFIED: When admin unlives a contest (status→open), users can NO longer edit answers. Only 'live' contests allow join/submit/edit. Backend: 12/12 tests passed. Frontend: All features working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration57_status_access.py",
+    "/app/test_reports/pytest/pytest_iteration57.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CRITICAL BUG FIX VERIFIED: POST /api/contests/{id}/join returns 400 when contest status is 'open' or 'completed'",
+    "CRITICAL BUG FIX VERIFIED: POST /api/contests/{id}/predict returns 400 when contest status is 'open' or 'completed'",
+    "GET /api/contests/{id}/questions returns is_locked=true when status is 'open' or 'completed'",
+    "GET /api/contests/{id}/questions returns is_locked=false when status is 'live'",
+    "GET /api/contests/{id}/questions returns contest_status field in response",
+    "MatchDetailPage shows 'Leaderboard' button for 'open' contests (not Join/Predict)",
+    "MatchDetailPage shows 'Predict' button for 'live' contests when user has joined",
+    "MyContestsPage shows correct status badges: LIVE (red), OPEN (amber), DONE (green)",
+    "MyContestsPage clicking 'open' contest navigates to LeaderboardPage (not PredictionPage)",
+    "MyContestsPage clicking 'live' contest navigates to PredictionPage",
+    "PredictionPage options are ENABLED when contest is 'live'",
+    "PredictionPage options would be DISABLED when contest is 'open' (canEdit=false)",
+    "LeaderboardPage clicking on user shows UserAnswerModal with their predictions"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration57_status_access.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all features working)"
+  },
+  "test_credentials": "Super Admin: Phone: 7004186276, PIN: 5524",
+  "seed_data_creation": "None - used existing contest c5e299a7-d5c8-4ecc-9010-81964a60d0d4",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 57 tested the critical bug fix for contest status access control. Backend tests verify: 1) POST /api/contests/{id}/join returns 400 for open/completed contests, 200/409 for live, 2) POST /api/contests/{id}/predict returns 400 for open/completed contests, 200 for live, 3) GET /api/contests/{id}/questions returns is_locked and contest_status fields. Frontend tests verify: MatchDetailPage shows correct buttons based on status, MyContestsPage routes correctly (live→prediction, non-live→leaderboard), PredictionPage options enabled/disabled based on status, LeaderboardPage UserAnswerModal works. Test contest ID: c5e299a7-d5c8-4ecc-9010-81964a60d0d4 (status restored to 'open' after tests).",
+  "features_tested": {
+    "join_contest_status_check": {
+      "POST_join_open": "PASSED - Returns 400 (rejected)",
+      "POST_join_live": "PASSED - Returns 200/409 (allowed)",
+      "POST_join_completed": "PASSED - Returns 400 (rejected)"
+    },
+    "predict_status_check": {
+      "POST_predict_open": "PASSED - Returns 400 (rejected)",
+      "POST_predict_live": "PASSED - Returns 200 (allowed)",
+      "POST_predict_completed": "PASSED - Returns 400 (rejected)"
+    },
+    "get_questions_status_fields": {
+      "is_locked_when_open": "PASSED - is_locked=true",
+      "is_locked_when_live": "PASSED - is_locked=false",
+      "is_locked_when_completed": "PASSED - is_locked=true",
+      "contest_status_field": "PASSED - Returns contest_status in response"
+    },
+    "leaderboard_access": {
+      "accessible_when_open": "PASSED - Leaderboard accessible",
+      "user_answers_accessible": "PASSED - User answers viewable"
+    },
+    "frontend_match_detail_page": {
+      "leaderboard_btn_for_open": "PASSED - Shows Leaderboard button",
+      "predict_btn_for_live_joined": "PASSED - Shows Predict button",
+      "status_badges": "PASSED - LIVE (red), OPEN (amber) badges shown"
+    },
+    "frontend_my_contests_page": {
+      "status_badges": "PASSED - LIVE/OPEN badges shown correctly",
+      "click_open_to_leaderboard": "PASSED - Navigates to LeaderboardPage",
+      "click_live_to_prediction": "PASSED - Navigates to PredictionPage"
+    },
+    "frontend_prediction_page": {
+      "options_enabled_for_live": "PASSED - Options clickable",
+      "canEdit_based_on_status": "PASSED - canEdit=true for live, false for open"
+    },
+    "frontend_leaderboard_page": {
+      "user_answer_modal": "PASSED - Click user shows their predictions"
+    }
+  }
+}

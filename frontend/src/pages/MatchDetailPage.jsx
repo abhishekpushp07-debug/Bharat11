@@ -429,7 +429,14 @@ function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPr
         const isJoined = joinedIds.has(c.id);
         const isJoining = joiningId === c.id;
         const done = c.status === 'completed';
+        const isLive = c.status === 'live';
+        const isOpen = c.status === 'open';  // participation closed, match ongoing
         const participantPct = c.max_participants > 0 ? Math.min(100, Math.round((c.current_participants || 0) / c.max_participants * 100)) : 0;
+
+        // Status label mapping
+        const statusLabel = done ? 'DONE' : isLive ? 'LIVE' : isOpen ? 'OPEN' : (c.status || '').toUpperCase();
+        const statusColor = isLive ? '#FF3B3B' : isOpen ? '#F59E0B' : done ? '#22c55e' : COLORS.text.tertiary;
+
         return (
           <div key={c.id} data-testid={`contest-${c.id}`} className="rounded-2xl overflow-hidden"
             style={{ background: COLORS.background.card, border: `1px solid ${isJoined ? COLORS.success.main + '30' : 'rgba(255,255,255,0.06)'}` }}>
@@ -445,27 +452,30 @@ function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPr
                   </div>
                 </div>
                 <div className="ml-3 shrink-0">
-                  {done ? (
+                  {(done || isOpen) ? (
+                    /* Open or Completed → show Leaderboard */
                     <button data-testid={`leaderboard-btn-${c.id}`} onClick={() => onOpenLeaderboard?.(c.id)}
                       className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95"
                       style={{ background: `${COLORS.accent.gold}15`, color: COLORS.accent.gold, border: `1px solid ${COLORS.accent.gold}30` }}>
-                      <Trophy size={13} /> Results
+                      <Trophy size={13} /> {done ? 'Results' : 'Leaderboard'}
                     </button>
-                  ) : isJoined ? (
+                  ) : isJoined && isLive ? (
+                    /* Joined + Live → Predict */
                     <button data-testid={`predict-btn-${c.id}`} onClick={() => onOpenPrediction?.(c.id)}
                       className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95"
                       style={{ background: `${COLORS.success.main}15`, color: COLORS.success.main, border: `1px solid ${COLORS.success.main}30` }}>
                       <Check size={13} /> Predict
                     </button>
-                  ) : (
+                  ) : !isJoined && isLive ? (
+                    /* Not Joined + Live → Join */
                     <button data-testid={`join-btn-${c.id}`} onClick={() => onJoin(c.id)}
-                      disabled={isJoining || !['open', 'live'].includes(c.status)}
+                      disabled={isJoining}
                       className="px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 transition-transform active:scale-95"
                       style={{ background: COLORS.primary.gradient, color: '#fff', boxShadow: '0 4px 12px rgba(255,59,59,0.25)' }}>
                       {isJoining ? <Loader2 size={13} className="animate-spin" /> : null}
                       {isJoining ? 'Joining...' : 'Join'} {!isJoining && <ChevronRight size={13} />}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
               {/* Participant progress bar */}
@@ -478,8 +488,12 @@ function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPr
                   <span className="text-[10px] font-semibold" style={{ color: COLORS.text.secondary }}>{c.current_participants || 0}/{c.max_participants || 0}</span>
                 </div>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                  style={{ color: c.status === 'open' ? COLORS.success.main : COLORS.text.tertiary, background: c.status === 'open' ? COLORS.success.bg : 'rgba(255,255,255,0.04)' }}>
-                  {c.status?.toUpperCase()}
+                  style={{
+                    color: statusColor,
+                    background: isLive ? 'rgba(255,59,59,0.1)' : isOpen ? 'rgba(245,158,11,0.1)' : done ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)',
+                  }}>
+                  {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 animate-pulse" style={{ background: '#FF3B3B' }} />}
+                  {statusLabel}
                 </span>
               </div>
             </div>

@@ -6,10 +6,10 @@ import { Trophy, Clock, Users, ChevronRight, CheckCircle, XCircle, Coins, Target
 import { motion } from 'framer-motion';
 
 const STATUS_CONFIG = {
-  open: { label: 'OPEN', color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.25)' },
   live: { label: 'LIVE', color: '#FF3B3B', bg: 'rgba(255,59,59,0.1)', border: 'rgba(255,59,59,0.3)' },
+  open: { label: 'OPEN', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
   locked: { label: 'LOCKED', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
-  completed: { label: 'COMPLETED', color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.15)' },
+  completed: { label: 'DONE', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.15)' },
 };
 
 export default function MyContestsPage({ onContestClick, onViewLeaderboard }) {

@@ -168,8 +168,8 @@ async def join_contest(
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
 
-    if contest["status"] not in ("open", "live"):
-        raise HTTPException(status_code=400, detail="Contest is not open for joining")
+    if contest["status"] != "live":
+        raise HTTPException(status_code=400, detail="Sirf live contests mein join kar sakte ho")
 
     # Check lock time
     lock_time = contest.get("lock_time", "")
@@ -324,10 +324,11 @@ async def get_contest_questions(
         {"_id": 0, "predictions": 1, "submission_time": 1}
     )
 
-    # Check lock status
+    # Check lock status — ONLY live contests allow editing
+    # live = accepting predictions, open = participation closed, completed = done
     contest_status = contest.get("status", "open")
     lock_time = contest.get("lock_time", "")
-    is_locked = contest_status not in ("open", "live")  # locked if not open/live
+    is_locked = contest_status != "live"  # locked if not live
     if not is_locked and lock_time:
         lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
         if lt.tzinfo is None:
@@ -364,12 +365,18 @@ async def submit_predictions(
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
 
-    # 1b. CRITICAL: Check contest status - only open/live contests accept predictions
+    # 1b. CRITICAL: Check contest status - ONLY live contests accept predictions
+    # live = participation open, open = participation closed (match ongoing), completed = done
     contest_status = contest.get("status", "")
-    if contest_status not in ("open", "live"):
+    if contest_status != "live":
+        status_msg = {
+            "open": "Contest participation band ho chuki hai. Match chal raha hai, results pending.",
+            "completed": "Contest khatam ho chuka hai. Results aa chuke hain.",
+            "locked": "Contest locked hai.",
+        }.get(contest_status, f"Contest is {contest_status}.")
         raise HTTPException(
             status_code=400,
-            detail=f"Contest is {contest_status}. Predictions can only be submitted for open or live contests."
+            detail=status_msg
         )
 
     # 2. Check lock time (basic time check)

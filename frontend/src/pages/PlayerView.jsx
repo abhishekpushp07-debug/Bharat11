@@ -32,7 +32,8 @@ export default function PlayerView({ onBackToAdmin }) {
   const handleContestClick = useCallback(({ entry, contest }) => {
     const cid = contest?.id || entry?.contest_id;
     if (!cid) return;
-    contest?.status === 'completed' ? handleOpenLeaderboard(cid) : handleOpenPrediction(cid);
+    // Only live contests go to prediction page, everything else goes to leaderboard
+    contest?.status === 'live' ? handleOpenPrediction(cid) : handleOpenLeaderboard(cid);
   }, [handleOpenLeaderboard, handleOpenPrediction]);
 
   const handleAfterJoin = useCallback((cid) => { fetchUser(); handleOpenPrediction(cid); }, [fetchUser, handleOpenPrediction]);
