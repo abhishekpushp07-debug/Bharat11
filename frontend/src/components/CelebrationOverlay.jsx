@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { playCelebrationSound } from './CelebrationSounds';
 
 // ============ CANVAS PARTICLE ENGINE ============
 class Particle {
@@ -280,45 +281,78 @@ const CELEBRATIONS = {
   },
 
   four: {
-    duration: 2800,
+    duration: 3000,
     number: '4',
     title: 'BOUNDARY!',
-    subtitle: 'RACING AWAY',
-    gradient: 'linear-gradient(135deg, #00D4FF, #007AFF, #0040FF)',
+    subtitle: 'RACING TO THE FENCE',
+    gradient: 'linear-gradient(135deg, #00D4FF, #007AFF, #0040FF, #00D4FF)',
     textGlow: '#00D4FF',
-    bgFlash: 'rgba(0, 122, 255, 0.25)',
-    shakeIntensity: 6,
+    bgFlash: 'rgba(0, 180, 255, 0.35)',
+    shakeIntensity: 10,
     particles: (engine) => {
       const cx = engine.canvas.offsetWidth / 2;
       const cy = engine.canvas.offsetHeight / 2;
-      const blueColors = ['#00D4FF', '#007AFF', '#0040FF', '#00BFFF', '#1E90FF', '#87CEEB', '#FFFFFF'];
-      // Horizontal wave burst
-      engine.emit(80, {
+      const w = engine.canvas.offsetWidth;
+      const blueColors = ['#00D4FF', '#007AFF', '#0040FF', '#00BFFF', '#1E90FF', '#87CEEB', '#FFFFFF', '#00FFFF'];
+      // Wave 1: Massive central explosion — electric blue embers
+      engine.emit(140, {
         x: cx, y: cy,
         colors: blueColors,
-        speed: 10,
-        speedX: 2.5,
-        speedY: 0.5,
-        gravity: 0.05,
+        speed: 14 + Math.random() * 5,
+        gravity: 0.1,
         friction: 0.97,
-        decay: 0.008,
-        size: 3,
-        shape: 'circle',
+        decay: 0.006,
+        size: 4,
+        shape: 'ember',
         trail: true,
       });
-      // Sparkles
+      // Wave 2: Bright white sparks
+      setTimeout(() => {
+        engine.emit(60, {
+          x: cx, y: cy,
+          colors: ['#FFFFFF', '#E0F7FF', '#B3E8FF', '#00FFFF'],
+          speed: 16,
+          gravity: 0.06,
+          friction: 0.95,
+          decay: 0.012,
+          size: 2.5,
+          shape: 'spark',
+          trail: true,
+        });
+      }, 80);
+      // Wave 3: Horizontal sweep particles (boundary feel)
+      setTimeout(() => {
+        for (let side = -1; side <= 1; side += 2) {
+          engine.emit(30, {
+            x: cx, y: cy,
+            colors: blueColors,
+            angleRange: side > 0 ? [-0.3, 0.3] : [Math.PI - 0.3, Math.PI + 0.3],
+            speed: 12,
+            speedX: 2,
+            speedY: 0.3,
+            gravity: 0.04,
+            friction: 0.98,
+            decay: 0.005,
+            size: 3.5,
+            shape: 'ember',
+            trail: true,
+          });
+        }
+      }, 150);
+      // Wave 4: Floating blue particles (ambient)
       setTimeout(() => {
         engine.emit(40, {
           x: cx, y: cy,
-          colors: ['#FFFFFF', '#E0F7FF', '#B3E8FF'],
-          speed: 8,
-          gravity: 0.1,
-          friction: 0.96,
-          decay: 0.01,
-          size: 2,
-          shape: 'spark',
+          colors: blueColors,
+          speed: 3,
+          gravity: -0.02,
+          friction: 0.99,
+          decay: 0.004,
+          size: 2.5,
+          shape: 'circle',
+          wobble: 0.4,
         });
-      }, 150);
+      }, 300);
     },
   },
 
@@ -564,6 +598,8 @@ export default function CelebrationOverlay({ type, onComplete }) {
     engine.start();
     // Fire particles after a tiny delay for the flash to register
     setTimeout(() => config.particles(engine), 80);
+    // Play celebration sound effect
+    playCelebrationSound(type);
     return () => engine.stop();
   }, [type]);
 
@@ -615,7 +651,12 @@ export default function CelebrationOverlay({ type, onComplete }) {
 
         {/* Type-specific effects */}
         {type === 'six' && <LightRays color="#FFD700" />}
-        {type === 'four' && <BoundaryStreaks />}
+        {type === 'four' && (
+          <>
+            <LightRays color="#00D4FF" />
+            <BoundaryStreaks />
+          </>
+        )}
 
         {/* Dark vignette for WICKET */}
         {type === 'wicket' && (
