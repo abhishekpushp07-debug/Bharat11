@@ -10,7 +10,7 @@ Fantasy Cricket Prediction PWA with JWT auth, real-time Socket.IO, push notifica
 4. **Auto-Settlement**: AI agent reads scorecard + BBB to auto-resolve questions, with admin override
 5. **Real-Time**: Socket.IO for live scores, leaderboards, push notifications
 6. **Enhanced UX**: Dual points banner, team search, Hot Contests (Instagram stories style)
-7. **Super Admin**: Full CRUD with multi-select delete, Default Templates, AI Override Resolve
+7. **Super Admin**: Full CRUD with multi-select delete, Default Templates, AI Override Resolve, Quick Resolve
 
 ## Architecture
 - **Frontend**: React.js PWA (mobile-first)
@@ -35,22 +35,34 @@ Fantasy Cricket Prediction PWA with JWT auth, real-time Socket.IO, push notifica
 ### Phase 4: Super Admin Overhaul (DONE - March 30, 2026)
 - **Bulk Delete**: Multi-select checkboxes + bulk delete for Questions, Templates, Contests
 - **Default Templates**: Section to define 5 default templates (auto-attach 24h before match)
-- **AI Override Resolve**: Click contest → see AI-predicted answers from scorecard → edit → submit
+- **AI Override Resolve**: Click contest -> see AI-predicted answers from scorecard -> edit -> submit
 - **Template Type Badges**: Full Match / In-Match badges on all contest cards
-- **Manual Contest Creation**: Create contests inside match view with default template options (prefixed "Default")
+- **Manual Contest Creation**: Create contests inside match view with default template options
 - **Enriched Contest List**: Template type, match label, question count in admin contest list
 - **24h Auto-Engine**: Uses default templates as fallback, then copies from last match
 
 ### Phase 5: Player Search & UI (DONE - March 30, 2026)
 - **Protruding Search Button**: Center of bottom nav, red gradient with glow effect
 - **Search Page**: IPL team logos grid (10 teams, 5 columns), match search, quick stats
-- **Dual Points Banner**: Fantasy Points + Contest Coins on homepage (gradient cards)
+- **Dual Points Banner**: Fantasy Points + Contest Coins on homepage
+
+### Phase 6: Quick Resolve & Team Profiles (DONE - March 30, 2026)
+- **Quick Resolve**: One-tap AI resolve all active contests from admin dashboard
+- **Team Profiles**: Comprehensive profiles for all 10 IPL teams with:
+  - Hero banner with team colors & logo
+  - Quick stats (Titles, Captain, Matches, Founded)
+  - Championship title years
+  - Detailed team info card
+  - History & Legacy essay (bilingual Hindi+English)
+  - Key players horizontal scroll
+  - Fun facts numbered list
+  - Team-specific matches
 
 ## Remaining Tasks
 
 ### P1 (Next Priority)
 - Performance optimization / Lighthouse audit
-- Template auto-generation following full_match/in_match intervals
+- Auto template generation following full_match/in_match intervals
 
 ### P2 (Future)
 - Heavy animations (sixes/wickets/fours celebrations)
@@ -59,12 +71,14 @@ Fantasy Cricket Prediction PWA with JWT auth, real-time Socket.IO, push notifica
 - User Management Tab (Admin Dashboard)
 
 ## Key Files
-- `/app/backend/routers/admin.py` - Admin API endpoints (2100+ lines)
+- `/app/backend/routers/admin.py` - Admin API endpoints (2200+ lines)
 - `/app/backend/services/settlement_engine.py` - Auto-resolution engine
 - `/app/backend/services/match_engine.py` - 24h auto-engine with default templates
 - `/app/frontend/src/pages/AdminApp.jsx` - Admin shell
+- `/app/frontend/src/pages/admin/AdminDashboard.jsx` - Dashboard with Quick Resolve
 - `/app/frontend/src/pages/admin/AdminResolvePage.jsx` - AI Override resolve
 - `/app/frontend/src/pages/SearchPage.jsx` - Player search page
+- `/app/frontend/src/pages/TeamProfilePage.jsx` - Comprehensive team profiles
 - `/app/frontend/src/components/BottomNav.jsx` - Protruding search nav
 
 ## Credentials
