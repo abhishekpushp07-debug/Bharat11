@@ -59,9 +59,11 @@ function PlayerSelector({ players, selected, onSelect, label, side }) {
           <div className="text-xs font-bold text-white truncate">{selected?.name || 'Select Player'}</div>
         </div>
         {selected ? (
-          <button onClick={(e) => { e.stopPropagation(); onSelect(null); setOpen(false); }} className="p-0.5">
+          <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onSelect(null); setOpen(false); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onSelect(null); setOpen(false); } }}
+            className="p-0.5 cursor-pointer">
             <X size={12} color={COLORS.text.tertiary} />
-          </button>
+          </span>
         ) : (
           <ChevronDown size={14} color={COLORS.text.tertiary} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
         )}
