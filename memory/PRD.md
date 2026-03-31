@@ -19,31 +19,35 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive Cri
 - [x] **series_info** — 70 IPL matches synced, auto-sync on startup
 - [x] **match_scorecard** — Real batting/bowling data (11 batsmen per team)
 - [x] **match_info** — Toss, winner, scores, venue
-- [x] **series_points** — IPL standings table (RCBW→RCB normalized)
+- [x] **series_points** — IPL standings table (RCBW->RCB normalized)
 - [x] **series_squad** — All team squads (25+ players each)
 - [x] **cricScore** — Live score ticker (IPL-only filtering)
 - [x] **match_points** — Fantasy points per player
 - [x] **match_bbb** — Ball-by-ball data
 - [x] **player_info** — Career stats
 - [x] **Auto-sync startup** — 70 matches + score fetching for completed
-- [x] **Team name fix** — teams[] vs teamInfo[] order mismatch fixed (28 matches corrected)
-- [x] **Score fetching** — Auto-fetch from match_scorecard for completed matches with zeros
-- [x] **Orphan cleanup** — Cricbuzz matches deleted, duplicates resolved
 - [x] **MongoDB indexes** — api_cache (compound unique), matches.cricketdata_id (sparse)
+
+#### Data Accuracy Fix (COMPLETED - March 31, 2026)
+- [x] **_align_team_info()** — Fixes CricketData API bug where teams[] and teamInfo[] arrays are in random different orders. Matches by canonical short name comparison.
+- [x] **_is_strictly_ipl()** — Strict whitelist of 10 IPL team short names. BOTH teams must match. Filters out Pakistan Super League, Nigeria T20, etc.
+- [x] **Score protection** — Never overwrites non-zero scores with zeros from series_info API
+- [x] **Duplicate prevention** — sync_live_matches checks both external_match_id AND cricketdata_id + team name matching before creating
+- [x] **DB correction** — All existing swapped matches corrected (1 match: MI vs KKR was swapped)
+- [x] **Score normalization** — Both r/runs and w/wickets fields are consistently populated
+- [x] Result: 100% IPL matches, 0 non-IPL, 0 duplicates, 0 team swaps
 
 #### AI Commentary (COMPLETED - March 2026)
 - [x] 4-tab system: Match Story, Phase Analysis, Timeline (16 moments), MVPs
 - [x] Phase Analysis: Powerplay (1-6), Middle (7-15), Death (16-20)
-- [x] Momentum indicator, timeline with oversized overs
-- [x] Star performers: Virat Kohli 9.6, Padikkal 9.4, Kishan 9.2
-- [x] Bilingual Hinglish commentary ("Kohli-Padikkal chase: Chinnaswamy on fire!")
+- [x] Bilingual Hinglish commentary
 - [x] Framer Motion animations
 
 #### WhatsApp Share Card (COMPLETED - March 2026)
 - [x] Premium collectible card (Topps Chrome aesthetic)
 - [x] 9:16 portrait, gold corners, oversized rank, bento stats
 
-#### Auth, Matches, Contests, Admin, UX — All complete (see CHANGELOG.md)
+#### Auth, Matches, Contests, Admin, UX — All complete
 
 ### Credentials
 - Super Admin: Phone `7004186276`, PIN `5524`
