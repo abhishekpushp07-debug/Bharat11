@@ -834,12 +834,16 @@ async def sync_ipl_schedule(
                 "cricketdata_id": cd_id,
             }
 
-            # Update status (only forward transitions)
+            # ALWAYS update start_time from schedule API (most reliable source)
+            schedule_time = api_match.get("dateTimeGMT", "")
+            if schedule_time:
+                updates["start_time"] = schedule_time
+
+            # Update status — schedule API is authoritative
             old_status = existing.get("status", "upcoming")
             if m_status != old_status:
-                VALID = {"upcoming": ["live", "completed"], "live": ["completed"]}
-                if m_status in VALID.get(old_status, []):
-                    updates["status"] = m_status
+                # Allow both forward AND correction transitions from schedule
+                updates["status"] = m_status
 
             # Update scores — NEVER overwrite non-zero scores with zeros
             if scores:
