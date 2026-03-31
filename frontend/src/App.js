@@ -2,7 +2,7 @@
  * Bharat 11 - Main App Component
  * Complete separation: Admin sees AdminApp, Player sees PlayerApp
  */
-import { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
 import "@/App.css";
 import { useAuthStore } from "@/stores/authStore";
 import { useSocketStore } from "@/stores/socketStore";
@@ -10,6 +10,8 @@ import { AuthFlow } from "@/components/auth";
 import BottomNav from "@/components/BottomNav";
 import HomePage from "@/pages/HomePage";
 import { COLORS } from "@/constants/design";
+import CelebrationOverlay from "@/components/CelebrationOverlay";
+import apiClient from "@/api/client";
 
 // Lazy load heavy pages for performance
 const WalletPage = lazy(() => import("@/pages/WalletPage"));
@@ -43,6 +45,13 @@ const PlayerApp = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [selectedContestId, setSelectedContestId] = useState(null);
+  const [globalCelebration, setGlobalCelebration] = useState(null);
+  const triggerCelebration = useCallback((type) => {
+    console.log('GLOBAL CELEBRATION TRIGGERED:', type);
+    setGlobalCelebration(type);
+  }, []);
+  const lastScoreRef = useRef(null);
+  const liveMatchIdRef = useRef(null);
   const { fetchUser } = useAuthStore();
   const { connect, disconnect } = useSocketStore();
 
@@ -51,6 +60,76 @@ const PlayerApp = () => {
     connect();
     return () => disconnect();
   }, [connect, disconnect]);
+
+  // ===== GLOBAL LIVE MATCH POLLING — celebrations on ANY screen =====
+  useEffect(() => {
+    let pollInterval = null;
+    let cancelled = false;
+
+    const findLiveMatchAndPoll = async () => {
+      try {
+        // Find any live match
+        const res = await apiClient.get('/matches?status=live&limit=1');
+        const matches = res.data?.matches || [];
+        if (matches.length === 0) {
+          liveMatchIdRef.current = null;
+          return;
+        }
+        const liveMatchId = matches[0]?.id;
+        liveMatchIdRef.current = liveMatchId;
+
+        // Now start polling scorecard for this match
+        const pollScorecard = async () => {
+          if (cancelled || !liveMatchIdRef.current) return;
+          try {
+            const scRes = await apiClient.get(`/matches/${liveMatchIdRef.current}/scorecard`);
+            const sc = scRes.data;
+            if (!sc || sc.error) return;
+
+            const allInnings = sc?.scorecard || [];
+            let totalFours = 0, totalSixes = 0, totalWickets = 0;
+            for (const inn of allInnings) {
+              for (const b of (inn?.batting || [])) {
+                totalSixes += parseInt(b['6s']) || 0;
+                totalFours += parseInt(b['4s']) || 0;
+                if (b.dismissal && b.dismissal !== 'not out' && b.dismissal !== '') totalWickets++;
+              }
+            }
+
+            const prev = lastScoreRef.current;
+            if (prev && prev.matchId === liveMatchIdRef.current) {
+              if (totalWickets > prev.wickets) {
+                triggerCelebration('wicket');
+              } else if (totalSixes > prev.sixes) {
+                triggerCelebration('six');
+              } else if (totalFours > prev.fours) {
+                triggerCelebration('four');
+              }
+            }
+            lastScoreRef.current = { matchId: liveMatchIdRef.current, wickets: totalWickets, sixes: totalSixes, fours: totalFours };
+          } catch (e) { /* silent */ }
+        };
+
+        // Initial poll
+        await pollScorecard();
+
+        // Clear old interval if any
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(pollScorecard, 30000);
+      } catch (e) { /* silent */ }
+    };
+
+    findLiveMatchAndPoll();
+
+    // Re-check for live matches every 2 minutes
+    const matchCheck = setInterval(findLiveMatchAndPoll, 120000);
+
+    return () => {
+      cancelled = true;
+      if (pollInterval) clearInterval(pollInterval);
+      clearInterval(matchCheck);
+    };
+  }, []);
 
   const handleMatchClick = useCallback((match) => {
     setSelectedMatch(match);
@@ -105,7 +184,7 @@ const PlayerApp = () => {
     const content = (() => {
       switch (activeTab) {
         case 'home': return <HomePage onMatchClick={handleMatchClick} />;
-        case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} />;
+        case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} onCelebrate={triggerCelebration} />;
         case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
         case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
         case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
@@ -128,6 +207,11 @@ const PlayerApp = () => {
 
   return (
     <div className="min-h-screen" style={{ background: COLORS.background.primary }}>
+      {/* GLOBAL CELEBRATION OVERLAY — fires on ANY screen */}
+      {globalCelebration && (
+        <CelebrationOverlay type={globalCelebration} onComplete={() => setGlobalCelebration(null)} />
+      )}
+
       <header className="sticky top-0 z-40 px-4 py-3 safe-top" style={{ background: `${COLORS.background.primary}F0`, backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.border.light}` }}>
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <h1 data-testid="app-title" className="text-lg font-bold tracking-wider" style={{ color: COLORS.primary.main, fontFamily: "'Orbitron', sans-serif" }}>

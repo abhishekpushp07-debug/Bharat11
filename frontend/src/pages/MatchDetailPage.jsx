@@ -7,7 +7,6 @@ import ScorecardView from '../components/ScorecardView';
 import MoodMeter from '../components/MoodMeter';
 import AICommentaryTab from '../components/AICommentaryTab';
 import { useSocketStore } from '../stores/socketStore';
-import CelebrationOverlay from '../components/CelebrationOverlay';
 
 const getGrad = (s) => getTeamGradient(s);
 
@@ -24,7 +23,7 @@ const TABS = [
   { key: 'fantasy', label: 'Fantasy Pts', icon: Swords },
 ];
 
-export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPrediction, onOpenLeaderboard }) {
+export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPrediction, onOpenLeaderboard, onCelebrate }) {
   const [activeTab, setActiveTab] = useState('contests');
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +57,6 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [playerProfile, setPlayerProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [celebration, setCelebration] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [pollCount, setPollCount] = useState(0);
 
@@ -126,11 +124,11 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         const prevScore = lastScoreRef.current;
         if (prevScore) {
           if (totalWickets > prevScore.wickets) {
-            setCelebration('wicket');
+            onCelebrate?.('wicket');
           } else if (totalSixes > prevScore.sixes) {
-            setCelebration('six');
+            onCelebrate?.('six');
           } else if (totalFours > prevScore.fours) {
-            setCelebration('four');
+            onCelebrate?.('four');
           }
         }
 
@@ -266,7 +264,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
 
     const handleCelebration = (data) => {
       if (data.match_id === match.id && data.event_type) {
-        setCelebration(data.event_type);
+        onCelebrate?.(data.event_type);
       }
     };
     on('celebration', handleCelebration);
@@ -314,10 +312,6 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
 
   return (
     <div data-testid="match-detail-page" className="pb-6 space-y-4">
-      {/* Celebration Overlay */}
-      {celebration && (
-        <CelebrationOverlay type={celebration} onComplete={() => setCelebration(null)} />
-      )}
       <button data-testid="match-back-btn" onClick={onBack} className="flex items-center gap-2 text-sm" style={{ color: COLORS.text.secondary }}>
         <ArrowLeft size={16} /> Back
       </button>
@@ -420,7 +414,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
           <button
             key={c.type}
             data-testid={`demo-${c.type}`}
-            onClick={() => setCelebration(c.type)}
+            onClick={() => onCelebrate?.(c.type)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black tracking-wider whitespace-nowrap transition-all active:scale-90 hover:scale-105"
             style={{
               background: `linear-gradient(135deg, ${c.color}08, ${c.color}18)`,
@@ -496,7 +490,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
 
       {/* Tab Content */}
       {activeTab === 'contests' && <ContestsTab contests={contests} loading={loading} joinedIds={joinedIds} joiningId={joiningId} onJoin={handleJoin} onOpenPrediction={onOpenPrediction} onOpenLeaderboard={onOpenLeaderboard} deadlines={deadlines} />}
-      {activeTab === 'live' && <AICommentaryTab data={bbbData} loading={bbbLoading} onCelebrate={(type) => setCelebration(type)} />}
+      {activeTab === 'live' && <AICommentaryTab data={bbbData} loading={bbbLoading} onCelebrate={(type) => onCelebrate?.(type)} />}
       {activeTab === 'scorecard' && <ScorecardTab data={scorecardData} loading={scorecardLoading} />}
       {activeTab === 'squad' && <SquadTab squads={squad} loading={squadLoading} onPlayerClick={openPlayerProfile} />}
       {activeTab === 'fantasy' && <FantasyPointsTab data={fantasyData} loading={fantasyLoading} onPlayerClick={openPlayerProfile} />}
