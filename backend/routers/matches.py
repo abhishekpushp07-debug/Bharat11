@@ -816,13 +816,23 @@ async def sync_ipl_schedule(
     - Auto-creates contests for upcoming/live matches
     Uses 1 API call only.
     """
-    from services.api_cache import cached_cricket
+    from services.api_cache import cached_cricket, set_cache
     from services.cricket_data import cricket_service, _get_short_name, _align_team_info, IPL_SHORT_NAMES, _normalize_score
 
     IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 
-    # Fetch full schedule (uses MongoDB cache if available)
-    series_data = await cached_cricket.get_series_info(db, IPL_SERIES_ID)
+    # ALWAYS bypass cache on manual sync — fetch fresh data from API
+    # Clear in-memory cache first
+    cache_key = f"series_info_{IPL_SERIES_ID}"
+    cricket_service._cache.pop(cache_key, None)
+    cricket_service._cache_time.pop(cache_key, None)
+    series_data = await cricket_service.get_series_info(IPL_SERIES_ID)
+    if series_data:
+        # Update cache with fresh data
+        await set_cache(db, "series_info", IPL_SERIES_ID, series_data, permanent=False)
+    else:
+        # Fallback to cache if API call fails
+        series_data = await cached_cricket.get_series_info(db, IPL_SERIES_ID)
     if not series_data:
         return {"error": "Could not fetch IPL schedule from API", "synced": 0}
 

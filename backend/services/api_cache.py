@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # TTL configs (in seconds)
 TTL_PERMANENT = 0  # Never expires
 TTL_LIVE_SCORE = 15  # Re-fetch every 15s for live matches
-TTL_SERIES_INFO = 86400  # 24 hours
+TTL_SERIES_INFO = 300  # 5 minutes (match statuses change frequently)
 TTL_SERIES_SQUAD = 86400  # 24 hours
 TTL_SERIES_POINTS = 1800  # 30 min
 TTL_MATCH_INFO = 3600  # 1 hour (or permanent if completed)
