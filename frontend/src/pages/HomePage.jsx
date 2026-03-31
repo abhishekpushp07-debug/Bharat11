@@ -151,14 +151,14 @@ export default function HomePage({ onMatchClick }) {
   return (
     <div data-testid="home-page" className="pb-4 space-y-5">
       {/* Greeting + Balance */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white">Hey, {user?.username || 'Player'}!</h1>
-          <p className="text-xs mt-0.5" style={{ color: COLORS.text.secondary }}>Predict & Win Virtual Coins</p>
+      <div className="flex items-center justify-between gap-2 overflow-hidden">
+        <div className="min-w-0 flex-shrink">
+          <h1 className="text-lg font-bold text-white truncate">Hey, {user?.username || 'Player'}!</h1>
+          <p className="text-[10px] mt-0.5" style={{ color: COLORS.text.secondary }}>Predict & Win Virtual Coins</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Live connection indicator */}
-          <div data-testid="socket-status" className="flex items-center gap-1 px-2 py-1 rounded-full" style={{
+          <div data-testid="socket-status" className="flex items-center gap-1 px-1.5 py-1 rounded-full" style={{
             background: isConnected ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
             border: `1px solid ${isConnected ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
           }}>
@@ -170,19 +170,19 @@ export default function HomePage({ onMatchClick }) {
           {/* Push notification toggle */}
           {pushSupported && (
             <button data-testid="push-toggle" onClick={subscribePush}
-              className="p-1.5 rounded-full" style={{ background: pushSubscribed ? 'rgba(34,197,94,0.12)' : COLORS.background.card }}>
+              className="p-1 rounded-full" style={{ background: pushSubscribed ? 'rgba(34,197,94,0.12)' : COLORS.background.card }}>
               {pushSubscribed
-                ? <Bell size={12} color="#22c55e" />
-                : <BellOff size={12} color={COLORS.text.tertiary} />}
+                ? <Bell size={11} color="#22c55e" />
+                : <BellOff size={11} color={COLORS.text.tertiary} />}
             </button>
           )}
           <button data-testid="refresh-btn" onClick={() => fetchAll(true)} disabled={refreshing}
-            className="p-2 rounded-full" style={{ background: COLORS.background.card }}>
-            <RefreshCw size={14} color={COLORS.text.secondary} className={refreshing ? 'animate-spin' : ''} />
+            className="p-1.5 rounded-full" style={{ background: COLORS.background.card }}>
+            <RefreshCw size={13} color={COLORS.text.secondary} className={refreshing ? 'animate-spin' : ''} />
           </button>
-          <div data-testid="home-balance" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-            <Coins size={14} color="#FFD700" />
-            <span className="text-sm font-bold text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{(user?.coins_balance || 0).toLocaleString()}</span>
+          <div data-testid="home-balance" className="flex items-center gap-1 px-2.5 py-1 rounded-full" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+            <Coins size={12} color="#FFD700" />
+            <span className="text-xs font-bold text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{(user?.coins_balance || 0).toLocaleString()}</span>
           </div>
         </div>
       </div>
