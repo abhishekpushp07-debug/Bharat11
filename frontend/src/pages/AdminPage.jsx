@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { ArrowLeft, LayoutDashboard, HelpCircle, FileText, Calendar, Trophy, CheckCircle, Award, AlertCircle, Loader2, Edit2, Zap, Brain, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, HelpCircle, FileText, Calendar, Trophy, CheckCircle, Award, AlertCircle, Loader2, Edit2, Zap, Brain, ShieldCheck, X, Users } from 'lucide-react';
 import AdminQuestionsTab from './admin/AdminQuestionsTab';
 import AdminTemplatesTab from './admin/AdminTemplatesTab';
 import AdminMatchesTab from './admin/AdminMatchesTab';
 import AdminContestsTab from './admin/AdminContestsTab';
+import AdminUsersTab from './admin/AdminUsersTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'matches', label: 'Matches', Icon: Calendar },
   { id: 'contests', label: 'Contests', Icon: Trophy },
   { id: 'resolve', label: 'Auto Resolve', Icon: Brain },
+  { id: 'users', label: 'Users', Icon: Users },
 ];
 
 // ====== Dashboard Tab ======
@@ -475,6 +477,7 @@ export default function AdminPage({ onBack }) {
       {activeTab === 'matches' && <AdminMatchesTab />}
       {activeTab === 'contests' && <AdminContestsTab />}
       {activeTab === 'resolve' && <ContestResolveTab />}
+      {activeTab === 'users' && <AdminUsersTab />}
     </div>
   );
 }

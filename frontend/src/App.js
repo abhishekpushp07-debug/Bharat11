@@ -2,22 +2,30 @@
  * Bharat 11 - Main App Component
  * Complete separation: Admin sees AdminApp, Player sees PlayerApp
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import "@/App.css";
 import { useAuthStore } from "@/stores/authStore";
 import { useSocketStore } from "@/stores/socketStore";
 import { AuthFlow } from "@/components/auth";
 import BottomNav from "@/components/BottomNav";
 import HomePage from "@/pages/HomePage";
-import WalletPage from "@/pages/WalletPage";
-import ProfilePage from "@/pages/ProfilePage";
-import MatchDetailPage from "@/pages/MatchDetailPage";
-import MyContestsPage from "@/pages/MyContestsPage";
-import PredictionPage from "@/pages/PredictionPage";
-import LeaderboardPage from "@/pages/LeaderboardPage";
-import AdminApp from "@/pages/AdminApp";
-import SearchPage from "@/pages/SearchPage";
 import { COLORS } from "@/constants/design";
+
+// Lazy load heavy pages for performance
+const WalletPage = lazy(() => import("@/pages/WalletPage"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const MatchDetailPage = lazy(() => import("@/pages/MatchDetailPage"));
+const MyContestsPage = lazy(() => import("@/pages/MyContestsPage"));
+const PredictionPage = lazy(() => import("@/pages/PredictionPage"));
+const LeaderboardPage = lazy(() => import("@/pages/LeaderboardPage"));
+const AdminApp = lazy(() => import("@/pages/AdminApp"));
+const SearchPage = lazy(() => import("@/pages/SearchPage"));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-40">
+    <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} />
+  </div>
+);
 
 // Splash Screen
 const SplashScreen = () => (
@@ -94,17 +102,20 @@ const PlayerApp = () => {
   }, [fetchUser, handleOpenPrediction]);
 
   const renderPage = () => {
-    switch (activeTab) {
-      case 'home': return <HomePage onMatchClick={handleMatchClick} />;
-      case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} />;
-      case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
-      case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
-      case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
-      case 'wallet': return <WalletPage />;
-      case 'profile': return <ProfilePage />;
-      case 'search': return <SearchPage onMatchClick={handleMatchClick} onBack={() => setActiveTab('home')} />;
-      default: return <HomePage onMatchClick={handleMatchClick} />;
-    }
+    const content = (() => {
+      switch (activeTab) {
+        case 'home': return <HomePage onMatchClick={handleMatchClick} />;
+        case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} />;
+        case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
+        case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
+        case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
+        case 'wallet': return <WalletPage />;
+        case 'profile': return <ProfilePage />;
+        case 'search': return <SearchPage onMatchClick={handleMatchClick} onBack={() => setActiveTab('home')} />;
+        default: return <HomePage onMatchClick={handleMatchClick} />;
+      }
+    })();
+    return <Suspense fallback={<PageLoader />}>{content}</Suspense>;
   };
 
   const handleTabChange = (tab) => {
@@ -164,7 +175,7 @@ function App() {
 
   // COMPLETE SEPARATION: Admin gets AdminApp, Player gets PlayerApp
   if (user?.is_admin) {
-    return <AdminApp />;
+    return <Suspense fallback={<SplashScreen />}><AdminApp /></Suspense>;
   }
 
   return <PlayerApp />;

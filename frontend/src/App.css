@@ -712,3 +712,44 @@
 .streak-progress-glow {
   box-shadow: 0 0 6px rgba(193,52,234,0.55) !important;
 }
+
+
+/* ===== CELEBRATION ANIMATIONS ===== */
+@keyframes celebParticle {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% {
+    transform: translate(
+      calc(-50% + cos(var(--angle)) * var(--dist)),
+      calc(-50% + sin(var(--angle)) * var(--dist))
+    ) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes celebRing {
+  0% { width: 20px; height: 20px; opacity: 0.8; border-width: 3px; }
+  100% { width: 200px; height: 200px; opacity: 0; border-width: 1px; }
+}
+
+@keyframes celebBounceIn {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes celebPulse {
+  0% { opacity: 0; transform: scale(0.5); }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; transform: scale(1); }
+}
+
+@keyframes celebFadeOut {
+  to { opacity: 0; }
+}
+
+/* ===== CONFETTI ANIMATION ===== */
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  25% { opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}

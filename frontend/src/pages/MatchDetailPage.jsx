@@ -6,6 +6,7 @@ import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, 
 import ScorecardView from '../components/ScorecardView';
 import MoodMeter from '../components/MoodMeter';
 import { useSocketStore } from '../stores/socketStore';
+import CelebrationOverlay from '../components/CelebrationOverlay';
 
 const getGrad = (s) => getTeamGradient(s);
 
@@ -56,6 +57,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [playerProfile, setPlayerProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [celebration, setCelebration] = useState(null);
 
   const fetchContests = useCallback(async () => {
     try {
@@ -170,11 +172,19 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     on('question_resolved', handleQuestionResolved);
     on('template_locked', handleTemplateLocked);
 
+    const handleCelebration = (data) => {
+      if (data.match_id === match.id && data.event_type) {
+        setCelebration(data.event_type);
+      }
+    };
+    on('celebration', handleCelebration);
+
     return () => {
       leaveMatch(match.id);
       off('live_score', handleLiveScore);
       off('question_resolved', handleQuestionResolved);
       off('template_locked', handleTemplateLocked);
+      off('celebration', handleCelebration);
     };
   }, [match?.id, joinMatch, leaveMatch, on, off, fetchContests]);
 
@@ -203,6 +213,10 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
 
   return (
     <div data-testid="match-detail-page" className="pb-6 space-y-4">
+      {/* Celebration Overlay */}
+      {celebration && (
+        <CelebrationOverlay type={celebration} onComplete={() => setCelebration(null)} />
+      )}
       <button data-testid="match-back-btn" onClick={onBack} className="flex items-center gap-2 text-sm" style={{ color: COLORS.text.secondary }}>
         <ArrowLeft size={16} /> Back
       </button>
@@ -734,15 +748,22 @@ function LiveTab({ data, loading }) {
                   className={`rounded-2xl overflow-hidden relative event-${moment.event_type} stagger-${i + 1}`}
                   style={{ opacity: 0, animationFillMode: 'forwards', animation: `cardEntrance 0.5s ease ${i * 0.08}s forwards` }}>
                   <div className="p-4 flex gap-3">
-                    {/* Event Badge */}
+                    {/* Event Badge — tap for celebration */}
                     <div className="shrink-0 flex flex-col items-center gap-1">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black relative ${isHigh ? animClass : ''}`}
+                      <button
+                        data-testid={`moment-badge-${i}`}
+                        onClick={() => {
+                          if (['six', 'four', 'wicket'].includes(moment.event_type)) {
+                            setCelebration(moment.event_type);
+                          }
+                        }}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black relative ${isHigh ? animClass : ''}`}
                         style={{ background: `${ev.color}20`, color: ev.color, border: `1.5px solid ${ev.color}40` }}>
                         {ev.emoji}
                         {moment.event_type === 'six' && isHigh && (
                           <div className="absolute inset-0 rounded-xl six-particles" />
                         )}
-                      </div>
+                      </button>
                       {moment.over && moment.over !== '?' && (
                         <span className="text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>
                           Ov {moment.over}

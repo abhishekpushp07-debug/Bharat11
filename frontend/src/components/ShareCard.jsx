@@ -4,6 +4,7 @@ import { COLORS } from '../constants/design';
 import { getTeamLogo, getTeamGradient, getTeamCardImage } from '../constants/teams';
 import { Share2, X } from 'lucide-react';
 import { BadgeInline } from './PredictionBadge';
+import ConfettiEffect from './ConfettiEffect';
 
 export default function ShareCard({ match, rank, totalPlayers, score, totalPoints, correctAnswers, totalQuestions, onClose, moodData, badgeData }) {
   const cardRef = useRef(null);
@@ -52,6 +53,9 @@ export default function ShareCard({ match, rank, totalPlayers, score, totalPoint
         {/* The Card */}
         <div ref={cardRef} className="rounded-3xl overflow-hidden relative"
           style={{ background: 'linear-gradient(160deg, #0a0e1a 0%, #131836 40%, #0a0e1a 100%)' }}>
+
+          {/* Confetti for top 3 */}
+          {isTop3 && <ConfettiEffect active={true} count={30} />}
 
           {/* Background team image */}
           {heroImg && (

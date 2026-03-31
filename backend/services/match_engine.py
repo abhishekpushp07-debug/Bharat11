@@ -293,6 +293,17 @@ async def auto_create_contests_24h(db):
                 templates = fallback.get("template_ids", [])
                 logger.info(f"Default templates applied to {team_a} vs {team_b}: {len(templates)}")
 
+        # Strategy 3: Auto-generate 5 templates from question pool if still no templates
+        if not templates:
+            try:
+                from services.template_engine import generate_5_templates_for_match
+                gen_result = await generate_5_templates_for_match(match_id, db)
+                templates = [t["id"] for t in gen_result.get("templates", [])]
+                if templates:
+                    logger.info(f"Auto-generated {len(templates)} templates for {team_a} vs {team_b}")
+            except Exception as e:
+                logger.warning(f"Template auto-gen failed for {team_a} vs {team_b}: {e}")
+
         # Get template with most questions for the contest
         full_template = None
         if templates:
