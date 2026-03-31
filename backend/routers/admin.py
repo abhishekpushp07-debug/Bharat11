@@ -1553,6 +1553,37 @@ async def delete_single_contest(
     return {"message": "Contest deleted", "id": contest_id}
 
 
+@router.put(
+    "/contests/{contest_id}/status",
+    summary="Update contest status (live/open/locked/cancelled)"
+)
+async def update_contest_status(
+    contest_id: str,
+    data: dict,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    contest = await db.contests.find_one({"id": contest_id}, {"_id": 0})
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+
+    new_status = data.get("status", "")
+    valid_statuses = ["open", "live", "locked", "cancelled"]
+    if new_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+
+    old_status = contest.get("status", "open")
+    if old_status == "completed":
+        raise HTTPException(status_code=400, detail="Cannot change status of completed contest")
+
+    from models.schemas import utc_now
+    await db.contests.update_one(
+        {"id": contest_id},
+        {"$set": {"status": new_status, "updated_at": utc_now().isoformat()}}
+    )
+    return {"message": f"Contest status updated to {new_status}", "id": contest_id, "old_status": old_status, "new_status": new_status}
+
+
 # ==================== AI PREVIEW + RESOLVE OVERRIDE ====================
 
 @router.get(

@@ -1,0 +1,146 @@
+{
+  "summary": "Iteration 47 - Admin Contest Management with 16 Questions Template COMPLETE. All 5 issues verified: (1) API dedup fix working, (2) Manual Live/Unlive toggle works (open→live→locked→open), (3) AutoPilot lifecycle code fixed (timedelta import), (4) Contest card shows 'Full Match Predictions (16 Qs)' template badge - clickable to expand all 16 questions with Hindi text, (5) All 16 questions merged into 1 full_match template with 1270 total pts. Backend: 15/15 tests passed. Frontend: All UI flows verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "AdminContestsTab template dropdown",
+        "issues": ["Console warning: 'In HTML, <span> cannot be a child of <option>' - This is a React hydration warning from the visual editor wrapper, not a functional issue"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration47.py",
+    "/app/test_reports/pytest/pytest_iteration47.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed missing 'timedelta' import in autopilot.py - was causing runtime error in _manage_contest_lifecycle",
+    "AdminContestsTab.jsx: Well-structured with proper data-testid attributes for all interactive elements",
+    "Template dropdown shows 'Full Match Predictions (Full, 16 Qs, 1270 pts)' - correct format",
+    "Contest card shows template badge 'Full Match Predictions (16 Qs)' - clickable to expand questions",
+    "All 16 questions display with Hindi text and 4 options each",
+    "Difficulty badges: EASY 55pts (green), MEDIUM 70pts (yellow), HARD 90pts (red)",
+    "Option selection shows gold border highlight",
+    "Status toggle cycles: OPEN → Make LIVE → LOCK → Re-OPEN",
+    "Max 5 contests per match enforced in both frontend and backend"
+  ],
+  "updated_files": [
+    "/app/backend/services/autopilot.py",
+    "/app/backend/tests/test_iteration47.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Phone: 7004186276, PIN: 5524",
+  "seed_data_creation": "None - used existing seeded data (16 questions, 1 Full Match template, 70 matches)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 47 verified all 5 issues fixed. Key verified features: 1) Admin login flow works (Get Started → Phone → PIN → Admin Dashboard). 2) Matches bottom nav → Contests sub-tab shows match list with COMPLETED/LIVE/UPCOMING status badges. 3) Click match → Contest detail view with match header, progress bar (X/5), auto-lifecycle hint. 4) Contest card shows 'Full Match Predictions (16 Qs)' template badge - clickable to expand all 16 questions. 5) Questions display with Hindi text: Q1-Q4 are पहली पारी questions, Q5-Q16 are मैच questions. 6) Difficulty badges: EASY 55pts, MEDIUM 70pts, HARD 90pts. 7) Option selection shows gold border. 8) Status toggle: Make LIVE → LOCK → Re-OPEN. 9) Delete button with confirmation. 10) Max 5 contests enforced. 11) Backend PUT /api/admin/contests/{id}/status works for open/live/locked transitions. 12) Backend DELETE /api/admin/contests/{id} works. 13) Only 1 template exists (Full Match Predictions) with 16 questions and 1270 total pts.",
+  "features_verified": {
+    "admin_login": {
+      "status": "PASSED",
+      "phone": "7004186276",
+      "pin": "5524",
+      "is_admin": true
+    },
+    "matches_list": {
+      "status": "PASSED",
+      "total_matches": 50,
+      "status_badges": ["COMPLETED", "LIVE", "UPCOMING"]
+    },
+    "contests_tab": {
+      "status": "PASSED",
+      "sub_tabs": ["Matches", "Contests"],
+      "match_selection": "PASSED"
+    },
+    "contest_detail_view": {
+      "status": "PASSED",
+      "elements": ["Back button", "Match header", "Contest count progress bar", "Auto-lifecycle hint", "Add Contest button", "Contests list"]
+    },
+    "add_contest_form": {
+      "status": "PASSED",
+      "fields": ["Template select (1 option: Full Match Predictions)", "Contest Name", "Entry Fee", "Max Players"],
+      "submit_button": "Create Contest"
+    },
+    "template_badge_clickable": {
+      "status": "PASSED",
+      "template_name": "Full Match Predictions (16 Qs)",
+      "expands_questions": true
+    },
+    "questions_display": {
+      "status": "PASSED",
+      "count": 16,
+      "hindi_text": true,
+      "options_per_question": 4,
+      "sample_questions": [
+        "Q1: आज पहली पारी में कितने रन बनेंगे? (MEDIUM 70pts)",
+        "Q2: आज पहली पारी में कितने विकेट गिरेंगे? (EASY 55pts)",
+        "Q3: आज पहली पारी में कितने छक्के लगेंगे? (HARD 90pts)",
+        "Q5: आज का मैच कौन जीतेगा? (EASY 55pts)"
+      ]
+    },
+    "difficulty_badges": {
+      "status": "PASSED",
+      "easy": "55pts (green)",
+      "medium": "70pts (yellow)",
+      "hard": "90pts (red)"
+    },
+    "option_selection": {
+      "status": "PASSED",
+      "gold_border_highlight": true,
+      "submit_answer_button": true
+    },
+    "status_toggle": {
+      "status": "PASSED",
+      "cycle": "open → live → locked → open",
+      "button_labels": ["Make LIVE", "LOCK", "Re-OPEN"]
+    },
+    "delete_contest": {
+      "status": "PASSED",
+      "confirmation_dialog": true,
+      "success_message": "Contest deleted"
+    },
+    "max_5_enforcement": {
+      "status": "PASSED",
+      "frontend_warning": "Maximum 5 contests reached",
+      "backend_error": "400: Maximum 5 contests allowed per match"
+    },
+    "template_verification": {
+      "status": "PASSED",
+      "template_count": 1,
+      "template_name": "Full Match Predictions",
+      "template_type": "full_match",
+      "question_count": 16,
+      "total_points": 1270
+    }
+  },
+  "backend_tests": {
+    "test_admin_login_success": "PASSED",
+    "test_list_matches": "PASSED",
+    "test_list_templates": "PASSED",
+    "test_list_questions": "PASSED",
+    "test_question_difficulty_points": "PASSED",
+    "test_status_toggle_open_to_live": "PASSED",
+    "test_status_toggle_live_to_locked": "PASSED",
+    "test_status_toggle_locked_to_open": "PASSED",
+    "test_invalid_status": "PASSED",
+    "test_delete_contest": "PASSED",
+    "test_delete_nonexistent_contest": "PASSED",
+    "test_max_5_contests_enforcement": "PASSED",
+    "test_only_one_full_match_template": "PASSED",
+    "test_template_has_16_questions": "PASSED",
+    "test_template_total_points_1270": "PASSED"
+  },
+  "bug_fix_applied": {
+    "file": "/app/backend/services/autopilot.py",
+    "issue": "Missing 'timedelta' import causing NameError in _manage_contest_lifecycle method",
+    "fix": "Added 'timedelta' to datetime import: 'from datetime import datetime, timezone, timedelta'"
+  }
+}

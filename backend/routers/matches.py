@@ -640,18 +640,34 @@ async def sync_live_matches(
                     if ac:
                         contests_created += 1
         else:
-            # Before creating — also check by team short_names to prevent duplicates
+            # Before creating — check by team short_names AND date to prevent duplicates
+            # Same teams can play multiple times in a season, so date check is critical
             team_a = lm.get("team_a", {})
             team_b = lm.get("team_b", {})
             ta_short = team_a.get("short_name", "")
             tb_short = team_b.get("short_name", "")
             if ta_short and tb_short:
-                team_match = await db.matches.find_one({
+                # Build date range filter: match on same day (±12 hours)
+                match_date_str = lm.get("date", "")
+                date_filter = {}
+                if match_date_str:
+                    try:
+                        from dateutil.parser import parse as parse_dt
+                        match_dt = parse_dt(match_date_str)
+                        day_start = (match_dt - timedelta(hours=12)).isoformat()
+                        day_end = (match_dt + timedelta(hours=12)).isoformat()
+                        date_filter = {"start_time": {"$gte": day_start, "$lte": day_end}}
+                    except Exception:
+                        pass
+
+                team_query = {
                     "team_a.short_name": {"$in": [ta_short, tb_short]},
                     "team_b.short_name": {"$in": [ta_short, tb_short]},
-                }, {"_id": 0, "id": 1})
+                    **date_filter,
+                }
+                team_match = await db.matches.find_one(team_query, {"_id": 0, "id": 1})
                 if team_match:
-                    # Link cricketdata_id to existing match instead of creating duplicate
+                    # Link cricketdata_id to existing match on same date
                     await db.matches.update_one(
                         {"id": team_match["id"]},
                         {"$set": {"cricketdata_id": source_id, "external_match_id": source_id, "updated_at": now}}

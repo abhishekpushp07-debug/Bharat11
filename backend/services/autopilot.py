@@ -12,7 +12,7 @@ Admin can start/stop via API.
 """
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -110,6 +110,14 @@ class AutoPilot:
             except Exception as e:
                 self._add_log(f"Auto-contest error: {str(e)[:60]}")
 
+        # ==================== AUTO LIVE/UNLIVE CONTESTS ====================
+        # Every 5th cycle (~3.75 min): manage contest lifecycle
+        if self._run_count % 5 == 0:
+            try:
+                await self._manage_contest_lifecycle(db)
+            except Exception as e:
+                self._add_log(f"Contest lifecycle error: {str(e)[:60]}")
+
         # Find matches that need settlement (live or completed, with active contests)
         matches = await db.matches.find(
             {"status": {"$in": ["live", "completed"]}},
@@ -162,6 +170,95 @@ class AutoPilot:
 
         if total_resolved > 0 or total_finalized > 0:
             self._add_log(f"Cycle #{self._run_count}: {total_resolved} resolved, {total_finalized} finalized")
+
+    async def _manage_contest_lifecycle(self, db):
+        """
+        Auto Live/Unlive contest lifecycle:
+        1. Auto-Live: 24 hrs before match start → contest status "open" → "live"
+        2. Auto-Lock (full_match): After 1st innings 6th over → "locked"
+        3. Auto-Lock (in_match): Before innings interval → "locked"
+        """
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        cutoff_24h = (now + timedelta(hours=24)).isoformat()
+
+        # 1. AUTO-LIVE: Find matches starting within 24 hours, set their "open" contests to "live"
+        upcoming_matches = await db.matches.find(
+            {"status": {"$in": ["upcoming", "live"]}, "start_time": {"$lte": cutoff_24h}},
+            {"_id": 0, "id": 1, "start_time": 1}
+        ).to_list(None)
+
+        for m in upcoming_matches:
+            result = await db.contests.update_many(
+                {"match_id": m["id"], "status": "open"},
+                {"$set": {"status": "live", "updated_at": now_iso}}
+            )
+            if result.modified_count > 0:
+                self._add_log(f"Auto-LIVE: {result.modified_count} contests for match starting {m.get('start_time','?')[:16]}")
+
+        # 2. AUTO-LOCK (full_match): After 1st innings 6th over → lock full_match contests
+        live_matches = await db.matches.find(
+            {"status": "live"},
+            {"_id": 0, "id": 1, "live_score": 1, "team_a": 1, "team_b": 1}
+        ).to_list(None)
+
+        for m in live_matches:
+            live_score = m.get("live_score", {})
+            scores = live_score.get("scores", [])
+            if not scores:
+                continue
+
+            # Check if 1st innings has crossed 6 overs
+            innings_1 = scores[0] if len(scores) > 0 else {}
+            overs_str = str(innings_1.get("o", innings_1.get("overs", "0")))
+            try:
+                overs_float = float(overs_str)
+            except (ValueError, TypeError):
+                overs_float = 0
+
+            if overs_float >= 6.0:
+                # Lock all full_match contests for this match
+                full_match_contests = await db.contests.find(
+                    {"match_id": m["id"], "status": "live"},
+                    {"_id": 0, "id": 1, "template_id": 1}
+                ).to_list(None)
+
+                for c in full_match_contests:
+                    # Check if template is full_match
+                    template = await db.templates.find_one(
+                        {"id": c.get("template_id")},
+                        {"_id": 0, "template_type": 1}
+                    )
+                    if template and template.get("template_type") == "full_match":
+                        await db.contests.update_one(
+                            {"id": c["id"]},
+                            {"$set": {"status": "locked", "updated_at": now_iso}}
+                        )
+                        ta = m.get("team_a", {}).get("short_name", "?")
+                        tb = m.get("team_b", {}).get("short_name", "?")
+                        self._add_log(f"Auto-LOCK full_match: {ta}v{tb} after 6th over")
+
+            # 3. AUTO-LOCK (in_match): Check if innings interval (2nd innings started or break)
+            if len(scores) >= 2:
+                # 2nd innings exists — lock in_match contests
+                in_match_contests = await db.contests.find(
+                    {"match_id": m["id"], "status": "live"},
+                    {"_id": 0, "id": 1, "template_id": 1}
+                ).to_list(None)
+
+                for c in in_match_contests:
+                    template = await db.templates.find_one(
+                        {"id": c.get("template_id")},
+                        {"_id": 0, "template_type": 1}
+                    )
+                    if template and template.get("template_type") == "in_match":
+                        await db.contests.update_one(
+                            {"id": c["id"]},
+                            {"$set": {"status": "locked", "updated_at": now_iso}}
+                        )
+                        ta = m.get("team_a", {}).get("short_name", "?")
+                        tb = m.get("team_b", {}).get("short_name", "?")
+                        self._add_log(f"Auto-LOCK in_match: {ta}v{tb} before interval")
 
 
 # Singleton
