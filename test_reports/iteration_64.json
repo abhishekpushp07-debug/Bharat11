@@ -1,0 +1,78 @@
+{
+  "summary": "Iteration 64 - Deep test of score fetching pipeline. All backend APIs working correctly. Frontend Score Fetch button visible on match cards. Scorecard tab shows 'not available yet' for upcoming matches (expected behavior).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_score_fetch_pipeline.py",
+    "/app/test_reports/pytest/pytest_iteration64.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_score_fetch_pipeline.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (all UI elements present and functional)"
+  },
+  "test_credentials": "Super Admin: Phone: 7004186276, PIN: 5524",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Score fetching pipeline fully tested. All endpoints working: start-score-fetch, stop-score-fetch, score-fetch/status, per-match status, scorecard with force param, sync-ipl-schedule. Frontend Score Fetch button visible on non-completed match cards in Admin Matches tab. Scorecard tab in player view shows 'not available yet' for upcoming matches (expected).",
+  "features_tested": {
+    "backend_apis": {
+      "sync_ipl_schedule": "PASSED - POST /api/matches/live/sync-ipl-schedule syncs IPL schedule",
+      "start_score_fetch": "PASSED - POST /api/admin/matches/{match_id}/start-score-fetch starts 15s polling",
+      "stop_score_fetch": "PASSED - POST /api/admin/matches/{match_id}/stop-score-fetch stops polling",
+      "score_fetch_status_global": "PASSED - GET /api/admin/score-fetch/status returns all active fetchers",
+      "score_fetch_status_per_match": "PASSED - GET /api/admin/matches/{match_id}/score-fetch-status returns per-match status",
+      "scorecard_cached": "PASSED - GET /api/matches/{match_id}/scorecard returns cached scorecard",
+      "scorecard_force": "PASSED - GET /api/matches/{match_id}/scorecard?force=true bypasses cache",
+      "autopilot_status": "PASSED - GET /api/admin/autopilot/status returns running status",
+      "seed_question_pool": "PASSED - POST /api/admin/seed-question-pool seeds questions"
+    },
+    "frontend_ui": {
+      "admin_dashboard": "PASSED - Shows SUPER ADMIN header, Quick Resolve, Auto-Pilot, Match Auto-Engine sections",
+      "auto_pilot_toggle": "PASSED - Shows 'Stopped — Manual Mode' with START button",
+      "match_auto_engine": "PASSED - Shows Seed 200 Qs, Auto Templates, 24h Contests buttons",
+      "admin_matches_tab": "PASSED - Shows Sync IPL button, Matches/Contests sub-tabs, LIVE/UPCOMING sections",
+      "score_fetch_button": "PASSED - Score Fetch button visible on expanded non-completed match cards (cyan color)",
+      "match_actions": "PASSED - Make Live, Add Contest (X/5), Auto 5 Templates buttons visible",
+      "player_view_scorecard": "PASSED - Scorecard tab shows 'not available yet' for upcoming matches"
+    }
+  },
+  "verification_details": {
+    "score_fetch_pipeline": {
+      "start_response": {
+        "message": "Score fetching started (every 15s)",
+        "running": true,
+        "interval": 15,
+        "max_hours": 5
+      },
+      "stop_response": {
+        "message": "Score fetching stopped",
+        "running": false
+      },
+      "global_status": {
+        "active_fetchers": 0,
+        "matches": {}
+      }
+    },
+    "scorecard_endpoint": {
+      "cached": "Returns scorecard from MongoDB cache (TTL 15s for live, permanent for completed)",
+      "force_bypass": "Fetches fresh data from CricketData.org API"
+    },
+    "frontend_elements": {
+      "score_fetch_button_location": "Admin Matches tab > Expand match card > Score Fetch button (cyan)",
+      "button_states": "Cyan 'Score Fetch' when inactive, Green 'LIVE Fetching' when active"
+    }
+  }
+}
