@@ -1,88 +1,101 @@
 # Bharat 11 - Fantasy Cricket Prediction PWA
 
-## Product Overview
-Fantasy Cricket Prediction PWA with JWT auth, real-time Socket.IO, push notifications, Super Admin panel, IPL Encyclopedia (115+ records), and heavy visual animations.
+## Product Requirements Document
 
-## Architecture
-- **Frontend**: React.js PWA (mobile-first, dark theme, code-split with React.lazy)
-- **Backend**: FastAPI + MongoDB (`crickpredict` DB)
-- **Real-Time**: python-socketio (ASGI)
-- **PWA**: Service Worker with offline support, push notifications
-- **API Cache**: Custom caching layer for CricketData API
+### Original Problem Statement
+Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
+- JWT-based authentication with phone + PIN
+- Live match tracking with CricketData.org API
+- Contest-based prediction system
+- AI-powered commentary (GPT-5.2)
+- Real-time updates via Socket.IO
+- Admin dashboard with user management
+- IPL Encyclopedia with real historical data
+- WhatsApp sharing with premium card generation
+- Heavy animations and cricket celebrations
 
-## ALL FEATURES IMPLEMENTED
+### Core Architecture
+- **Frontend**: React.js (PWA) with Tailwind CSS, Shadcn UI, Framer Motion
+- **Backend**: FastAPI (Python) with Motor (async MongoDB)
+- **Database**: MongoDB (`crickpredict`)
+- **Real-time**: Socket.IO
+- **AI**: GPT-5.2 via Emergent LLM Key for commentary
+- **API**: CricketData.org for live match data
 
-### Core Platform (DONE)
-- JWT Auth (phone + PIN), Match sync, Contest CRUD, 567 bilingual questions
-- Template system (Full Match / In-Match), Auto-settlement engine (45s polling)
-- Socket.IO real-time, Push notifications (VAPID), API caching, Prediction streaks
+### What's Been Implemented
 
-### Super Admin Overhaul (DONE)
-- Bulk Delete, Default Templates (5 slots), AI Override Resolve, Quick Resolve All
-- Template Type Badges, Manual Contest Creation, Player View toggle
+#### Authentication & Core
+- [x] Phone + PIN login/register with JWT
+- [x] Super Admin role system
+- [x] Wallet system (virtual coins)
 
-### IPL Encyclopedia (DONE)
-- 115+ verified records across 8 categories (Batting, Bowling, Fielding, Team, Controversy, Fun, Champions, Auction)
-- 20 players with real stats, 10 cap winners (2016-2025)
-- Head-to-Head comparison with animated bars
-- Rich storytelling team histories for all 10 IPL teams
-- Tab-based record category UI with count badges
+#### Matches & Contests
+- [x] Match sync from CricketData.org
+- [x] Auto-contest generation (3-tier template system)
+- [x] Contest joining & prediction submission
+- [x] Auto-settlement engine (45s polling)
+- [x] Leaderboard with real-time updates
 
-### Auto Template Generation (DONE - March 31, 2026)
-- Integrated `generate_5_templates_for_match` into `auto_create_contests_24h` in match_engine.py
-- 3-tier fallback: 1) Existing templates → 2) Default template fallback → 3) Auto-generate 5 templates from question pool
-- Runs automatically for matches within 24h via autopilot
+#### Admin Panel
+- [x] Dashboard with stats overview
+- [x] Match management
+- [x] Template & question management
+- [x] Quick Resolve (AI bulk resolution)
+- [x] User management tab
 
-### Performance Optimization (DONE - March 31, 2026)
-- React.lazy code splitting for 8 heavy pages (WalletPage, ProfilePage, MatchDetailPage, MyContestsPage, PredictionPage, LeaderboardPage, AdminApp, SearchPage)
-- Suspense with PageLoader spinner fallback
-- Non-blocking font loading (media='print' onload pattern)
-- Preconnect hints for Google Fonts
+#### UX Features
+- [x] IPL Encyclopedia (115+ real records, head-to-head comparison)
+- [x] Cricket celebrations (Six, Four, Wicket animations)
+- [x] Prediction streaks with diamond theme
+- [x] Mood meter (Instagram-style polls)
+- [x] Player profiles with stats
+- [x] Service worker offline support
+- [x] React.lazy/Suspense code splitting
 
-### Heavy Animations - Celebrations (DONE - March 31, 2026)
-- CelebrationOverlay component with 3 types: Six (fire red), Four (blue), Wicket (purple)
-- Animated shock rings expanding outward
-- Particle explosion with random angles, sizes, and team-colored particles
-- Center badge with bounce-in animation and glow effects
-- Auto-dismiss after 2.2 seconds with fade-out
-- Triggered by tapping six/four/wicket badges in live commentary
-- Also triggered via socket 'celebration' events during live matches
+#### **WhatsApp Share Card (COMPLETED - March 2026)**
+- [x] Premium collectible card design (Topps Chrome / NBA Top Shot aesthetic)
+- [x] 9:16 portrait ratio (360x640px, 2x scale for 1080x1920)
+- [x] Gold corner decorations and accent borders
+- [x] Oversized rank display (#1 with 96px font, glow effects)
+- [x] Bento stats grid (Points, Accuracy, Correct)
+- [x] Accuracy progress bar with color coding
+- [x] Mood meter integration in card
+- [x] Confetti effect for top 3 finishes
+- [x] html2canvas compatible (no backdrop-filter, px units only)
+- [x] Share on WhatsApp + Download button
+- [x] Rank labels (CHAMPION, RUNNER UP, BRONZE, WARRIOR)
 
-### WhatsApp Share Card Confetti (DONE - March 31, 2026)
-- ConfettiEffect component with 40 falling particles
-- 8 vibrant colors, random sizes/shapes/rotations/delays
-- Automatically activates for top-3 rank finishes (isTop3 = rank <= 3)
-- Integrated into ShareCard component
+#### **AI Ball-by-Ball Commentary (COMPLETED - March 2026)**
+- [x] ESPN+ / Instagram Stories immersive design
+- [x] 4-tab system: Match Story, Phase Analysis, Timeline, MVPs
+- [x] **Match Story**: Match Pulse hero card, top 5 moments, turning point, verdict
+- [x] **Phase Analysis**: Powerplay (1-6), Middle (7-15), Death (16-20) breakdown
+- [x] **Momentum Indicator**: Visual bar showing batting vs bowling dominance
+- [x] **Timeline View**: Vertical spine timeline with oversized over numbers
+- [x] **Star Performers (MVPs)**: Player cards with ratings, role badges, animated bars
+- [x] Quick stats bar (Sixes count, Wickets count, Momentum score)
+- [x] Framer Motion animations throughout (stagger, slide, scale)
+- [x] Event-specific styling (Six=gold, Four=blue, Wicket=red, Milestone=green)
+- [x] Turning Point card with purple gradient
+- [x] Verdict card with mood-based theming (thriller/domination/upset/classic/heartbreak)
+- [x] Fallback to scorecard-based highlights when no AI data
+- [x] Celebration trigger on tapping event badges
 
-### Service Worker Offline Page (DONE - March 31, 2026)
-- Comprehensive service worker with network-first strategy
-- Offline HTML page with Bharat 11 branding (golden gradient, pulse animation)
-- Retry Connection button
-- Asset caching for repeat visits
-- Push notification support via web-push
-
-### User Management Tab (DONE - March 31, 2026)
-- Admin Users tab added to AdminPage (7th tab)
-- GET /api/admin/users — List all users with search by name/phone, pagination
-- GET /api/admin/users/{user_id} — Detailed user profile with stats
-- User list shows: name, phone, admin badge, total points, entries count
-- User detail shows: predictions, correct count, accuracy %, wallet, rank, total points, entries
-- Recent contest entries list with scores and ranks
-
-## Key Files
-- `/app/backend/routers/admin.py` - Admin APIs (2300+ lines) incl. user management
-- `/app/backend/services/match_engine.py` - Auto contest creation with template generation fallback
-- `/app/backend/services/template_engine.py` - 5-template generation engine
-- `/app/backend/services/ipl_data_seeder.py` - 115 records, 20 players, 10 caps
-- `/app/frontend/src/App.js` - React.lazy code splitting, Suspense
-- `/app/frontend/src/components/CelebrationOverlay.jsx` - Six/Four/Wicket animations
-- `/app/frontend/src/components/ConfettiEffect.jsx` - Falling confetti particles
-- `/app/frontend/src/components/ShareCard.jsx` - WhatsApp share with confetti
-- `/app/frontend/src/pages/admin/AdminUsersTab.jsx` - User management UI
-- `/app/frontend/src/pages/MatchDetailPage.jsx` - Match detail with celebration triggers
-- `/app/frontend/public/service-worker.js` - PWA service worker
-- `/app/frontend/public/offline.html` - Offline page
-
-## Credentials
+### Credentials
 - Super Admin: Phone `7004186276`, PIN `5524`
-- Database: `crickpredict` (NOT `bharat11`)
+- Database: `crickpredict`
+
+### Tech Stack
+- React.js, FastAPI, MongoDB, Socket.IO
+- html2canvas, framer-motion, lucide-react
+- CricketData.org API, GPT-5.2 (Emergent LLM)
+
+### Remaining/Backlog Tasks
+1. **P0**: CricketData.org API comprehensive integration (replace Cricbuzz scraping)
+2. **P0**: IPL schedule bulk sync (series_info → DB)
+3. **P1**: Redis caching layer for API responses
+4. **P1**: MongoDB indexing for api_cache collection
+5. **P1**: Pagination improvements (backend + frontend)
+6. **P2**: Socket.IO live score push via Redis pub/sub
+7. **P2**: 200-question pool architecture
+8. **P2**: Advanced template routing (full_match vs in_match)
