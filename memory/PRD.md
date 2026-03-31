@@ -17,7 +17,7 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 - **Auth**: Phone + PIN based JWT auth
 - **API**: CricketData.org Premium API for live match data
 
-## What's Been Implemented (as of 31 Mar 2026)
+## What's Been Implemented
 
 ### Phase 1 - Core Platform (DONE)
 - JWT auth (phone + PIN)
@@ -30,25 +30,36 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 - Web Audio API: Stadium-level sound effects
 
 ### Phase 3 - Prediction System (DONE - 31 Mar 2026)
-- **16 Questions Seeded** (user's exact Hindi text, verbatim):
-  - 4 First Innings (in_match): Runs, Wickets, Sixes, Fours = 305 pts
-  - 12 Full Match (full_match): Winner, Death Overs, Batting/Bowling stats = 965 pts
-  - Total: 1270 points across 16 questions
-- Points: Easy=55 (2), Medium=70 (5), Hard=90 (9)
-- 2 Templates: First Innings Predictions + Full Match Predictions
+- **16 Questions Seeded** (user's exact Hindi text, verbatim) in **1 full_match template**
+  - Q1-Q4: पहली पारी questions (Runs, Wickets, Sixes, Fours)
+  - Q5-Q16: मैच questions (Winner, Death Overs, Batting/Bowling stats, Century, Extras)
+  - Total: 1270 points (Easy=55x2, Medium=70x5, Hard=90x9)
+  - 1 Template: "Full Match Predictions" (full_match, 16 Qs)
 
 ### Phase 4 - Contest Management (DONE - 31 Mar 2026)
-- Admin flow: Select Match → Add Contest → Select Template → Create
-- Max 5, Min 1 contests per match (enforced backend + frontend)
+- **Flow**: Select Match → Add Contest (select template) → Make Live → Lock
+- **Manual Live/Unlive**: Contest cards have status toggle: Open ↔ Live ↔ Locked
+- **Auto Live/Unlive** (AutoPilot):
+  - 24hr before match → auto "live"
+  - Full_match: After 1st innings 6th over → auto "locked"
+  - In_match: Before innings interval → auto "locked"
+- **Template + Questions View**: Click template badge → expands 16 questions with options
+- **Answer Provision**: Can select options and submit answers from admin contest view
+- Max 5, Min 1 contests per match enforced (backend + frontend)
 - Single contest delete with confirmation
-- Progress bar showing X/5 contests used
-- Contest cards: name, template type badge, entry fee, participants, delete button
-- Backend: POST /admin/contests (create), DELETE /admin/contests/{id} (delete)
+- API dedup fix: Same teams on different dates create separate matches
+
+### Key Endpoints
+- POST /api/auth/check-phone, POST /api/auth/login
+- GET /api/matches, GET /api/contests
+- POST /api/admin/contests, DELETE /api/admin/contests/{id}
+- PUT /api/admin/contests/{id}/status (open/live/locked/cancelled)
+- GET /api/admin/templates, GET /api/admin/questions
 
 ## Pending / Upcoming Tasks
 
 ### P0 (Next)
-- Frontend Prediction Cards: User-facing UI for answering seeded questions
+- Frontend Prediction Cards: User-facing match page with prediction questions for players
 
 ### P1
 - Redis caching layer for slow API endpoints
@@ -60,17 +71,7 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with:
 - WhatsApp Share aesthetic card rendering (HTML to Canvas)
 - AI Ball-by-ball commentary
 - Dual points banner (Fantasy + Contest)
-- Heavy UI animations for celebrations in prediction flow
-
-## Key Endpoints
-- POST /api/auth/check-phone, POST /api/auth/login
-- GET /api/matches, GET /api/contests
-- POST /api/admin/contests, DELETE /api/admin/contests/{id}
-- GET /api/admin/templates, GET /api/admin/questions
-- GET /api/admin/stats
-
-## Database Collections
-- users, matches, questions, templates, contests, contest_entries
+- Heavy UI animations in prediction flow
 
 ## Credentials
 - Super Admin: Phone 7004186276, PIN 5524
