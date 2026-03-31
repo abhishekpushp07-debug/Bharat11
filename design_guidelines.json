@@ -1,104 +1,90 @@
 {
-  "theme": "Archetype 2 (The Performance Pro) + Archetype 5 (Jewel & Luxury)",
-  "color_palette": {
-    "background_dark": "#0A0A0A",
-    "background_card": "#141414",
-    "background_elevated": "#1E1E1E",
+  "theme": "dark",
+  "archetype": "2 (Performance Pro)",
+  "colors": {
+    "background": "#0D0D0D",
     "primary": "#FF3B3B",
-    "primary_glow": "rgba(255, 59, 59, 0.4)",
     "accent_gold": "#FFD700",
-    "accent_gold_dark": "#B8860B",
-    "text_primary": "#FFFFFF",
-    "text_secondary": "#A1A1AA",
-    "events": {
-      "six": "#F59E0B",
-      "four": "#3B82F6",
-      "wicket": "#EF4444",
-      "milestone": "#10B981"
-    }
+    "accent_blue": "#007AFF",
+    "text_main": "#FFFFFF",
+    "text_muted": "#A3A3A3",
+    "surface": "#1A1A1A",
+    "surface_glass": "rgba(255, 255, 255, 0.05)"
   },
   "typography": {
-    "heading": {
-      "family": "Rajdhani, sans-serif",
-      "weights": ["600", "700"],
-      "usage": "Used for massive stats, player ranks, points, over numbers (e.g. 19.4), and aggressive headers. Needs tight tracking (-0.02em)."
-    },
-    "body": {
-      "family": "Poppins, sans-serif",
-      "weights": ["400", "500", "600"],
-      "usage": "Used for commentary text, small labels, UI copy."
+    "headings": "Orbitron",
+    "numbers": "Rajdhani",
+    "body": "Poppins",
+    "hierarchy": {
+      "h1": "text-5xl sm:text-6xl tracking-tight font-black",
+      "h2": "text-3xl sm:text-4xl tracking-tight font-bold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "body": "text-sm sm:text-base leading-relaxed"
     }
   },
-  "components": {
-    "WhatsApp_Share_Card": {
-      "aesthetic": "Ultra-premium collectible sports card (Topps Chrome / NBA Top Shot). Deep, rich, glossy, heavy.",
-      "html2canvas_rules": {
-        "CRITICAL": "html2canvas struggles with complex CSS. Follow these STRICT rules:",
-        "rule_1": "DO NOT use `backdrop-filter: blur()`. Use solid colors with opacity (e.g., `rgba(20,20,20,0.85)`) or pre-blurred background images.",
-        "rule_2": "DO NOT use `rem` or `%` for layout inside the card. Use explicit `px` values for width, height, fonts, and padding to guarantee perfect rendering.",
-        "rule_3": "Avoid CSS variables for colors in the elements being captured if possible. Use hardcoded Tailwind color utilities or inline hex.",
-        "rule_4": "Render text shadows and box-shadows using exact `px` values instead of Tailwind classes if it acts unpredictably, or stick to standard Tailwind shadow utilities.",
-        "rule_5": "Images MUST be rendered via absolute positioning. The background should be an `<img src='...' />` with `object-fit: cover; width: 100%; height: 100%; position: absolute; z-index: 0;` rather than `background-image: url(...)` to ensure html2canvas catches it."
+  "spacing_and_layout": {
+    "container": "max-w-[480px] mx-auto w-full min-h-screen relative overflow-hidden",
+    "padding": "p-4 sm:p-6",
+    "gap": "gap-4 sm:gap-6",
+    "glass_panel": "backdrop-blur-xl bg-white/5 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]",
+    "stadium_glow": "box-shadow: 0 0 40px rgba(255,59,59,0.3)"
+  },
+  "animation_guidelines": {
+    "general": {
+      "library": "framer-motion",
+      "spring_bouncy": "{ type: 'spring', stiffness: 300, damping: 15 }",
+      "spring_smooth": "{ type: 'spring', stiffness: 100, damping: 20 }",
+      "stagger": "staggerChildren: 0.1"
+    },
+    "celebrations": {
+      "SIX": {
+        "concept": "Fiery, explosive, stadium-feel",
+        "instructions": "Full-screen overlay. Animate an array of 40+ motion.div particles shooting out radially (x, y calculations based on Math.cos/sin). The text 'SIX' should scale in (from 0 to 1.5) with a heavy spring bounce. Use text-transparent with bg-gradient-to-r from-yellow-400 to-red-600. Add an ambient red glow behind the text using a blurred div."
       },
-      "layout_and_styling": {
-        "dimensions": "Width: 1080px, Height: 1920px (or scaled appropriately like 540x960 for generation, but strictly a 9:16 portrait ratio).",
-        "background": "Use the provided stadium image overlaid with a dark gradient (`linear-gradient(to bottom, rgba(10,10,10,0.4), rgba(10,10,10,1))`).",
-        "border": "1px solid #FFD700 with an inner box-shadow glow (`box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.2)`).",
-        "hierarchy": [
-          "Top: Minimal Match Context (Team A vs Team B) with logos.",
-          "Middle (The Hero): Massive numeric display for Rank. Example: '#1' in Rajdhani, 120px+, with a heavy gold foil gradient text effect.",
-          "Bottom: 'Bento' style grid for Points, Accuracy, Mood Meter. Solid dark grey cards (e.g., #1A1A1A) with 1px gold border.",
-          "Badges/Confetti: If rank <= 3, overlay gold/red geometric SVG shapes (avoid complex CSS particles for html2canvas)."
-        ],
-        "mood_meter": "A horizontal bar or semi-circle RPM dial styled element. Glowing neon effect using drop-shadows."
+      "WICKET": {
+        "concept": "Dramatic, stumps-shattering feel",
+        "instructions": "Screen flashes dark red (bg-red-900/50). The word 'WICKET' slams in from the top. Use SVG paths or thin vertical motion.divs to represent 3 stumps. On entry, animate them breaking apart (rotateZ and translate them in different directions). Apply a subtle shake effect (x: [-5, 5, -5, 5, 0]) to the text."
+      },
+      "FOUR": {
+        "concept": "Boundary celebration, fast horizontal movement",
+        "instructions": "A neon cyan/blue streak sweeps across the screen horizontally. The text 'FOUR' slides in fast from the left, stretches slightly (skewX), and then snaps back to normal. Lighter particle trail behind the text."
+      },
+      "PRIZE": {
+        "concept": "Gold confetti, trophy celebration",
+        "instructions": "Animate a rain of golden confetti (50+ rectangular motion.divs falling from y: -50 to window.innerHeight, with random rotate and x-sway). A 3D-looking trophy (use the provided image or an SVG) scales up in the center with a rotating light burst (a circular gradient div spinning continuously behind it)."
       }
     },
-    "AI_Commentary_LiveTab": {
-      "aesthetic": "ESPN+ meets Instagram Stories overlay. High-tech, dense, immersive, data-rich.",
-      "layout_and_styling": {
-        "background": "Deep obsidian (#0D0D0D) with subtle red/gold mesh gradients in the corners.",
-        "tabs": "Pill-shaped segmented controls for Story, Moments, Stars. Active state is solid #FF3B3B.",
-        "timeline_pulse": "A vertical neon line connecting events on the left side of the screen. The active 'Live' pulse should have a breathing animation.",
-        "events": {
-          "six": "Amber/Gold background glow (`bg-amber-500/10`), bold Rajdhani text, 'IMPACT' badge style.",
-          "four": "Blue sleek card (`border-l-4 border-blue-500`), subtle slide-in animation.",
-          "wicket": "Aggressive styling. Solid red highlight (`bg-red-500/20 border-red-500`), large white text. Feels like a 'Breaking News' ticker.",
-          "dramatic": "Add a pulsing red dot and 'TURNING POINT' overline label (tracking-widest, uppercase)."
-        },
-        "over_number": "Massive typography. Left-aligned, e.g., '19.4' taking up 3-4 lines of height next to the commentary text. Rajdhani font, opacity 80%."
+    "components": {
+      "MatchCard": {
+        "instructions": "Use staggered reveals for entry. On hover/tap, scale the card to 1.02, add a 1px solid border of primary color, and apply a drop-shadow glow. The inner team logos should slightly bounce."
       },
-      "interactions": "Smooth scrolling. Events stagger in as they render (using Framer Motion `initial={{ opacity: 0, y: 10 }}`). Tabs slide to transition."
+      "ScoreUpdate": {
+        "instructions": "Wrap numbers in AnimatePresence (mode='popLayout'). When score changes, the old number slides up/fades out, new number slides up from bottom/fades in. Add a temporary neon text-shadow that pulses once on change."
+      },
+      "Timeline": {
+        "instructions": "Ball-by-ball dots slide in from the right side. If it's a boundary/wicket event, the dot pulses with a ring animation (scale 1 to 2, opacity 1 to 0) indicating a major event."
+      }
     }
   },
-  "media": {
-    "images": [
-      {
-        "category": "stadium_background",
-        "url": "https://images.pexels.com/photos/36230651/pexels-photo-36230651.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "description": "Night cricket match stadium lights. Use as the base layer for the Share Card and Commentary headers (with heavy black overlays)."
-      },
-      {
-        "category": "abstract_red_gold",
-        "url": "https://images.pexels.com/photos/15315959/pexels-photo-15315959.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "description": "Swirling maroon and gold abstract. Use inside the 'Star Performers' MVP cards or behind the 'Rank' number in the share card."
-      },
-      {
-        "category": "holographic_texture",
-        "url": "https://images.pexels.com/photos/36353557/pexels-photo-36353557.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "description": "Crumpled metallic foil. Use as a 'clip-path' background for premium text or masked over the Share Card borders to create a 'Topps Chrome' foil effect."
-      }
-    ]
-  },
-  "testing": {
-    "requirements": "All interactive and key informational elements MUST include a `data-testid` attribute in kebab-case."
+  "images": {
+    "stadium_background": {
+      "url": "https://images.pexels.com/photos/36230651/pexels-photo-36230651.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Night cricket match with a large crowd, use as app background with a dark gradient overlay (bg-black/80)."
+    },
+    "trophy_icon": {
+      "url": "https://images.pexels.com/photos/6532369/pexels-photo-6532369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Gold trophy, to be used in the PRIZE celebration overlay (mask it to be circular or use as an illustrative pop-up)."
+    },
+    "cricket_ball": {
+      "url": "https://images.unsplash.com/photo-1531415074968-036ba1b575da?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxjcmlja2V0JTIwYmFsbHxlbnwwfHx8fDE3NzQ5NDUwOTN8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Red cricket ball, can be used for timeline dots or loading states."
+    }
   },
   "instructions_to_main_agent": [
-    "Install `lucide-react` for icons.",
-    "Do NOT use `backdrop-filter` in the Share Card component. Use pure solid rgba colors or background images with opacity for glassmorphism to avoid html2canvas bugs.",
-    "For the Share Card, strictly use `px` for font-sizes, padding, margins, width, and height. Do not use `rem` or responsive classes (`md:`, `lg:`) as html2canvas needs absolute predictability.",
-    "Embed the stadium image in the Share Card using an `<img />` tag with absolute positioning and `z-0` rather than `bg-[url(...)]`.",
-    "In the Commentary Tab, use `framer-motion` for staggering list items and the 'pulse' dot. The over numbers (e.g., 14.2) must use the `Rajdhani` font and be dramatically oversized.",
-    "Do NOT use generic borders. Use 'Grid Borders' or 1px subtle gradients to fit the Tactical Luxury aesthetic.",
-    "Use Tailwind CSS text-shadow plugins or arbitrary values `drop-shadow-[...]` for glowing text."
+    "Install framer-motion and lucide-react if not already present.",
+    "Implement the 'CelebrationOverlay' as a high-z-index absolute container that listens to a global state or props for the current event ('SIX', 'FOUR', 'WICKET', 'PRIZE').",
+    "For the particles, generate an array of divs and use framer-motion 'animate' property to shoot them outwards from the center.",
+    "Ensure the fonts Orbitron, Rajdhani, and Poppins are imported via Google Fonts in index.html or global css.",
+    "Add 'data-testid' to all buttons and the celebration overlay container."
   ]
 }
