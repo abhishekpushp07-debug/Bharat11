@@ -52,6 +52,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     """Inject unique request ID for distributed tracing."""
     
     async def dispatch(self, request: Request, call_next):
+        # Skip Socket.IO requests — they don't need HTTP middleware
+        if request.url.path.startswith('/api/socket.io'):
+            return await call_next(request)
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         request.state.request_id = request_id
         response = await call_next(request)
@@ -63,6 +66,8 @@ class ResponseTimingMiddleware(BaseHTTPMiddleware):
     """Measure and log API response times."""
     
     async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith('/api/socket.io'):
+            return await call_next(request)
         start = time_module.perf_counter()
         response = await call_next(request)
         duration_ms = (time_module.perf_counter() - start) * 1000
@@ -78,6 +83,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add comprehensive security headers to all responses."""
     
     async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith('/api/socket.io'):
+            return await call_next(request)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -94,6 +101,8 @@ class RateLimitHeadersMiddleware(BaseHTTPMiddleware):
     """Inject rate limit info headers from request state."""
     
     async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith('/api/socket.io'):
+            return await call_next(request)
         response = await call_next(request)
         if hasattr(request.state, 'rate_limit_remaining'):
             response.headers["X-RateLimit-Limit"] = str(request.state.rate_limit_limit)
@@ -107,6 +116,8 @@ class RequestBodyLimitMiddleware(BaseHTTPMiddleware):
     MAX_BODY_SIZE = 1 * 1024 * 1024  # 1 MB
     
     async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith('/api/socket.io'):
+            return await call_next(request)
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > self.MAX_BODY_SIZE:
             from fastapi.responses import JSONResponse
