@@ -1336,6 +1336,154 @@ async def admin_adjust_coins(
     }
 
 
+# ==================== QUICK RESOLVE ALL ====================
+
+@router.post(
+    "/quick-resolve-all",
+    summary="One-tap Quick Resolve: Auto-resolve ALL active contests using AI predictions"
+)
+async def quick_resolve_all(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    The NUCLEAR BUTTON. Finds all active (non-completed) contests,
+    runs AI prediction on each, and resolves questions where AI has high confidence.
+    Returns a detailed summary of what was resolved.
+    """
+    from services.settlement_engine import evaluate_question, parse_scorecard_to_metrics, _auto_link_cricketdata_id, _resolve_question_internal, _auto_finalize_contest
+    from services.api_cache import cached_cricket
+
+    # Find all active contests
+    active_contests = await db.contests.find(
+        {"status": {"$in": ["open", "live", "in_progress"]}},
+        {"_id": 0}
+    ).to_list(length=100)
+
+    if not active_contests:
+        return {"message": "No active contests to resolve", "results": [], "total_resolved": 0}
+
+    results = []
+    total_resolved = 0
+    total_skipped = 0
+    total_errors = 0
+
+    for contest in active_contests:
+        contest_result = {
+            "contest_id": contest["id"],
+            "contest_name": contest.get("name", ""),
+            "resolved": 0,
+            "skipped": 0,
+            "errors": [],
+            "questions_detail": []
+        }
+
+        try:
+            # Get template and questions
+            template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
+            if not template:
+                contest_result["errors"].append("Template not found")
+                results.append(contest_result)
+                continue
+
+            qids = template.get("question_ids", [])
+            questions_cursor = db.questions.find({"id": {"$in": qids}}, {"_id": 0})
+            questions = await questions_cursor.to_list(length=len(qids))
+            q_map = {q["id"]: q for q in questions}
+
+            # Get match and scorecard
+            match = await db.matches.find_one({"id": contest.get("match_id")}, {"_id": 0})
+            if not match:
+                contest_result["errors"].append("Match not found")
+                results.append(contest_result)
+                continue
+
+            cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+            if not cd_id:
+                cd_id = await _auto_link_cricketdata_id(match, db)
+
+            if not cd_id:
+                contest_result["errors"].append("No CricketData ID")
+                results.append(contest_result)
+                continue
+
+            scorecard_data = await cached_cricket.get_scorecard(db, cd_id)
+            if not scorecard_data:
+                contest_result["errors"].append("Scorecard not available yet")
+                results.append(contest_result)
+                continue
+
+            metrics = parse_scorecard_to_metrics(scorecard_data)
+            match_id = contest.get("match_id", "")
+
+            # Check already resolved
+            resolved_cursor = db.question_results.find(
+                {"match_id": match_id, "question_id": {"$in": qids}},
+                {"_id": 0, "question_id": 1}
+            )
+            resolved_ids = set(r["question_id"] async for r in resolved_cursor)
+
+            for qid in qids:
+                q = q_map.get(qid)
+                if not q:
+                    continue
+
+                if qid in resolved_ids:
+                    contest_result["skipped"] += 1
+                    contest_result["questions_detail"].append({
+                        "question": q.get("question_text_en", "")[:40],
+                        "status": "already_resolved"
+                    })
+                    continue
+
+                # Run AI evaluation
+                ai_answer = evaluate_question(q, metrics)
+                if ai_answer:
+                    try:
+                        await _resolve_question_internal(db, contest["id"], match_id, qid, ai_answer, q)
+                        contest_result["resolved"] += 1
+                        contest_result["questions_detail"].append({
+                            "question": q.get("question_text_en", "")[:40],
+                            "status": "resolved",
+                            "answer": ai_answer
+                        })
+                    except Exception as e:
+                        contest_result["errors"].append(f"Q {qid[:8]}: {str(e)[:50]}")
+                else:
+                    contest_result["questions_detail"].append({
+                        "question": q.get("question_text_en", "")[:40],
+                        "status": "ai_unsure"
+                    })
+
+            # Try auto-finalize if all resolved
+            all_resolved = await db.question_results.count_documents(
+                {"match_id": match_id, "question_id": {"$in": qids}}
+            )
+            if all_resolved >= len(qids):
+                try:
+                    fin = await _auto_finalize_contest(db, contest["id"])
+                    contest_result["finalized"] = fin.get("finalized", False)
+                except Exception:
+                    contest_result["finalized"] = False
+
+        except Exception as e:
+            contest_result["errors"].append(str(e)[:100])
+
+        total_resolved += contest_result["resolved"]
+        total_skipped += contest_result["skipped"]
+        total_errors += len(contest_result["errors"])
+        results.append(contest_result)
+
+    return {
+        "message": f"Quick Resolve complete: {total_resolved} resolved, {total_skipped} skipped, {total_errors} errors across {len(active_contests)} contests",
+        "total_resolved": total_resolved,
+        "total_skipped": total_skipped,
+        "total_errors": total_errors,
+        "contests_processed": len(results),
+        "results": results,
+    }
+
+
 # ==================== BULK DELETE OPERATIONS ====================
 
 class BulkDeleteRequest(BaseModel):

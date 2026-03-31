@@ -7,6 +7,7 @@ import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_API_LOGOS, TEAM_CARD_IMAGES, getTeamLogo, normalizeTeam } from '../constants/teams';
 import { Search, X, Trophy, Calendar, Users, ChevronRight, ArrowLeft, Star, Zap } from 'lucide-react';
+import TeamProfilePage from './TeamProfilePage';
 
 const TEAM_INFO = [
   { short: 'MI', name: 'Mumbai Indians', city: 'Mumbai' },
@@ -107,24 +108,20 @@ export default function SearchPage({ onMatchClick, onBack }) {
             </button>
           )}
         </div>
+      {/* Search input allows typing to filter teams and matches */}
       </div>
 
-      {/* Selected Team Header */}
+      {/* Selected Team -> Full Profile */}
       {selectedTeam && (
-        <div className="rounded-2xl overflow-hidden relative" style={{ height: '120px' }}>
-          <img src={TEAM_CARD_IMAGES[selectedTeam] || ''} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)' }} />
-          <div className="absolute bottom-3 left-4 flex items-center gap-3">
-            <img src={getTeamLogo(selectedTeam)} alt="" className="w-10 h-10 rounded-full" style={{ border: `2px solid ${TEAM_COLORS[selectedTeam]?.primary || '#fff'}` }} />
-            <div>
-              <div className="text-base font-bold text-white">{TEAM_INFO.find(t => t.short === selectedTeam)?.name}</div>
-              <div className="text-xs" style={{ color: '#ffffffaa' }}>{filteredMatches.length} match(es) found</div>
-            </div>
-          </div>
-        </div>
+        <TeamProfilePage
+          teamShort={selectedTeam}
+          matches={matches}
+          onMatchClick={onMatchClick}
+          onBack={() => setSelectedTeam(null)}
+        />
       )}
 
-      {/* IPL Teams Grid - Always Visible */}
+      {/* IPL Teams Grid - Only when no team selected */}
       {!selectedTeam && (
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.text.tertiary }}>IPL 2025 Teams</h3>
@@ -154,11 +151,11 @@ export default function SearchPage({ onMatchClick, onBack }) {
         </div>
       )}
 
-      {/* Search Results - Matches */}
-      {(selectedTeam || query.trim()) && (
+      {/* Search Results - Matches (only when typing, not when team selected) */}
+      {!selectedTeam && query.trim() && (
         <div className="space-y-2">
           <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: COLORS.text.tertiary }}>
-            {selectedTeam ? `${selectedTeam} Matches` : 'Search Results'}
+            Search Results
           </h3>
           {loading ? (
             <div className="flex justify-center py-6">

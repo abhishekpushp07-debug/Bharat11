@@ -5,12 +5,14 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
-import { Users, HelpCircle, FileText, Calendar, Trophy, Zap, AlertTriangle, Play, ChevronRight, CheckCircle } from 'lucide-react';
+import { Users, HelpCircle, FileText, Calendar, Trophy, Zap, AlertTriangle, Play, ChevronRight, CheckCircle, Brain, Loader2, X } from 'lucide-react';
 
 export default function AdminDashboard({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unresolvedContests, setUnresolvedContests] = useState([]);
+  const [quickResolving, setQuickResolving] = useState(false);
+  const [quickResult, setQuickResult] = useState(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -64,6 +66,86 @@ export default function AdminDashboard({ onNavigate }) {
           </button>
         </div>
       )}
+
+      {/* Quick Resolve - ONE TAP */}
+      <div className="rounded-2xl overflow-hidden relative" style={{
+        background: 'linear-gradient(135deg, #1e1b4b, #312e81, #1e1b4b)',
+        border: '1px solid #6366f133'
+      }}>
+        <div className="absolute inset-0 opacity-20" style={{
+          background: 'radial-gradient(circle at 80% 20%, #818cf855, transparent 60%)'
+        }} />
+        <div className="relative p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#818cf822' }}>
+                <Brain size={20} color="#818cf8" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">Quick Resolve</div>
+                <div className="text-[10px]" style={{ color: '#a5b4fc' }}>
+                  AI resolves all active contests in one tap
+                </div>
+              </div>
+            </div>
+            <button
+              data-testid="quick-resolve-btn"
+              onClick={async () => {
+                if (!window.confirm('AI will resolve ALL active contests. Continue?')) return;
+                setQuickResolving(true);
+                setQuickResult(null);
+                try {
+                  const res = await apiClient.post('/admin/quick-resolve-all');
+                  setQuickResult(res.data);
+                } catch (e) {
+                  setQuickResult({ message: `Error: ${e?.response?.data?.detail || e.message}`, total_resolved: 0 });
+                } finally { setQuickResolving(false); }
+              }}
+              disabled={quickResolving}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50 transition-all active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+                color: '#fff',
+                boxShadow: '0 4px 16px #6366f144'
+              }}>
+              {quickResolving ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+              {quickResolving ? 'Resolving...' : 'Resolve All'}
+            </button>
+          </div>
+
+          {/* Quick Resolve Result */}
+          {quickResult && (
+            <div className="mt-3 p-3 rounded-xl space-y-2" style={{ background: 'rgba(0,0,0,0.3)' }}>
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-white">{quickResult.message}</div>
+                <button onClick={() => setQuickResult(null)}><X size={12} color="#a5b4fc" /></button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-2 rounded-lg" style={{ background: '#10b98122' }}>
+                  <div className="text-sm font-bold" style={{ color: '#10b981' }}>{quickResult.total_resolved}</div>
+                  <div className="text-[8px]" style={{ color: '#10b98199' }}>Resolved</div>
+                </div>
+                <div className="text-center p-2 rounded-lg" style={{ background: '#f59e0b22' }}>
+                  <div className="text-sm font-bold" style={{ color: '#f59e0b' }}>{quickResult.total_skipped}</div>
+                  <div className="text-[8px]" style={{ color: '#f59e0b99' }}>Skipped</div>
+                </div>
+                <div className="text-center p-2 rounded-lg" style={{ background: '#ef444422' }}>
+                  <div className="text-sm font-bold" style={{ color: '#ef4444' }}>{quickResult.total_errors}</div>
+                  <div className="text-[8px]" style={{ color: '#ef444499' }}>Errors</div>
+                </div>
+              </div>
+              {(quickResult.results || []).map((r, i) => (
+                <div key={i} className="text-[10px] flex items-center gap-2" style={{ color: '#a5b4fc' }}>
+                  <span className="font-bold text-white">{r.contest_name?.slice(0, 25)}</span>
+                  <span style={{ color: '#10b981' }}>+{r.resolved}</span>
+                  {r.finalized && <span className="px-1 rounded text-[8px] font-bold" style={{ background: '#10b98133', color: '#10b981' }}>DONE</span>}
+                  {r.errors?.length > 0 && <span style={{ color: '#ef4444' }}>{r.errors[0]?.slice(0, 30)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Stats Grid - All Clickable */}
       <div className="grid grid-cols-3 gap-2.5">
