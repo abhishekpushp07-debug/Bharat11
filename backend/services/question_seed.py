@@ -2,6 +2,7 @@
 Question Seed Script — IPL Prediction Questions
 16 questions with difficulty-based points: Hard=90, Medium=70, Easy=55
 2 Templates: "First Innings" (4 questions) + "Full Match" (12 questions)
+ALL question text and options are EXACT copy-paste from user — NO modifications.
 """
 import asyncio
 import os
@@ -12,6 +13,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from models.schemas import generate_id, utc_now
 
 
+# ========================================================================
+# आज की पहली पारी के लिए प्रश्न (4 Questions)
+# ========================================================================
 FIRST_INNINGS_QUESTIONS = [
     {
         "question_text_hi": "आज पहली पारी में कितने रन बनेंगे?",
@@ -59,7 +63,7 @@ FIRST_INNINGS_QUESTIONS = [
             {"key": "A", "text_hi": "13 से कम", "text_en": "Less than 13", "min_value": 0, "max_value": 12},
             {"key": "B", "text_hi": "13 या 14", "text_en": "13 or 14", "min_value": 13, "max_value": 14},
             {"key": "C", "text_hi": "15", "text_en": "15", "min_value": 15, "max_value": 15},
-            {"key": "D", "text_hi": "15 या 15 से ज़्यादा", "text_en": "15 or more", "min_value": 15, "max_value": 999},
+            {"key": "D", "text_hi": "15 या 15 से ज़्यादा", "text_en": "15 or more than 15", "min_value": 15, "max_value": 999},
         ],
         "evaluation_rules": {
             "type": "range_match",
@@ -88,6 +92,9 @@ FIRST_INNINGS_QUESTIONS = [
 ]
 
 
+# ========================================================================
+# आज के मैच के लिए प्रश्न (12 Questions)
+# ========================================================================
 FULL_MATCH_QUESTIONS = [
     {
         "question_text_hi": "आज का मैच कौन जीतेगा?",
@@ -133,7 +140,7 @@ FULL_MATCH_QUESTIONS = [
             {"key": "A", "text_hi": "13 से कम", "text_en": "Less than 13", "min_value": 0, "max_value": 12},
             {"key": "B", "text_hi": "13 या 14", "text_en": "13 or 14", "min_value": 13, "max_value": 14},
             {"key": "C", "text_hi": "15", "text_en": "15", "min_value": 15, "max_value": 15},
-            {"key": "D", "text_hi": "15 या 15 से ज़्यादा", "text_en": "15 or more", "min_value": 15, "max_value": 999},
+            {"key": "D", "text_hi": "15 या 15 से ज़्यादा", "text_en": "15 or more than 15", "min_value": 15, "max_value": 999},
         ],
         "evaluation_rules": {
             "type": "range_match",
@@ -307,7 +314,7 @@ FULL_MATCH_QUESTIONS = [
 
 
 async def seed_questions():
-    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL"))
     db = client[os.environ.get("DB_NAME", "crickpredict")]
     now = utc_now().isoformat()
 
@@ -320,7 +327,7 @@ async def seed_questions():
     full_match_ids = []
 
     # Seed First Innings Questions
-    print("\n--- FIRST INNINGS QUESTIONS ---")
+    print("\n--- FIRST INNINGS QUESTIONS (पहली पारी) ---")
     for i, q_data in enumerate(FIRST_INNINGS_QUESTIONS, 1):
         q_id = generate_id()
         doc = {
@@ -348,11 +355,13 @@ async def seed_questions():
         }
         await db.questions.insert_one(doc)
         first_innings_ids.append(q_id)
-        diff_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}[q_data["difficulty"]]
-        print(f"  {diff_emoji} Q{i}: {q_data['question_text_hi']} [{q_data['difficulty'].upper()} = {q_data['points']} pts]")
+        diff_emoji = {"easy": "E55", "medium": "M70", "hard": "H90"}[q_data["difficulty"]]
+        print(f"  [{diff_emoji}] Q{i}: {q_data['question_text_hi']}")
+        for opt in q_data["options"]:
+            print(f"       विकल्प {opt['key']} – {opt['text_hi']}")
 
     # Seed Full Match Questions
-    print("\n--- FULL MATCH QUESTIONS ---")
+    print("\n--- FULL MATCH QUESTIONS (पूरा मैच) ---")
     for i, q_data in enumerate(FULL_MATCH_QUESTIONS, 1):
         q_id = generate_id()
         doc = {
@@ -380,19 +389,21 @@ async def seed_questions():
         }
         await db.questions.insert_one(doc)
         full_match_ids.append(q_id)
-        diff_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}[q_data["difficulty"]]
-        print(f"  {diff_emoji} Q{i}: {q_data['question_text_hi']} [{q_data['difficulty'].upper()} = {q_data['points']} pts]")
+        diff_emoji = {"easy": "E55", "medium": "M70", "hard": "H90"}[q_data["difficulty"]]
+        print(f"  [{diff_emoji}] Q{i}: {q_data['question_text_hi']}")
+        for opt in q_data["options"]:
+            print(f"       विकल्प {opt['key']} – {opt['text_hi']}")
 
     # Create Templates
     print("\n--- TEMPLATES ---")
 
-    # Template 1: First Innings
+    # Template 1: First Innings (in_match)
     first_innings_total = sum(q["points"] for q in FIRST_INNINGS_QUESTIONS)
     t1_id = generate_id()
     await db.templates.insert_one({
         "id": t1_id,
         "name": "First Innings Predictions",
-        "description": "पहली पारी के प्रश्न — Predict first innings outcomes",
+        "description": "आज की पहली पारी के लिए प्रश्न",
         "match_type": "t20",
         "template_type": "in_match",
         "question_ids": first_innings_ids,
@@ -407,15 +418,15 @@ async def seed_questions():
         "created_at": now,
         "updated_at": now,
     })
-    print(f"  Template 1: 'First Innings Predictions' — {len(first_innings_ids)} questions, {first_innings_total} total pts")
+    print(f"  Template 1: 'First Innings Predictions' (in_match) — {len(first_innings_ids)} questions, {first_innings_total} total pts")
 
-    # Template 2: Full Match
+    # Template 2: Full Match (full_match)
     full_match_total = sum(q["points"] for q in FULL_MATCH_QUESTIONS)
     t2_id = generate_id()
     await db.templates.insert_one({
         "id": t2_id,
         "name": "Full Match Predictions",
-        "description": "पूरे मैच के प्रश्न — Predict full match outcomes",
+        "description": "आज के मैच के लिए प्रश्न",
         "match_type": "t20",
         "template_type": "full_match",
         "question_ids": full_match_ids,
@@ -427,7 +438,7 @@ async def seed_questions():
         "created_at": now,
         "updated_at": now,
     })
-    print(f"  Template 2: 'Full Match Predictions' — {len(full_match_ids)} questions, {full_match_total} total pts")
+    print(f"  Template 2: 'Full Match Predictions' (full_match) — {len(full_match_ids)} questions, {full_match_total} total pts")
 
     # Summary
     all_questions = FIRST_INNINGS_QUESTIONS + FULL_MATCH_QUESTIONS
@@ -438,9 +449,9 @@ async def seed_questions():
 
     print(f"\n=== SEED COMPLETE ===")
     print(f"Total Questions: {len(all_questions)}")
-    print(f"  Easy (55 pts): {easy_count}")
-    print(f"  Medium (70 pts): {medium_count}")
-    print(f"  Hard (90 pts): {hard_count}")
+    print(f"  Easy  (55 pts): {easy_count}")
+    print(f"  Medium(70 pts): {medium_count}")
+    print(f"  Hard  (90 pts): {hard_count}")
     print(f"Total Points: {total_pts}")
     print(f"Templates: 2 (First Innings + Full Match)")
 
