@@ -52,13 +52,13 @@ export default function AdminTemplatesTab() {
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim() || form.question_ids.length === 0) {
-      setMsg('Name and at least 1 question required');
+    if (!form.name.trim()) {
+      setMsg('Template name is required');
       return;
     }
     try {
       await apiClient.post('/admin/templates', form);
-      setMsg('Template created!');
+      setMsg(`Template created! ${form.question_ids.length > 0 ? `(${form.question_ids.length} questions)` : '(No questions — add via Edit)'}`);
       setShowForm(false);
       resetForm();
       fetchAll();
@@ -390,7 +390,7 @@ export default function AdminTemplatesTab() {
           <div className="flex gap-2">
             <button data-testid={isEditing ? "update-template-btn" : "create-template-btn"}
               onClick={isEditing ? handleUpdate : handleCreate}
-              disabled={!form.name.trim() || form.question_ids.length === 0}
+              disabled={!form.name.trim()}
               className="flex-1 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1"
               style={{ background: isEditing ? COLORS.info.main : COLORS.primary.main, color: '#fff' }}>
               {isEditing ? <><Save size={14} /> Update Template</> : 'Create Template'}
