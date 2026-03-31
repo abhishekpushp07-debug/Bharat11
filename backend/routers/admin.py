@@ -532,6 +532,11 @@ async def admin_create_contest(
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
 
+    # Enforce max 5 contests per match
+    existing_contest_count = await db.contests.count_documents({"match_id": data.match_id})
+    if existing_contest_count >= 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 contests allowed per match")
+
     # Validate template exists
     template = await db.templates.find_one({"id": data.template_id}, {"_id": 0})
     if not template:
@@ -1529,6 +1534,23 @@ async def bulk_delete_contests(
     await db.contest_entries.delete_many({"contest_id": {"$in": data.ids}})
     result = await db.contests.delete_many({"id": {"$in": data.ids}})
     return {"deleted": result.deleted_count, "requested": len(data.ids)}
+
+
+@router.delete(
+    "/contests/{contest_id}",
+    summary="Delete a single contest"
+)
+async def delete_single_contest(
+    contest_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    contest = await db.contests.find_one({"id": contest_id})
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+    await db.contest_entries.delete_many({"contest_id": contest_id})
+    await db.contests.delete_one({"id": contest_id})
+    return {"message": "Contest deleted", "id": contest_id}
 
 
 # ==================== AI PREVIEW + RESOLVE OVERRIDE ====================

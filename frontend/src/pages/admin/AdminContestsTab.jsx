@@ -1,346 +1,387 @@
 /**
- * Admin Contests Tab - Full CRUD with Multi-Select Delete + Template Type Badges
- * Contest creation happens INSIDE a match view with default template options
+ * Admin Contests Tab - Match-based Contest Management
+ * Flow: Select Match → View/Add/Delete Contests → Select Template → Make Live
+ * Rules: Min 1, Max 5 contests per match
  */
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
-import { Plus, Trophy, ChevronDown, ChevronUp, Trash2, Edit2, CheckSquare, Square, Loader2, X, ArrowLeft, Zap } from 'lucide-react';
+import { Plus, Trophy, Trash2, ArrowLeft, Loader2, X, ChevronRight, Users, Coins, Clock, AlertTriangle } from 'lucide-react';
+
+const MAX_CONTESTS_PER_MATCH = 5;
 
 export default function AdminContestsTab() {
   const [matches, setMatches] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState(null);
+  const [matchContests, setMatchContests] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [expandedC, setExpandedC] = useState(null);
-  const [msg, setMsg] = useState('');
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [msg, setMsg] = useState({ text: '', type: 'info' });
 
   const [form, setForm] = useState({
-    match_id: '', template_id: '', name: '',
-    entry_fee: 1000, prize_pool: 0, max_participants: 1000
+    template_id: '', name: '', entry_fee: 1000, max_participants: 1000
   });
 
-  const fetchAll = async () => {
+  useEffect(() => { fetchMatches(); }, []);
+
+  const fetchMatches = async () => {
+    setLoading(true);
     try {
-      const [mRes, tRes, cRes] = await Promise.all([
+      const [mRes, tRes] = await Promise.all([
         apiClient.get('/matches?limit=50'),
-        apiClient.get('/admin/templates?limit=50'),
-        apiClient.get('/admin/contests?limit=50')
+        apiClient.get('/admin/templates?limit=50')
       ]);
       setMatches(mRes.data.matches || []);
       setTemplates(tRes.data.templates || []);
-      setContests(cRes.data.contests || []);
-    } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
+    } catch (e) { showMsg(`Error: ${e?.response?.data?.detail || e.message}`, 'error'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  const fetchMatchContests = async (matchId) => {
+    try {
+      const res = await apiClient.get(`/admin/contests?match_id=${matchId}&limit=10`);
+      setMatchContests(res.data.contests || []);
+    } catch (e) { setMatchContests([]); }
+  };
+
+  const showMsg = (text, type = 'info') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: '', type: 'info' }), 4000);
+  };
+
+  const selectMatch = async (match) => {
+    setSelectedMatch(match);
+    setShowCreate(false);
+    await fetchMatchContests(match.id);
+  };
 
   const handleCreate = async () => {
-    if (!form.match_id || !form.template_id || !form.name.trim()) {
-      setMsg('Match, Template and Name required');
+    if (!form.template_id || !form.name.trim()) {
+      showMsg('Template aur Name dono required hain', 'error');
       return;
     }
+    if (matchContests.length >= MAX_CONTESTS_PER_MATCH) {
+      showMsg(`Maximum ${MAX_CONTESTS_PER_MATCH} contests allowed per match!`, 'error');
+      return;
+    }
+    setCreating(true);
     try {
-      await apiClient.post('/admin/contests', form);
-      setMsg('Contest created!');
+      await apiClient.post('/admin/contests', {
+        match_id: selectedMatch.id,
+        template_id: form.template_id,
+        name: form.name,
+        entry_fee: form.entry_fee,
+        prize_pool: 0,
+        max_participants: form.max_participants
+      });
+      showMsg('Contest created!', 'success');
       setShowCreate(false);
-      setForm({ match_id: '', template_id: '', name: '', entry_fee: 1000, prize_pool: 0, max_participants: 1000 });
-      fetchAll();
-    } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this contest?')) return;
-    try {
-      await apiClient.post('/admin/contests/bulk-delete', { ids: [id] });
-      setMsg('Contest deleted');
-      fetchAll();
-    } catch (e) { setMsg(`Error: ${e?.response?.data?.detail || e.message}`); }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.size} selected contests?`)) return;
-    setBulkDeleting(true);
-    try {
-      await apiClient.post('/admin/contests/bulk-delete', { ids: Array.from(selectedIds) });
-      setSelectedIds(new Set());
-      setMsg(`${selectedIds.size} contests deleted`);
-      fetchAll();
+      setForm({ template_id: '', name: '', entry_fee: 1000, max_participants: 1000 });
+      await fetchMatchContests(selectedMatch.id);
     } catch (e) {
-      alert('Bulk delete failed: ' + (e.response?.data?.detail || e.message));
-    } finally { setBulkDeleting(false); }
+      showMsg(`Error: ${e?.response?.data?.detail || e.message}`, 'error');
+    } finally { setCreating(false); }
   };
 
-  const toggleSelect = (id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const handleDelete = async (contestId, contestName) => {
+    if (!window.confirm(`"${contestName}" contest delete karna hai?`)) return;
+    try {
+      await apiClient.delete(`/admin/contests/${contestId}`);
+      showMsg('Contest deleted!', 'success');
+      await fetchMatchContests(selectedMatch.id);
+    } catch (e) {
+      showMsg(`Delete error: ${e?.response?.data?.detail || e.message}`, 'error');
+    }
   };
 
-  const activeMatches = matches.filter(m => ['upcoming', 'live'].includes(m.status));
-
-  const getMatchLabel = (id) => {
-    const m = matches.find(m => m.id === id);
-    return m ? `${m.team_a?.short_name} vs ${m.team_b?.short_name}` : id?.slice(0, 8);
+  const getStatusStyle = (s) => {
+    const map = {
+      upcoming: { bg: COLORS.info.main + '22', color: COLORS.info.main },
+      live: { bg: COLORS.success.main + '22', color: COLORS.success.main },
+      completed: { bg: COLORS.text.tertiary + '22', color: COLORS.text.tertiary },
+    };
+    return map[s] || map.completed;
   };
 
-  // Group contests by match
-  const matchContestGroups = {};
-  contests.forEach(c => {
-    const mid = c.match_id || 'unlinked';
-    if (!matchContestGroups[mid]) matchContestGroups[mid] = [];
-    matchContestGroups[mid].push(c);
-  });
-
-  // If a match is selected for creating contests inside it
+  // ======== MATCH DETAIL VIEW (with contests) ========
   if (selectedMatch) {
-    const match = matches.find(m => m.id === selectedMatch);
-    const matchContests = contests.filter(c => c.match_id === selectedMatch);
-    const teamA = match?.team_a?.short_name || '?';
-    const teamB = match?.team_b?.short_name || '?';
+    const teamA = selectedMatch.team_a?.short_name || '?';
+    const teamB = selectedMatch.team_b?.short_name || '?';
+    const canAdd = matchContests.length < MAX_CONTESTS_PER_MATCH;
+    const ss = getStatusStyle(selectedMatch.status);
 
     return (
-      <div className="space-y-3">
-        <button onClick={() => { setSelectedMatch(null); setShowCreate(false); }}
-          className="text-xs flex items-center gap-1" style={{ color: COLORS.text.secondary }}>
-          <ArrowLeft size={14} /> Back to All Contests
+      <div className="space-y-3" data-testid="match-contest-view">
+        {/* Back Button */}
+        <button data-testid="back-to-matches-btn"
+          onClick={() => { setSelectedMatch(null); setMatchContests([]); setShowCreate(false); }}
+          className="text-xs flex items-center gap-1 py-1" style={{ color: COLORS.text.secondary }}>
+          <ArrowLeft size={14} /> Back to Matches
         </button>
 
-        <div className="p-3 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.primary.main}33` }}>
-          <div className="text-sm font-bold text-white">{teamA} vs {teamB}</div>
-          <div className="text-[10px] mt-0.5" style={{ color: COLORS.text.tertiary }}>
-            {match?.venue} | {match?.start_time ? new Date(match.start_time).toLocaleString() : ''} | {match?.status?.toUpperCase()}
+        {/* Match Header */}
+        <div className="p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.primary.main}33` }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-base font-bold text-white">{teamA} vs {teamB}</div>
+              <div className="text-[10px] mt-1" style={{ color: COLORS.text.tertiary }}>
+                {selectedMatch.venue} | {selectedMatch.start_time ? new Date(selectedMatch.start_time).toLocaleString('en-IN') : ''}
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: ss.bg, color: ss.color }}>
+              {selectedMatch.status?.toUpperCase()}
+            </span>
           </div>
-          <div className="text-xs mt-1" style={{ color: COLORS.info.main }}>{matchContests.length} contest(s)</div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs font-semibold" style={{ color: COLORS.accent.gold }}>
+              {matchContests.length}/{MAX_CONTESTS_PER_MATCH} Contests
+            </span>
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: COLORS.background.tertiary }}>
+              <div className="h-full rounded-full transition-all" style={{
+                width: `${(matchContests.length / MAX_CONTESTS_PER_MATCH) * 100}%`,
+                background: matchContests.length >= MAX_CONTESTS_PER_MATCH ? COLORS.error.main : COLORS.accent.gold
+              }} />
+            </div>
+          </div>
         </div>
 
-        {/* Create Contest in this Match */}
-        <button data-testid="create-contest-in-match-btn"
-          onClick={() => {
-            setForm({ ...form, match_id: selectedMatch, name: `${teamA} vs ${teamB} Contest` });
-            setShowCreate(!showCreate);
-          }}
-          className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: COLORS.accent.gold, color: '#000' }}>
-          <Plus size={14} /> Create Contest Here
-        </button>
+        {/* Message */}
+        {msg.text && (
+          <div className="text-xs text-center py-2 rounded-lg flex items-center justify-center gap-2" style={{
+            background: msg.type === 'error' ? COLORS.error.bg : msg.type === 'success' ? COLORS.success.main + '15' : COLORS.background.card,
+            color: msg.type === 'error' ? COLORS.error.main : msg.type === 'success' ? COLORS.success.main : COLORS.info.main
+          }}>
+            {msg.text}
+            <button onClick={() => setMsg({ text: '', type: 'info' })}><X size={12} /></button>
+          </div>
+        )}
 
+        {/* Add Contest Button */}
+        {canAdd ? (
+          <button data-testid="add-contest-btn"
+            onClick={() => {
+              setForm({ ...form, name: `${teamA} vs ${teamB} Contest ${matchContests.length + 1}` });
+              setShowCreate(!showCreate);
+            }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
+            style={{ background: COLORS.accent.gold, color: '#000' }}>
+            <Plus size={16} /> Add Contest ({matchContests.length + 1}/{MAX_CONTESTS_PER_MATCH})
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 py-3 px-4 rounded-xl text-xs" style={{ background: COLORS.error.bg, border: `1px solid ${COLORS.error.main}22` }}>
+            <AlertTriangle size={14} color={COLORS.error.main} />
+            <span style={{ color: COLORS.error.main }}>Maximum {MAX_CONTESTS_PER_MATCH} contests reached</span>
+          </div>
+        )}
+
+        {/* Create Contest Form */}
         {showCreate && (
-          <div className="space-y-3 p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+          <div className="space-y-3 p-4 rounded-xl" style={{ background: COLORS.background.card, border: `1px solid ${COLORS.accent.gold}33` }}>
+            <div className="text-xs font-bold text-white">New Contest</div>
+
+            {/* Template Select */}
             <div>
-              <label className="text-xs" style={{ color: COLORS.text.secondary }}>Template *</label>
-              <select data-testid="contest-template-select" value={form.template_id}
+              <label className="text-[10px] font-semibold" style={{ color: COLORS.text.secondary }}>Template *</label>
+              <select data-testid="contest-template-select"
+                value={form.template_id}
                 onChange={e => setForm({ ...form, template_id: e.target.value })}
-                className="w-full mt-1 p-2 rounded-lg text-xs text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}>
-                <option value="">Select Template</option>
-                {/* Default templates first with prefix */}
+                className="w-full mt-1 p-2.5 rounded-lg text-xs text-white"
+                style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}>
+                <option value="">-- Select Template --</option>
                 {templates.filter(t => t.is_default).map(t => (
                   <option key={t.id} value={t.id}>
-                    [DEFAULT] {t.name} ({t.template_type === 'full_match' ? 'Full' : 'In-Match'}, {t.question_count || t.question_ids?.length || 0}Qs)
+                    [DEFAULT] {t.name} ({t.template_type === 'full_match' ? 'Full' : 'In-Match'}, {t.question_ids?.length || 0} Qs, {t.total_points || 0} pts)
                   </option>
                 ))}
-                {/* Then regular templates */}
                 {templates.filter(t => !t.is_default).map(t => (
                   <option key={t.id} value={t.id}>
-                    {t.name} ({t.template_type === 'full_match' ? 'Full' : 'In-Match'}, {t.question_count || t.question_ids?.length || 0}Qs)
+                    {t.name} ({t.template_type === 'full_match' ? 'Full' : 'In-Match'}, {t.question_ids?.length || 0} Qs)
                   </option>
                 ))}
               </select>
             </div>
 
-            <input data-testid="contest-name-input" value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full p-2.5 rounded-lg text-sm text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
-              placeholder="Contest Name" />
+            {/* Contest Name */}
+            <div>
+              <label className="text-[10px] font-semibold" style={{ color: COLORS.text.secondary }}>Contest Name *</label>
+              <input data-testid="contest-name-input"
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                className="w-full mt-1 p-2.5 rounded-lg text-xs text-white"
+                style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }}
+                placeholder="e.g. PBKS vs GT Contest 1" />
+            </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            {/* Entry Fee + Max Players */}
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs" style={{ color: COLORS.text.secondary }}>Entry Fee</label>
-                <input type="number" value={form.entry_fee}
+                <label className="text-[10px] font-semibold" style={{ color: COLORS.text.secondary }}>Entry Fee (coins)</label>
+                <input data-testid="contest-entry-fee" type="number" value={form.entry_fee}
                   onChange={e => setForm({ ...form, entry_fee: parseInt(e.target.value) || 0 })}
-                  className="w-full mt-1 p-2 rounded-lg text-xs text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={0} />
+                  className="w-full mt-1 p-2.5 rounded-lg text-xs text-white"
+                  style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={0} />
               </div>
               <div>
-                <label className="text-xs" style={{ color: COLORS.text.secondary }}>Max Players</label>
-                <input type="number" value={form.max_participants}
-                  onChange={e => setForm({ ...form, max_participants: parseInt(e.target.value) || 1000 })}
-                  className="w-full mt-1 p-2 rounded-lg text-xs text-white" style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={2} />
-              </div>
-              <div className="flex flex-col justify-end">
-                <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Prize Pool</div>
-                <div className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>Dynamic</div>
-                <div className="text-[9px]" style={{ color: COLORS.text.tertiary }}>50/30/20 split</div>
+                <label className="text-[10px] font-semibold" style={{ color: COLORS.text.secondary }}>Max Players</label>
+                <input data-testid="contest-max-players" type="number" value={form.max_participants}
+                  onChange={e => setForm({ ...form, max_participants: parseInt(e.target.value) || 100 })}
+                  className="w-full mt-1 p-2.5 rounded-lg text-xs text-white"
+                  style={{ background: COLORS.background.tertiary, border: `1px solid ${COLORS.border.light}` }} min={2} />
               </div>
             </div>
 
-            <button data-testid="submit-contest-btn" onClick={handleCreate}
-              disabled={!form.template_id || !form.name.trim()}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold disabled:opacity-40" style={{ background: COLORS.accent.gold, color: '#000' }}>
-              Create Contest
+            <div className="text-[10px] px-2 py-1.5 rounded-lg" style={{ background: COLORS.accent.gold + '15', color: COLORS.accent.gold }}>
+              Prize Pool = Dynamic (50/30/20 split based on entries)
+            </div>
+
+            {/* Submit */}
+            <button data-testid="submit-create-contest-btn" onClick={handleCreate}
+              disabled={!form.template_id || !form.name.trim() || creating}
+              className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
+              style={{ background: COLORS.accent.gold, color: '#000' }}>
+              {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              {creating ? 'Creating...' : 'Create Contest'}
             </button>
           </div>
         )}
 
-        {/* Existing contests for this match */}
+        {/* Existing Contests List */}
         <div className="space-y-2">
+          <div className="text-xs font-bold text-white">{matchContests.length} Contest(s)</div>
+          {matchContests.length === 0 && (
+            <div className="text-center py-6 rounded-xl" style={{ background: COLORS.background.card }}>
+              <Trophy size={24} color={COLORS.text.tertiary} className="mx-auto mb-2" />
+              <div className="text-xs" style={{ color: COLORS.text.tertiary }}>No contests yet. Add one above!</div>
+            </div>
+          )}
           {matchContests.map(c => (
-            <ContestCard key={c.id} c={c} expandedC={expandedC} setExpandedC={setExpandedC}
-              selectedIds={selectedIds} toggleSelect={toggleSelect} handleDelete={handleDelete}
-              getMatchLabel={getMatchLabel} />
+            <ContestCard key={c.id} c={c} onDelete={handleDelete} />
           ))}
         </div>
       </div>
     );
   }
 
+  // ======== MATCH LIST VIEW ========
   return (
-    <div className="space-y-3">
-      {msg && (
-        <div className="text-xs text-center py-1.5 rounded-lg" style={{ background: COLORS.background.card, color: COLORS.info.main }}>
-          {msg}
-          <button onClick={() => setMsg('')} className="ml-2 opacity-50"><X size={10} /></button>
+    <div className="space-y-3" data-testid="admin-contests-tab">
+      {msg.text && (
+        <div className="text-xs text-center py-2 rounded-lg" style={{
+          background: msg.type === 'error' ? COLORS.error.bg : COLORS.background.card,
+          color: msg.type === 'error' ? COLORS.error.main : COLORS.info.main
+        }}>
+          {msg.text}
+          <button onClick={() => setMsg({ text: '', type: 'info' })} className="ml-2"><X size={10} /></button>
         </div>
       )}
 
-      {/* Multi-Select Actions */}
-      {selectedIds.size > 0 && (
-        <div data-testid="bulk-actions-bar" className="flex items-center gap-3 p-2.5 rounded-xl"
-          style={{ background: COLORS.error.bg, border: `1px solid ${COLORS.error.main}33` }}>
-          <span className="text-xs font-bold" style={{ color: COLORS.error.main }}>{selectedIds.size} selected</span>
-          <button data-testid="bulk-delete-contests-btn" onClick={handleBulkDelete} disabled={bulkDeleting}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-50"
-            style={{ background: COLORS.error.main, color: '#fff' }}>
-            {bulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-            Delete Selected
-          </button>
-          <button onClick={() => setSelectedIds(new Set())}
-            className="px-2 py-1 rounded text-xs" style={{ color: COLORS.text.tertiary }}>Clear</button>
-        </div>
-      )}
-
-      {/* Match List for Contest Creation */}
-      <div className="text-xs font-bold text-white mb-1">Select a Match to Create Contests:</div>
-      <div className="space-y-1.5">
-        {activeMatches.map(m => {
-          const mContests = contests.filter(c => c.match_id === m.id);
-          return (
-            <button key={m.id} onClick={() => setSelectedMatch(m.id)}
-              className="w-full text-left p-3 rounded-xl flex items-center justify-between"
-              style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
-              <div>
-                <div className="text-sm font-bold text-white">{m.team_a?.short_name} vs {m.team_b?.short_name}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                    style={{ background: (m.status === 'live' ? COLORS.success.main : COLORS.info.main) + '22', color: m.status === 'live' ? COLORS.success.main : COLORS.info.main }}>
-                    {m.status?.toUpperCase()}
-                  </span>
-                  <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{mContests.length} contest(s)</span>
-                </div>
-              </div>
-              <Plus size={16} color={COLORS.accent.gold} />
-            </button>
-          );
-        })}
+      <div className="text-xs font-bold text-white">Select Match to Manage Contests:</div>
+      <div className="text-[10px] mb-1" style={{ color: COLORS.text.tertiary }}>
+        Min 1, Max {MAX_CONTESTS_PER_MATCH} contests per match
       </div>
 
-      {/* All Contests List */}
       {loading ? (
-        <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}30`, borderTopColor: COLORS.primary.main }} /></div>
+        <div className="flex justify-center py-10">
+          <Loader2 size={24} className="animate-spin" color={COLORS.primary.main} />
+        </div>
+      ) : matches.length === 0 ? (
+        <div className="text-center py-8 rounded-xl" style={{ background: COLORS.background.card }}>
+          <div className="text-sm" style={{ color: COLORS.text.tertiary }}>No matches found. Sync from CricketData API first.</div>
+        </div>
       ) : (
-        <div className="space-y-2">
-          <div className="text-xs font-bold text-white mt-4">All Contests ({contests.length})</div>
-          {contests.map(c => (
-            <ContestCard key={c.id} c={c} expandedC={expandedC} setExpandedC={setExpandedC}
-              selectedIds={selectedIds} toggleSelect={toggleSelect} handleDelete={handleDelete}
-              getMatchLabel={getMatchLabel} />
-          ))}
+        <div className="space-y-1.5">
+          {matches.map(m => {
+            const teamA = m.team_a?.short_name || '?';
+            const teamB = m.team_b?.short_name || '?';
+            const ss = getStatusStyle(m.status);
+            return (
+              <button key={m.id} data-testid={`match-select-${m.id}`}
+                onClick={() => selectMatch(m)}
+                className="w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all hover:opacity-90 active:scale-[0.98]"
+                style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-white">{teamA} vs {teamB}</div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: ss.bg, color: ss.color }}>
+                      {m.status?.toUpperCase()}
+                    </span>
+                    <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>
+                      {m.start_time ? new Date(m.start_time).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} color={COLORS.text.tertiary} />
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function ContestCard({ c, expandedC, setExpandedC, selectedIds, toggleSelect, handleDelete, getMatchLabel }) {
-  const statusColor = c.status === 'open' ? COLORS.success.main : c.status === 'completed' ? COLORS.text.tertiary : COLORS.info.main;
+
+function ContestCard({ c, onDelete }) {
+  const statusColor = c.status === 'open' ? COLORS.success.main : c.status === 'completed' ? COLORS.text.tertiary : c.status === 'live' ? '#22d3ee' : COLORS.info.main;
   const templateType = c.template_type || 'full_match';
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{
-      background: selectedIds.has(c.id) ? `${COLORS.primary.main}11` : COLORS.background.card,
-      border: `1px solid ${selectedIds.has(c.id) ? COLORS.primary.main + '44' : COLORS.border.light}`
-    }}>
-      <div className="flex items-center gap-2 p-3">
-        {/* Checkbox */}
-        <button onClick={() => toggleSelect(c.id)} className="shrink-0">
-          {selectedIds.has(c.id) ?
-            <CheckSquare size={16} color={COLORS.primary.main} /> :
-            <Square size={16} color={COLORS.text.tertiary} />
-          }
-        </button>
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedC(expandedC === c.id ? null : c.id)}>
-          <div className="flex items-center gap-2">
-            <Trophy size={14} color={COLORS.accent.gold} />
-            <span className="text-xs font-semibold text-white">{c.name}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-[10px] font-semibold" style={{ color: statusColor }}>{c.status?.toUpperCase()}</span>
-            {/* Template Type Badge */}
-            <span data-testid={`badge-${c.id}`} className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-              style={{
-                background: templateType === 'full_match' ? COLORS.primary.main + '22' : COLORS.warning.bg,
-                color: templateType === 'full_match' ? COLORS.primary.main : COLORS.warning.main
-              }}>
-              {templateType === 'full_match' ? 'FULL MATCH' : 'IN-MATCH'}
-            </span>
-            {c.phase_label && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: '#6366f115', color: '#818cf8' }}>
-                {c.phase_label}
-              </span>
-            )}
-            <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{c.match_label || getMatchLabel(c.match_id)}</span>
-            <span className="text-[10px]" style={{ color: COLORS.accent.gold }}>{c.prize_pool || 0} coins</span>
-            {c.auto_created && <span className="text-[8px] font-bold px-1 rounded" style={{ background: '#10b98115', color: '#10b981' }}>AUTO</span>}
-          </div>
+    <div data-testid={`contest-card-${c.id}`} className="rounded-xl p-3"
+      style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Trophy size={14} color={COLORS.accent.gold} />
+          <span className="text-xs font-bold text-white">{c.name}</span>
         </div>
-        {expandedC === c.id ? <ChevronUp size={14} color={COLORS.text.tertiary} /> : <ChevronDown size={14} color={COLORS.text.tertiary} />}
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: statusColor + '22', color: statusColor }}>
+          {c.status?.toUpperCase()}
+        </span>
       </div>
 
-      {expandedC === c.id && (
-        <div className="px-3 pb-3 border-t" style={{ borderColor: COLORS.border.light }}>
-          <div className="grid grid-cols-3 gap-2 mt-2">
-            <div className="text-center p-2 rounded" style={{ background: COLORS.background.tertiary }}>
-              <div className="text-xs font-bold text-white">{c.entry_fee}</div>
-              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Entry</div>
-            </div>
-            <div className="text-center p-2 rounded" style={{ background: COLORS.background.tertiary }}>
-              <div className="text-xs font-bold" style={{ color: COLORS.accent.gold }}>{(c.prize_pool || c.entry_fee * (c.current_participants || 0)).toLocaleString()}</div>
-              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Pool</div>
-            </div>
-            <div className="text-center p-2 rounded" style={{ background: COLORS.background.tertiary }}>
-              <div className="text-xs font-bold text-white">{c.current_participants || 0}/{c.max_participants}</div>
-              <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>Players</div>
-            </div>
-          </div>
-          {c.template_name && (
-            <div className="text-[10px] mt-2" style={{ color: COLORS.text.tertiary }}>
-              Template: {c.template_name} | {c.question_count || 0} questions
-            </div>
-          )}
-          <div className="flex gap-2 mt-2">
-            <button onClick={() => handleDelete(c.id)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: COLORS.error.bg, color: COLORS.error.main }}>
-              <Trash2 size={12} /> Delete
-            </button>
-          </div>
+      {/* Badges */}
+      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{
+          background: templateType === 'full_match' ? COLORS.primary.main + '22' : '#f59e0b22',
+          color: templateType === 'full_match' ? COLORS.primary.main : '#f59e0b'
+        }}>
+          {templateType === 'full_match' ? 'FULL MATCH' : 'IN-MATCH'}
+        </span>
+        {c.template_name && (
+          <span className="text-[9px]" style={{ color: COLORS.text.tertiary }}>{c.template_name}</span>
+        )}
+        {c.question_count > 0 && (
+          <span className="text-[9px]" style={{ color: COLORS.text.tertiary }}>{c.question_count} Qs</span>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 mt-2">
+        <div className="flex items-center gap-1.5 text-[10px]" style={{ color: COLORS.text.secondary }}>
+          <Coins size={11} color={COLORS.accent.gold} />
+          <span>{c.entry_fee} fee</span>
         </div>
-      )}
+        <div className="flex items-center gap-1.5 text-[10px]" style={{ color: COLORS.text.secondary }}>
+          <Users size={11} color={COLORS.info.main} />
+          <span>{c.current_participants || 0}/{c.max_participants}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px]" style={{ color: COLORS.text.secondary }}>
+          <Clock size={11} />
+          <span>{c.lock_time ? new Date(c.lock_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'}</span>
+        </div>
+      </div>
+
+      {/* Delete */}
+      <div className="flex justify-end mt-2 pt-2" style={{ borderTop: `1px solid ${COLORS.border.light}` }}>
+        <button data-testid={`delete-contest-${c.id}`}
+          onClick={() => onDelete(c.id, c.name)}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:opacity-80"
+          style={{ background: COLORS.error.bg, color: COLORS.error.main }}>
+          <Trash2 size={11} /> Delete
+        </button>
+      </div>
     </div>
   );
 }
