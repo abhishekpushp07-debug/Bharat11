@@ -6,7 +6,7 @@
 Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive CricketData.org API integration, AI commentary, real-time updates, admin dashboard, premium UX with world-class animations.
 
 ### Core Architecture
-- **Frontend**: React.js (PWA) + Tailwind CSS + Shadcn UI + Framer Motion
+- **Frontend**: React.js (PWA) + Tailwind CSS + Shadcn UI + Framer Motion + Canvas Particle Engine
 - **Backend**: FastAPI + Motor (async MongoDB)
 - **Database**: MongoDB (`crickpredict`)
 - **Real-time**: Socket.IO
@@ -16,11 +16,9 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive Cri
 ### What's Been Implemented
 
 #### CricketData.org API Integration (COMPLETED)
-- [x] series_info — 70 IPL matches synced, auto-sync on startup
-- [x] match_scorecard, match_info, series_points, series_squad
-- [x] cricScore, match_points, match_bbb, player_info
+- [x] 17 APIs integrated: series_info, match_scorecard, match_info, series_points, series_squad, cricScore, match_points, match_bbb, player_info, currentMatches
 - [x] Auto-sync startup + score fetching for completed matches
-- [x] MongoDB indexes — api_cache (compound unique), matches.cricketdata_id (sparse)
+- [x] MongoDB indexes for performance
 
 #### Data Accuracy System (COMPLETED - March 31, 2026)
 - [x] `_align_team_info()` — Fixes random teamInfo[] swap
@@ -30,22 +28,25 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive Cri
 - [x] match_winner populated, series_info cache TTL
 - [x] Result: 70 matches, 100% IPL, 0 duplicates, 0 swaps
 
-#### World-Class UI Animations (COMPLETED - March 31, 2026)
-- [x] **SIX Celebration** — Fiery golden explosion, 50 radial particles, 3 shock rings, "MAXIMUM!" text with fire gradient, screen flash, ambient glow
-- [x] **FOUR Celebration** — Neon blue boundary streak, horizontal sweep, "BOUNDARY!" text with skew slide-in
-- [x] **WICKET Celebration** — 3 flying stumps + 2 bails, dark red flash, "WICKET!" slam from top with screen shake
-- [x] **PRIZE/WINNER Celebration** — 60 gold confetti pieces, rotating conic light burst, "WINNER!" bounce-in
-- [x] **Match Card Staggered Entry** — Framer Motion slide-up with delay per card
-- [x] **Winner Text Animation** — Slide-in from left for completed match results
-- [x] **Event Badge Glow Effects** — sixBadgeGlow, wicketBadgePulse, fourBadgeSweep CSS animations
-- [x] **Demo Trigger Strip** — 4 buttons on Match Detail page to test all celebrations
-- [x] **AnimatedScore Component** — Live score number transitions with glow pulse (created but available for future live integration)
+#### World-Class UI Animations — Canvas Particle Engine (COMPLETED - March 31, 2026)
+- [x] **Custom ParticleEngine class** — HTML5 Canvas rendering with physics (gravity, friction, wind, wobble, rotation)
+- [x] **6 particle shapes** — circle, ember, stump, confetti, spark, firework (with trails, glow, shadows)
+- [x] **SIX "MAXIMUM!"** — 200+ fire embers in 3 waves, golden explosion, light rays, 12 radiating beams, screen shake (12), "OUT OF THE PARK" subtitle, 3.5s duration
+- [x] **FOUR "BOUNDARY!"** — 120 blue wave particles, 3 neon boundary streaks, horizontal momentum slide text, "RACING AWAY" subtitle, 2.8s duration
+- [x] **WICKET "TIMBER!"** — 12 flying stump pieces, 100 dust/debris, 50 red sparks, dark vignette, screen shake (18 — heaviest), slam-from-top text with impact bounce, 3.2s duration
+- [x] **PRIZE "CHAMPION!"** — 300 confetti rain in 2 waves, 3 firework bursts at different positions (40 star particles each), 40 gold sparkles, rotating conic light burst, "VICTORY ROYALE" subtitle, 4s duration
+- [x] **ShockwaveRings** — 4 SVG expanding rings per celebration
+- [x] **useScreenShake hook** — requestAnimationFrame-based with proper cleanup (no memory leaks)
+- [x] **Multi-phase system** — flash (0.15s) → main → fadeout (0.5s) → dismiss
+- [x] **Demo trigger strip** — 4 buttons on Match Detail page for testing all celebrations
+- [x] **Match card staggered entry** — Framer Motion slide-up with per-card delay
+- [x] **Winner text slide animation** — Completed match results animate in from left
+- [x] **Event badge glow effects** — CSS keyframes: sixBadgeGlow, wicketBadgePulse, fourSweep
 
 #### AI Commentary (COMPLETED)
 - [x] 4-tab system: Match Story, Phase Analysis, Timeline, MVPs
 
 #### WhatsApp Share Card (COMPLETED)
-
 #### Auth, Matches, Contests, Admin, UX — All complete
 
 ### Credentials
