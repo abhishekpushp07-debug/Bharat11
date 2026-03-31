@@ -370,9 +370,19 @@ function MomentCard({ moment, index, compact, onCelebrate, showOver }) {
                 onCelebrate(moment.event_type);
               }
             }}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black relative"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black relative overflow-hidden ${
+              moment.event_type === 'six' ? 'six-badge-glow' :
+              moment.event_type === 'wicket' ? 'wicket-badge-pulse' :
+              moment.event_type === 'four' ? 'four-badge-sweep' : ''
+            }`}
             style={{ background: `${ev.color}18`, color: ev.color, border: `1px solid ${ev.color}30` }}>
-            {ev.emoji}
+            {/* Inner glow ring for six/wicket */}
+            {(moment.event_type === 'six' || moment.event_type === 'wicket') && isHigh && (
+              <span className="absolute inset-0 rounded-lg animate-pulse" style={{
+                boxShadow: `inset 0 0 12px ${ev.color}33, 0 0 8px ${ev.color}22`,
+              }} />
+            )}
+            <span className="relative z-10">{ev.emoji}</span>
           </button>
         </div>
 

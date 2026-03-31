@@ -309,6 +309,34 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
       {/* Mood Meter — Instagram-style live poll */}
       <MoodMeter matchId={match?.id} teamA={teamA} teamB={teamB} />
 
+      {/* Celebration Demo Strip — Test all animations */}
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        {[
+          { type: 'six', label: 'SIX', color: '#FFD700', icon: '6' },
+          { type: 'four', label: 'FOUR', color: '#007AFF', icon: '4' },
+          { type: 'wicket', label: 'WICKET', color: '#DC2626', icon: 'W' },
+          { type: 'prize', label: 'WINNER', color: '#FFD700', icon: '1st' },
+        ].map(c => (
+          <button
+            key={c.type}
+            data-testid={`demo-${c.type}`}
+            onClick={() => setCelebration(c.type)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider whitespace-nowrap transition-all active:scale-95"
+            style={{
+              background: `${c.color}15`,
+              border: `1px solid ${c.color}33`,
+              color: c.color,
+              fontFamily: "'Orbitron', sans-serif",
+            }}>
+            <span className="w-5 h-5 rounded flex items-center justify-center text-[10px]"
+              style={{ background: `${c.color}22` }}>
+              {c.icon}
+            </span>
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       {/* Tab Bar - Glass morphism */}
       <div className="flex rounded-xl overflow-hidden glass" style={{ border: `1px solid ${COLORS.border.light}` }}>
         {TABS.map(tab => {

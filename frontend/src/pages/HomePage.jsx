@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
 import { useSocketStore } from '../stores/socketStore';
 import apiClient from '../api/client';
@@ -301,7 +302,15 @@ export default function HomePage({ onMatchClick }) {
             <h2 className="text-base font-semibold text-white">Live Now</h2>
           </div>
           <div className="space-y-3">
-            {liveMatches.map(match => <MatchCard key={match.id} match={match} isLive onClick={onMatchClick} />)}
+            {liveMatches.map((match, i) => (
+              <motion.div
+                key={match.id}
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: i * 0.08, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}>
+                <MatchCard match={match} isLive onClick={onMatchClick} />
+              </motion.div>
+            ))}
           </div>
         </div>
       )}
@@ -382,7 +391,15 @@ export default function HomePage({ onMatchClick }) {
             <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{upcomingMatches.length} matches</span>
           </div>
           <div className="space-y-3">
-            {upcomingMatches.map(match => <MatchCard key={match.id} match={match} onClick={onMatchClick} />)}
+            {upcomingMatches.map((match, i) => (
+              <motion.div
+                key={match.id}
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: i * 0.06, duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}>
+                <MatchCard match={match} onClick={onMatchClick} />
+              </motion.div>
+            ))}
           </div>
         </div>
       ) : liveMatches.length === 0 ? (
@@ -477,7 +494,15 @@ export default function HomePage({ onMatchClick }) {
         <div>
           <h2 className="text-base font-semibold mb-3" style={{ color: COLORS.text.tertiary }}>Completed</h2>
           <div className="space-y-2">
-            {completedMatches.slice(0, 3).map(match => <MatchCard key={match.id} match={match} onClick={onMatchClick} isCompleted />)}
+            {completedMatches.slice(0, 3).map((match, i) => (
+              <motion.div
+                key={match.id}
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: i * 0.08, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}>
+                <MatchCard match={match} onClick={onMatchClick} isCompleted />
+              </motion.div>
+            ))}
           </div>
         </div>
       )}
@@ -599,10 +624,17 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
         </div>
       </div>
 
-      {/* Match result for completed matches */}
+      {/* Match result for completed matches — animated reveal */}
       {isCompleted && match.status_text && (
-        <div className="px-4 py-2 text-center" style={{ background: 'rgba(16,185,129,0.06)', borderBottom: `1px solid rgba(16,185,129,0.1)` }}>
-          <span className="text-[11px] font-bold" style={{ color: '#10B981' }}>{match.status_text}</span>
+        <div className="px-4 py-2 text-center overflow-hidden" style={{ background: 'rgba(16,185,129,0.06)', borderBottom: `1px solid rgba(16,185,129,0.1)` }}>
+          <motion.span
+            className="text-[11px] font-bold inline-block"
+            style={{ color: '#10B981' }}
+            initial={{ x: -30, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 0.61, 0.36, 1] }}>
+            {match.match_winner ? `${match.match_winner} Won` : match.status_text}
+          </motion.span>
         </div>
       )}
 

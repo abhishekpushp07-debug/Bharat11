@@ -122,6 +122,40 @@
 
 /* ===== UI ANIMATIONS ===== */
 
+/* Event badge animations for ball-by-ball timeline */
+.six-badge-glow {
+  animation: sixBadgeGlow 2s ease-in-out infinite;
+}
+@keyframes sixBadgeGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(245, 158, 11, 0.2); }
+  50% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.5), 0 0 32px rgba(255, 215, 0, 0.2); }
+}
+
+.wicket-badge-pulse {
+  animation: wicketBadgePulse 1.5s ease-in-out infinite;
+}
+@keyframes wicketBadgePulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.2); transform: scale(1); }
+  50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); transform: scale(1.05); }
+}
+
+.four-badge-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.four-badge-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.15), transparent);
+  animation: fourSweep 2.5s ease-in-out infinite;
+}
+@keyframes fourSweep {
+  0% { left: -100%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
+}
+
 /* Card entrance with stagger */
 @keyframes cardEntrance {
   0% { transform: translateY(30px) scale(0.96); opacity: 0; }
