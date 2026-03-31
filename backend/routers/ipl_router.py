@@ -135,9 +135,36 @@ async def get_cap_winners(
 
 @router.get("/seed")
 async def seed_ipl_data_endpoint(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    force: bool = Query(default=False)
+):
+    """Seed IPL data into the database. Use force=true to replace all existing data."""
+    from services.ipl_data_seeder import seed_ipl_data
+    result = await seed_ipl_data(db, force=force)
+    return {"message": "IPL data seeded", **result}
+
+
+@router.get("/head-to-head")
+async def head_to_head(
+    player1: str = Query(..., min_length=1),
+    player2: str = Query(..., min_length=1),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    """Seed IPL data into the database."""
-    from services.ipl_data_seeder import seed_ipl_data
-    result = await seed_ipl_data(db)
-    return {"message": "IPL data seeded", **result}
+    """Compare two players head-to-head."""
+    p1 = await db.ipl_players.find_one(
+        {"name": re.compile(re.escape(player1), re.IGNORECASE)},
+        {"_id": 0}
+    )
+    p2 = await db.ipl_players.find_one(
+        {"name": re.compile(re.escape(player2), re.IGNORECASE)},
+        {"_id": 0}
+    )
+    if not p1 or not p2:
+        missing = []
+        if not p1:
+            missing.append(player1)
+        if not p2:
+            missing.append(player2)
+        return {"error": f"Player(s) not found: {', '.join(missing)}", "players": []}
+
+    return {"player1": p1, "player2": p2}

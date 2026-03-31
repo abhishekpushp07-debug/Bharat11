@@ -8,6 +8,7 @@ import { COLORS } from '../constants/design';
 import { TEAM_COLORS, TEAM_API_LOGOS, getTeamLogo, normalizeTeam } from '../constants/teams';
 import { Search, X, Trophy, TrendingUp, Star, Flame, Target, Crown, Award, ChevronRight, ArrowLeft, Zap, Users } from 'lucide-react';
 import TeamProfilePage from './TeamProfilePage';
+import HeadToHead from '../components/HeadToHead';
 
 const TEAM_LIST = [
   { short: 'MI', name: 'Mumbai Indians' },
@@ -152,6 +153,9 @@ export default function SearchPage({ onMatchClick, onBack }) {
       {/* Only show below sections when NOT searching */}
       {!query.trim() && (
         <>
+          {/* Head-to-Head Comparison */}
+          {players.length > 0 && <HeadToHead players={players} />}
+
           {/* IPL Records - Hero Section */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
