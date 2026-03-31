@@ -1,1127 +1,451 @@
 """
-Bharat 11 — 200 Question Pool Seed Generator
-Generates production-ready T20 cricket prediction questions.
-Every question has: EN+HI text, 4 options with min/max, auto_resolution config, category, difficulty, points.
-
-Categories: batting(40), bowling(35), powerplay(25), death_overs(25), match(30), player_performance(25), special(20) = 200
+Question Seed Script — IPL Prediction Questions
+16 questions with difficulty-based points: Hard=90, Medium=70, Easy=55
+2 Templates: "First Innings" (4 questions) + "Full Match" (12 questions)
 """
+import asyncio
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + '/..')
+
+from motor.motor_asyncio import AsyncIOMotorClient
 from models.schemas import generate_id, utc_now
 
 
-def _q(text_en, text_hi, category, difficulty, points, metric, trigger, res_type, options):
-    """Helper to build a question dict."""
-    return {
-        "id": generate_id(),
-        "question_text_en": text_en,
-        "question_text_hi": text_hi,
-        "category": category,
-        "difficulty": difficulty,
-        "points": points,
-        "auto_resolution": {"metric": metric, "trigger": trigger, "resolution_type": res_type},
-        "options": options,
-        "evaluation_rules": {"type": "exact_match", "source_field": "", "condition": "", "threshold": 0, "bonus_multiplier": 1.0},
-        "correct_option": None,
+FIRST_INNINGS_QUESTIONS = [
+    {
+        "question_text_hi": "आज पहली पारी में कितने रन बनेंगे?",
+        "question_text_en": "How many runs will be scored in today's first innings?",
+        "category": "batting",
+        "difficulty": "medium",
+        "points": 70,
+        "options": [
+            {"key": "A", "text_hi": "190 से कम", "text_en": "Less than 190", "min_value": 0, "max_value": 189},
+            {"key": "B", "text_hi": "190-200", "text_en": "190-200", "min_value": 190, "max_value": 200},
+            {"key": "C", "text_hi": "200-210", "text_en": "200-210", "min_value": 201, "max_value": 210},
+            {"key": "D", "text_hi": "210 से ज़्यादा", "text_en": "More than 210", "min_value": 211, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_1_total_runs",
+            "resolution_trigger": "innings_1_end",
+        },
+    },
+    {
+        "question_text_hi": "आज पहली पारी में कितने विकेट गिरेंगे?",
+        "question_text_en": "How many wickets will fall in today's first innings?",
+        "category": "bowling",
+        "difficulty": "easy",
+        "points": 55,
+        "options": [
+            {"key": "A", "text_hi": "5 से कम", "text_en": "Less than 5", "min_value": 0, "max_value": 4},
+            {"key": "B", "text_hi": "5 या 6", "text_en": "5 or 6", "min_value": 5, "max_value": 6},
+            {"key": "C", "text_hi": "7", "text_en": "7", "min_value": 7, "max_value": 7},
+            {"key": "D", "text_hi": "8 या ज़्यादा", "text_en": "8 or more", "min_value": 8, "max_value": 10},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_1_total_wickets",
+            "resolution_trigger": "innings_1_end",
+        },
+    },
+    {
+        "question_text_hi": "आज पहली पारी में कितने छक्के लगेंगे?",
+        "question_text_en": "How many sixes will be hit in today's first innings?",
+        "category": "batting",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "13 से कम", "text_en": "Less than 13", "min_value": 0, "max_value": 12},
+            {"key": "B", "text_hi": "13 या 14", "text_en": "13 or 14", "min_value": 13, "max_value": 14},
+            {"key": "C", "text_hi": "15", "text_en": "15", "min_value": 15, "max_value": 15},
+            {"key": "D", "text_hi": "15 या 15 से ज़्यादा", "text_en": "15 or more", "min_value": 15, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_1_total_sixes",
+            "resolution_trigger": "innings_1_end",
+        },
+    },
+    {
+        "question_text_hi": "आज पहली पारी में कितने चौके लगेंगे?",
+        "question_text_en": "How many fours will be hit in today's first innings?",
+        "category": "batting",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "14", "text_en": "14", "min_value": 14, "max_value": 14},
+            {"key": "B", "text_hi": "15", "text_en": "15", "min_value": 15, "max_value": 15},
+            {"key": "C", "text_hi": "16 या 17", "text_en": "16 or 17", "min_value": 16, "max_value": 17},
+            {"key": "D", "text_hi": "18 या ज़्यादा", "text_en": "18 or more", "min_value": 18, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_1_total_fours",
+            "resolution_trigger": "innings_1_end",
+        },
+    },
+]
+
+
+FULL_MATCH_QUESTIONS = [
+    {
+        "question_text_hi": "आज का मैच कौन जीतेगा?",
+        "question_text_en": "Who will win today's match?",
+        "category": "match",
+        "difficulty": "easy",
+        "points": 55,
+        "options": [
+            {"key": "A", "text_hi": "पंजाब किंग्स", "text_en": "Punjab Kings"},
+            {"key": "B", "text_hi": "गुजरात टाइटंस", "text_en": "Gujarat Titans"},
+        ],
+        "evaluation_rules": {
+            "type": "exact_match",
+            "metric": "match_winner",
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज दूसरी पारी के 10.1 से 20 ओवरों में कितने रन बनेंगे?",
+        "question_text_en": "How many runs will be scored in overs 10.1 to 20 of today's second innings?",
+        "category": "death_overs",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "100 से कम", "text_en": "Less than 100", "min_value": 0, "max_value": 100},
+            {"key": "B", "text_hi": "101-105", "text_en": "101-105", "min_value": 101, "max_value": 105},
+            {"key": "C", "text_hi": "106-112", "text_en": "106-112", "min_value": 106, "max_value": 112},
+            {"key": "D", "text_hi": "113 या उससे ज़्यादा", "text_en": "113 or more", "min_value": 113, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_2_death_runs",
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज दूसरी पारी में कितने छक्के लगेंगे?",
+        "question_text_en": "How many sixes will be hit in today's second innings?",
+        "category": "batting",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "13 से कम", "text_en": "Less than 13", "min_value": 0, "max_value": 12},
+            {"key": "B", "text_hi": "13 या 14", "text_en": "13 or 14", "min_value": 13, "max_value": 14},
+            {"key": "C", "text_hi": "15", "text_en": "15", "min_value": 15, "max_value": 15},
+            {"key": "D", "text_hi": "15 या 15 से ज़्यादा", "text_en": "15 or more", "min_value": 15, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_2_total_sixes",
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज दूसरी पारी में कितने चौके लगेंगे?",
+        "question_text_en": "How many fours will be hit in today's second innings?",
+        "category": "batting",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "14", "text_en": "14", "min_value": 14, "max_value": 14},
+            {"key": "B", "text_hi": "15", "text_en": "15", "min_value": 15, "max_value": 15},
+            {"key": "C", "text_hi": "16 या 17", "text_en": "16 or 17", "min_value": 16, "max_value": 17},
+            {"key": "D", "text_hi": "18 या ज़्यादा", "text_en": "18 or more", "min_value": 18, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_2_total_fours",
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज दूसरी पारी में कितने विकेट गिरेंगे?",
+        "question_text_en": "How many wickets will fall in today's second innings?",
+        "category": "bowling",
+        "difficulty": "medium",
+        "points": 70,
+        "options": [
+            {"key": "A", "text_hi": "5 से कम", "text_en": "Less than 5", "min_value": 0, "max_value": 4},
+            {"key": "B", "text_hi": "5 या 6", "text_en": "5 or 6", "min_value": 5, "max_value": 6},
+            {"key": "C", "text_hi": "7", "text_en": "7", "min_value": 7, "max_value": 7},
+            {"key": "D", "text_hi": "8 या ज़्यादा", "text_en": "8 or more", "min_value": 8, "max_value": 10},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "innings_2_total_wickets",
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज क्या 3 बल्लेबाज़ 50 या उससे ज़्यादा रन बनाएंगे?",
+        "question_text_en": "Will 3 batsmen score 50 or more runs today?",
+        "category": "player_performance",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "हाँ", "text_en": "Yes"},
+            {"key": "B", "text_hi": "नहीं", "text_en": "No"},
+        ],
+        "evaluation_rules": {
+            "type": "boolean_match",
+            "metric": "batsmen_with_50plus",
+            "comparator": ">=",
+            "threshold": 3,
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज क्या कोई बल्लेबाज़ 80 या उससे ज़्यादा रन बनाएगा?",
+        "question_text_en": "Will any batsman score 80 or more runs today?",
+        "category": "player_performance",
+        "difficulty": "medium",
+        "points": 70,
+        "options": [
+            {"key": "A", "text_hi": "हाँ", "text_en": "Yes"},
+            {"key": "B", "text_hi": "नहीं", "text_en": "No"},
+        ],
+        "evaluation_rules": {
+            "type": "boolean_match",
+            "metric": "highest_individual_score",
+            "comparator": ">=",
+            "threshold": 80,
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज क्या कोई एक बल्लेबाज़ 5 या उससे ज़्यादा छक्के लगाएगा?",
+        "question_text_en": "Will any single batsman hit 5 or more sixes today?",
+        "category": "player_performance",
+        "difficulty": "medium",
+        "points": 70,
+        "options": [
+            {"key": "A", "text_hi": "हाँ", "text_en": "Yes"},
+            {"key": "B", "text_hi": "नहीं", "text_en": "No"},
+        ],
+        "evaluation_rules": {
+            "type": "boolean_match",
+            "metric": "max_individual_sixes",
+            "comparator": ">=",
+            "threshold": 5,
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज क्या 4 गेंदबाज़ कम से कम 2 विकेट लेंगे?",
+        "question_text_en": "Will 4 bowlers take at least 2 wickets each today?",
+        "category": "bowling",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "हाँ", "text_en": "Yes"},
+            {"key": "B", "text_hi": "नहीं", "text_en": "No"},
+        ],
+        "evaluation_rules": {
+            "type": "boolean_match",
+            "metric": "bowlers_with_2plus_wickets",
+            "comparator": ">=",
+            "threshold": 4,
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज क्या 3 गेंदबाज़ कम से कम 3 विकेट लेंगे?",
+        "question_text_en": "Will 3 bowlers take at least 3 wickets each today?",
+        "category": "bowling",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "हाँ", "text_en": "Yes"},
+            {"key": "B", "text_hi": "नहीं", "text_en": "No"},
+        ],
+        "evaluation_rules": {
+            "type": "boolean_match",
+            "metric": "bowlers_with_3plus_wickets",
+            "comparator": ">=",
+            "threshold": 3,
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज मैच में कुल एक्स्ट्रा कितने होंगे?",
+        "question_text_en": "How many total extras will there be in today's match?",
+        "category": "special",
+        "difficulty": "hard",
+        "points": 90,
+        "options": [
+            {"key": "A", "text_hi": "21 या उससे कम", "text_en": "21 or less", "min_value": 0, "max_value": 21},
+            {"key": "B", "text_hi": "22-25", "text_en": "22-25", "min_value": 22, "max_value": 25},
+            {"key": "C", "text_hi": "26-30", "text_en": "26-30", "min_value": 26, "max_value": 30},
+            {"key": "D", "text_hi": "30 से ज़्यादा", "text_en": "More than 30", "min_value": 31, "max_value": 999},
+        ],
+        "evaluation_rules": {
+            "type": "range_match",
+            "metric": "match_total_extras",
+            "resolution_trigger": "match_end",
+        },
+    },
+    {
+        "question_text_hi": "आज क्या कोई शतक बनेगा?",
+        "question_text_en": "Will there be a century today?",
+        "category": "player_performance",
+        "difficulty": "medium",
+        "points": 70,
+        "options": [
+            {"key": "A", "text_hi": "हाँ", "text_en": "Yes"},
+            {"key": "B", "text_hi": "नहीं", "text_en": "No"},
+        ],
+        "evaluation_rules": {
+            "type": "boolean_match",
+            "metric": "highest_individual_score",
+            "comparator": ">=",
+            "threshold": 100,
+            "resolution_trigger": "match_end",
+        },
+    },
+]
+
+
+async def seed_questions():
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    db = client[os.environ.get("DB_NAME", "crickpredict")]
+    now = utc_now().isoformat()
+
+    # Clear existing questions and templates
+    await db.questions.delete_many({})
+    await db.templates.delete_many({})
+    print("Cleared existing questions and templates")
+
+    first_innings_ids = []
+    full_match_ids = []
+
+    # Seed First Innings Questions
+    print("\n--- FIRST INNINGS QUESTIONS ---")
+    for i, q_data in enumerate(FIRST_INNINGS_QUESTIONS, 1):
+        q_id = generate_id()
+        doc = {
+            "id": q_id,
+            "question_text_en": q_data["question_text_en"],
+            "question_text_hi": q_data["question_text_hi"],
+            "category": q_data["category"],
+            "difficulty": q_data["difficulty"],
+            "points": q_data["points"],
+            "multiplier": 1.0,
+            "is_active": True,
+            "options": q_data["options"],
+            "evaluation_rules": {
+                "type": q_data["evaluation_rules"]["type"],
+                "metric": q_data["evaluation_rules"]["metric"],
+                "comparator": q_data["evaluation_rules"].get("comparator"),
+                "threshold": q_data["evaluation_rules"].get("threshold"),
+                "threshold_min": q_data["evaluation_rules"].get("threshold_min"),
+                "threshold_max": q_data["evaluation_rules"].get("threshold_max"),
+                "resolution_trigger": q_data["evaluation_rules"]["resolution_trigger"],
+                "secondary_metric": q_data["evaluation_rules"].get("secondary_metric"),
+            },
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.questions.insert_one(doc)
+        first_innings_ids.append(q_id)
+        diff_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}[q_data["difficulty"]]
+        print(f"  {diff_emoji} Q{i}: {q_data['question_text_hi']} [{q_data['difficulty'].upper()} = {q_data['points']} pts]")
+
+    # Seed Full Match Questions
+    print("\n--- FULL MATCH QUESTIONS ---")
+    for i, q_data in enumerate(FULL_MATCH_QUESTIONS, 1):
+        q_id = generate_id()
+        doc = {
+            "id": q_id,
+            "question_text_en": q_data["question_text_en"],
+            "question_text_hi": q_data["question_text_hi"],
+            "category": q_data["category"],
+            "difficulty": q_data["difficulty"],
+            "points": q_data["points"],
+            "multiplier": 1.0,
+            "is_active": True,
+            "options": q_data["options"],
+            "evaluation_rules": {
+                "type": q_data["evaluation_rules"]["type"],
+                "metric": q_data["evaluation_rules"]["metric"],
+                "comparator": q_data["evaluation_rules"].get("comparator"),
+                "threshold": q_data["evaluation_rules"].get("threshold"),
+                "threshold_min": q_data["evaluation_rules"].get("threshold_min"),
+                "threshold_max": q_data["evaluation_rules"].get("threshold_max"),
+                "resolution_trigger": q_data["evaluation_rules"]["resolution_trigger"],
+                "secondary_metric": q_data["evaluation_rules"].get("secondary_metric"),
+            },
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.questions.insert_one(doc)
+        full_match_ids.append(q_id)
+        diff_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}[q_data["difficulty"]]
+        print(f"  {diff_emoji} Q{i}: {q_data['question_text_hi']} [{q_data['difficulty'].upper()} = {q_data['points']} pts]")
+
+    # Create Templates
+    print("\n--- TEMPLATES ---")
+
+    # Template 1: First Innings
+    first_innings_total = sum(q["points"] for q in FIRST_INNINGS_QUESTIONS)
+    t1_id = generate_id()
+    await db.templates.insert_one({
+        "id": t1_id,
+        "name": "First Innings Predictions",
+        "description": "पहली पारी के प्रश्न — Predict first innings outcomes",
+        "match_type": "t20",
+        "template_type": "in_match",
+        "question_ids": first_innings_ids,
+        "total_points": first_innings_total,
         "is_active": True,
-    }
+        "is_default": True,
+        "innings_range": [1],
+        "over_start": 1,
+        "over_end": 20,
+        "answer_deadline_over": 1,
+        "phase_label": "First Innings",
+        "created_at": now,
+        "updated_at": now,
+    })
+    print(f"  Template 1: 'First Innings Predictions' — {len(first_innings_ids)} questions, {first_innings_total} total pts")
+
+    # Template 2: Full Match
+    full_match_total = sum(q["points"] for q in FULL_MATCH_QUESTIONS)
+    t2_id = generate_id()
+    await db.templates.insert_one({
+        "id": t2_id,
+        "name": "Full Match Predictions",
+        "description": "पूरे मैच के प्रश्न — Predict full match outcomes",
+        "match_type": "t20",
+        "template_type": "full_match",
+        "question_ids": full_match_ids,
+        "total_points": full_match_total,
+        "is_active": True,
+        "is_default": True,
+        "innings_range": [1, 2],
+        "phase_label": "Full Match",
+        "created_at": now,
+        "updated_at": now,
+    })
+    print(f"  Template 2: 'Full Match Predictions' — {len(full_match_ids)} questions, {full_match_total} total pts")
+
+    # Summary
+    all_questions = FIRST_INNINGS_QUESTIONS + FULL_MATCH_QUESTIONS
+    easy_count = sum(1 for q in all_questions if q["difficulty"] == "easy")
+    medium_count = sum(1 for q in all_questions if q["difficulty"] == "medium")
+    hard_count = sum(1 for q in all_questions if q["difficulty"] == "hard")
+    total_pts = first_innings_total + full_match_total
+
+    print(f"\n=== SEED COMPLETE ===")
+    print(f"Total Questions: {len(all_questions)}")
+    print(f"  Easy (55 pts): {easy_count}")
+    print(f"  Medium (70 pts): {medium_count}")
+    print(f"  Hard (90 pts): {hard_count}")
+    print(f"Total Points: {total_pts}")
+    print(f"Templates: 2 (First Innings + Full Match)")
+
+    client.close()
 
 
-def _opts(a, b, c, d):
-    """Build 4 options from tuples: (text_en, text_hi, min_val, max_val)."""
-    keys = ["A", "B", "C", "D"]
-    return [{"key": keys[i], "text_en": t[0], "text_hi": t[1], "min_value": t[2], "max_value": t[3]} for i, t in enumerate([a, b, c, d])]
-
-
-def generate_200_questions():
-    now = utc_now().isoformat()
-    questions = []
-
-    # ==================== BATTING (40) ====================
-    batting_qs = [
-        _q("1st innings total score?", "Pehli innings ka total score?", "batting", "medium", 50,
-           "innings_1_total_runs", "innings_1_end", "range",
-           _opts(("0-140", "0-140", 0, 140), ("141-170", "141-170", 141, 170), ("171-200", "171-200", 171, 200), ("201+", "201+", 201, 999))),
-        _q("2nd innings total score?", "Doosri innings ka total score?", "batting", "medium", 50,
-           "innings_2_total_runs", "match_end", "range",
-           _opts(("0-140", "0-140", 0, 140), ("141-170", "141-170", 141, 170), ("171-200", "171-200", 171, 200), ("201+", "201+", 201, 999))),
-        _q("Total sixes in the match?", "Match mein total kitne sixes?", "batting", "medium", 40,
-           "match_total_sixes", "match_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 999))),
-        _q("Total fours in the match?", "Match mein total kitne fours?", "batting", "medium", 40,
-           "match_total_fours", "match_end", "range",
-           _opts(("0-16", "0-16", 0, 16), ("17-24", "17-24", 17, 24), ("25-32", "25-32", 25, 32), ("33+", "33+", 33, 999))),
-        _q("1st innings total sixes?", "Pehli innings mein kitne sixes?", "batting", "easy", 30,
-           "innings_1_total_sixes", "innings_1_end", "range",
-           _opts(("0-3", "0-3", 0, 3), ("4-7", "4-7", 4, 7), ("8-11", "8-11", 8, 11), ("12+", "12+", 12, 999))),
-        _q("2nd innings total sixes?", "Doosri innings mein kitne sixes?", "batting", "easy", 30,
-           "innings_2_total_sixes", "match_end", "range",
-           _opts(("0-3", "0-3", 0, 3), ("4-7", "4-7", 4, 7), ("8-11", "8-11", 8, 11), ("12+", "12+", 12, 999))),
-        _q("1st innings total fours?", "Pehli innings mein kitne fours?", "batting", "easy", 30,
-           "innings_1_total_fours", "innings_1_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 999))),
-        _q("2nd innings total fours?", "Doosri innings mein kitne fours?", "batting", "easy", 30,
-           "innings_2_total_fours", "match_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 999))),
-        _q("Highest individual score in match?", "Match ka sabse bada individual score?", "batting", "hard", 60,
-           "highest_run_scorer_runs", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-60", "36-60", 36, 60), ("61-85", "61-85", 61, 85), ("86+", "86+", 86, 999))),
-        _q("1st innings highest individual score?", "Pehli innings ka sabse bada score?", "batting", "hard", 55,
-           "innings_1_highest_score", "innings_1_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-55", "31-55", 31, 55), ("56-80", "56-80", 56, 80), ("81+", "81+", 81, 999))),
-        _q("2nd innings highest individual score?", "Doosri innings ka sabse bada score?", "batting", "hard", 55,
-           "innings_2_highest_score", "match_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-55", "31-55", 31, 55), ("56-80", "56-80", 56, 80), ("81+", "81+", 81, 999))),
-        _q("Total boundaries (4s+6s) in match?", "Match mein total boundaries?", "batting", "medium", 45,
-           "match_total_boundaries", "match_end", "range",
-           _opts(("0-20", "0-20", 0, 20), ("21-30", "21-30", 21, 30), ("31-40", "31-40", 31, 40), ("41+", "41+", 41, 999))),
-        _q("1st innings boundaries (4s+6s)?", "Pehli innings mein total boundaries?", "batting", "medium", 40,
-           "innings_1_total_boundaries", "innings_1_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-16", "11-16", 11, 16), ("17-22", "17-22", 17, 22), ("23+", "23+", 23, 999))),
-        _q("2nd innings boundaries (4s+6s)?", "Doosri innings mein total boundaries?", "batting", "medium", 40,
-           "innings_2_total_boundaries", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-16", "11-16", 11, 16), ("17-22", "17-22", 17, 22), ("23+", "23+", 23, 999))),
-        _q("Will any batsman score a fifty?", "Kya koi batsman fifty marega?", "batting", "easy", 25,
-           "match_fifties_count", "match_end", "range",
-           _opts(("No fifties", "Koi nahi", 0, 0), ("1 fifty", "1 fifty", 1, 1), ("2 fifties", "2 fifties", 2, 2), ("3+ fifties", "3+ fifties", 3, 99))),
-        _q("Will any batsman score a century?", "Kya koi batsman century marega?", "batting", "hard", 80,
-           "match_centuries_count", "match_end", "range",
-           _opts(("No century", "Koi nahi", 0, 0), ("1 century", "1 century", 1, 1), ("2+ centuries", "2+ centuries", 2, 99), ("150+ by someone", "Kisi ka 150+", 0, 0))),
-        _q("How many ducks in the match?", "Match mein kitne ducks honge?", "batting", "medium", 35,
-           "match_total_ducks", "match_end", "range",
-           _opts(("0 ducks", "0 ducks", 0, 0), ("1-2 ducks", "1-2 ducks", 1, 2), ("3-4 ducks", "3-4 ducks", 3, 4), ("5+ ducks", "5+ ducks", 5, 99))),
-        _q("1st innings ducks?", "Pehli innings mein kitne ducks?", "batting", "easy", 25,
-           "innings_1_ducks", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Will the 1st innings cross 180?", "Kya pehli innings 180 paar karegi?", "batting", "medium", 45,
-           "innings_1_total_runs", "innings_1_end", "range",
-           _opts(("Under 150", "150 se neeche", 0, 149), ("150-179", "150-179", 150, 179), ("180-200", "180-200", 180, 200), ("200+", "200+", 201, 999))),
-        _q("Will the 2nd innings cross 180?", "Kya doosri innings 180 paar karegi?", "batting", "medium", 45,
-           "innings_2_total_runs", "match_end", "range",
-           _opts(("Under 150", "150 se neeche", 0, 149), ("150-179", "150-179", 150, 179), ("180-200", "180-200", 180, 200), ("200+", "200+", 201, 999))),
-        _q("1st innings score at 10 overs?", "10 overs mein pehli innings ka score?", "batting", "hard", 55,
-           "innings_1_10_over_score", "innings_1_end", "range",
-           _opts(("0-65", "0-65", 0, 65), ("66-85", "66-85", 66, 85), ("86-105", "86-105", 86, 105), ("106+", "106+", 106, 999))),
-        _q("Combined match score (both innings)?", "Dono innings ka combined score?", "batting", "hard", 60,
-           "match_total_runs", "match_end", "range",
-           _opts(("0-300", "0-300", 0, 300), ("301-340", "301-340", 301, 340), ("341-380", "341-380", 341, 380), ("381+", "381+", 381, 999))),
-        _q("1st innings last 5 overs runs?", "Pehli innings ke last 5 over mein runs?", "batting", "hard", 55,
-           "innings_1_last5_runs", "innings_1_end", "range",
-           _opts(("0-40", "0-40", 0, 40), ("41-60", "41-60", 41, 60), ("61-80", "61-80", 61, 80), ("81+", "81+", 81, 999))),
-        _q("2nd innings last 5 overs runs?", "Doosri innings ke last 5 over mein runs?", "batting", "hard", 55,
-           "innings_2_last5_runs", "match_end", "range",
-           _opts(("0-40", "0-40", 0, 40), ("41-60", "41-60", 41, 60), ("61-80", "61-80", 61, 80), ("81+", "81+", 81, 999))),
-        _q("Total dot balls in match?", "Match mein total dot balls?", "batting", "hard", 50,
-           "match_total_dots", "match_end", "range",
-           _opts(("0-80", "0-80", 0, 80), ("81-100", "81-100", 81, 100), ("101-120", "101-120", 101, 120), ("121+", "121+", 121, 999))),
-        _q("1st innings 50+ partnerships?", "Pehli innings mein 50+ ki partnerships?", "batting", "hard", 50,
-           "innings_1_50_partnerships", "innings_1_end", "range",
-           _opts(("None", "Koi nahi", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Highest opening partnership?", "Sabse badi opening partnership?", "batting", "hard", 55,
-           "match_highest_opening", "match_end", "range",
-           _opts(("0-25", "0-25", 0, 25), ("26-50", "26-50", 26, 50), ("51-80", "51-80", 51, 80), ("81+", "81+", 81, 999))),
-        _q("1st innings run rate?", "Pehli innings ka run rate?", "batting", "medium", 35,
-           "innings_1_run_rate", "innings_1_end", "range",
-           _opts(("Below 7.0", "7.0 se neeche", 0, 6.99), ("7.0-8.5", "7.0-8.5", 7.0, 8.5), ("8.6-10.0", "8.6-10.0", 8.6, 10.0), ("10.0+", "10.0+", 10.01, 99))),
-        _q("2nd innings run rate?", "Doosri innings ka run rate?", "batting", "medium", 35,
-           "innings_2_run_rate", "match_end", "range",
-           _opts(("Below 7.0", "7.0 se neeche", 0, 6.99), ("7.0-8.5", "7.0-8.5", 7.0, 8.5), ("8.6-10.0", "8.6-10.0", 8.6, 10.0), ("10.0+", "10.0+", 10.01, 99))),
-        _q("1st innings fifties count?", "Pehli innings mein kitni fifties?", "batting", "medium", 35,
-           "innings_1_fifties", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("2nd innings fifties count?", "Doosri innings mein kitni fifties?", "batting", "medium", 35,
-           "innings_2_fifties", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Which innings will have more sixes?", "Kis innings mein zyada sixes honge?", "batting", "medium", 40,
-           "more_sixes_innings", "match_end", "range",
-           _opts(("1st innings", "Pehli innings", 1, 1), ("2nd innings", "Doosri innings", 2, 2), ("Equal", "Barabar", 0, 0), ("Both under 5", "Dono 5 se kam", -1, -1))),
-        _q("Which innings will have more runs?", "Kis innings mein zyada runs honge?", "batting", "easy", 30,
-           "more_runs_innings", "match_end", "range",
-           _opts(("1st innings", "Pehli innings", 1, 1), ("2nd innings", "Doosri innings", 2, 2), ("Equal (within 5)", "Barabar (5 ke andar)", 0, 0), ("Both under 140", "Dono 140 se kam", -1, -1))),
-        _q("Total sixes in 1st innings powerplay?", "Pehli innings ke powerplay mein sixes?", "batting", "hard", 50,
-           "innings_1_pp_sixes", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-4", "3-4", 3, 4), ("5+", "5+", 5, 99))),
-        _q("Total fours in 1st innings powerplay?", "Pehli innings ke powerplay mein fours?", "batting", "medium", 40,
-           "innings_1_pp_fours", "innings_1_end", "range",
-           _opts(("0-3", "0-3", 0, 3), ("4-6", "4-6", 4, 6), ("7-9", "7-9", 7, 9), ("10+", "10+", 10, 99))),
-        _q("1st innings extras?", "Pehli innings mein extras?", "batting", "easy", 25,
-           "innings_1_extras", "innings_1_end", "range",
-           _opts(("0-5", "0-5", 0, 5), ("6-10", "6-10", 6, 10), ("11-15", "11-15", 11, 15), ("16+", "16+", 16, 99))),
-        _q("2nd innings extras?", "Doosri innings mein extras?", "batting", "easy", 25,
-           "innings_2_extras", "match_end", "range",
-           _opts(("0-5", "0-5", 0, 5), ("6-10", "6-10", 6, 10), ("11-15", "11-15", 11, 15), ("16+", "16+", 16, 99))),
-        _q("Total extras in match?", "Match mein total extras?", "batting", "medium", 40,
-           "match_total_extras", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-18", "11-18", 11, 18), ("19-25", "19-25", 19, 25), ("26+", "26+", 26, 999))),
-        _q("1st innings score 0-6 overs?", "Pehli innings 0-6 overs score?", "batting", "medium", 40,
-           "innings_1_pp_runs", "innings_1_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("2nd innings score 0-6 overs?", "Doosri innings 0-6 overs score?", "batting", "medium", 40,
-           "innings_2_pp_runs", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-    ]
-    questions.extend(batting_qs)
-
-    # ==================== BOWLING (35) ====================
-    bowling_qs = [
-        _q("1st innings wickets fallen?", "Pehli innings mein wickets?", "bowling", "easy", 30,
-           "innings_1_total_wickets", "innings_1_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-6", "5-6", 5, 6), ("7-8", "7-8", 7, 8), ("9-10", "9-10", 9, 10))),
-        _q("2nd innings wickets fallen?", "Doosri innings mein wickets?", "bowling", "easy", 30,
-           "innings_2_total_wickets", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-6", "5-6", 5, 6), ("7-8", "7-8", 7, 8), ("9-10", "9-10", 9, 10))),
-        _q("Total wickets in match?", "Match mein total wickets?", "bowling", "medium", 40,
-           "match_total_wickets", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-14", "11-14", 11, 14), ("15-17", "15-17", 15, 17), ("18-20", "18-20", 18, 20))),
-        _q("Best bowler's wickets in match?", "Best bowler ke kitne wickets?", "bowling", "medium", 45,
-           "best_bowler_wickets", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 10))),
-        _q("1st innings best bowler wickets?", "Pehli innings ka best bowler wickets?", "bowling", "medium", 40,
-           "innings_1_best_bowler_wickets", "innings_1_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2", "2", 2, 2), ("3", "3", 3, 3), ("4+", "4+", 4, 10))),
-        _q("2nd innings best bowler wickets?", "Doosri innings ka best bowler wickets?", "bowling", "medium", 40,
-           "innings_2_best_bowler_wickets", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2", "2", 2, 2), ("3", "3", 3, 3), ("4+", "4+", 4, 10))),
-        _q("1st innings maiden overs?", "Pehli innings mein maiden overs?", "bowling", "hard", 55,
-           "innings_1_maiden_overs", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("2nd innings maiden overs?", "Doosri innings mein maiden overs?", "bowling", "hard", 55,
-           "innings_2_maiden_overs", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Will any bowler take 3+ wickets?", "Kya koi bowler 3+ wickets lega?", "bowling", "medium", 45,
-           "best_bowler_wickets", "match_end", "range",
-           _opts(("No (0-2 max)", "Nahi (0-2 max)", 0, 2), ("Yes - exactly 3", "Haan - 3", 3, 3), ("Yes - 4 wickets", "Haan - 4", 4, 4), ("5+ wicket haul!", "5+ wickets!", 5, 10))),
-        _q("1st innings economy of best bowler?", "Pehli innings best bowler economy?", "bowling", "hard", 50,
-           "innings_1_best_economy", "innings_1_end", "range",
-           _opts(("Under 6.0", "6.0 se kam", 0, 5.99), ("6.0-7.5", "6.0-7.5", 6.0, 7.5), ("7.6-9.0", "7.6-9.0", 7.6, 9.0), ("9.0+", "9.0+", 9.01, 99))),
-        _q("Which innings will have more wickets?", "Kis innings mein zyada wickets?", "bowling", "easy", 30,
-           "more_wickets_innings", "match_end", "range",
-           _opts(("1st innings", "Pehli innings", 1, 1), ("2nd innings", "Doosri innings", 2, 2), ("Equal", "Barabar", 0, 0), ("Both all out", "Dono all out", -1, -1))),
-        _q("Total catches in the match?", "Match mein total catches?", "bowling", "medium", 35,
-           "match_total_catches", "match_end", "range",
-           _opts(("0-5", "0-5", 0, 5), ("6-8", "6-8", 6, 8), ("9-11", "9-11", 9, 11), ("12+", "12+", 12, 99))),
-        _q("1st innings catches?", "Pehli innings mein catches?", "bowling", "easy", 25,
-           "innings_1_catches", "innings_1_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-4", "3-4", 3, 4), ("5-6", "5-6", 5, 6), ("7+", "7+", 7, 99))),
-        _q("Total runouts in match?", "Match mein total runouts?", "bowling", "hard", 55,
-           "match_total_runouts", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Will there be a stumping?", "Kya stumping hogi?", "bowling", "hard", 60,
-           "match_total_stumpings", "match_end", "range",
-           _opts(("No", "Nahi", 0, 0), ("1 stumping", "1 stumping", 1, 1), ("2+ stumpings", "2+ stumpings", 2, 99), ("Runout instead", "Runout hoga", -1, -1))),
-        _q("1st innings wickets in powerplay?", "Pehli innings PP mein wickets?", "bowling", "medium", 40,
-           "innings_1_pp_wickets", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 10))),
-        _q("2nd innings wickets in powerplay?", "Doosri innings PP mein wickets?", "bowling", "medium", 40,
-           "innings_2_pp_wickets", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 10))),
-        _q("1st innings death overs wickets?", "Pehli innings death overs wickets?", "bowling", "medium", 40,
-           "innings_1_death_wickets", "innings_1_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 10))),
-        _q("2nd innings death overs wickets?", "Doosri innings death overs wickets?", "bowling", "medium", 40,
-           "innings_2_death_wickets", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 10))),
-        _q("Total bowled dismissals in match?", "Match mein bold hone wale?", "bowling", "hard", 50,
-           "match_total_bowled", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("Total LBW dismissals in match?", "Match mein LBW?", "bowling", "hard", 55,
-           "match_total_lbw", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("1st innings total wides?", "Pehli innings mein wides?", "bowling", "easy", 25,
-           "innings_1_wides", "innings_1_end", "range",
-           _opts(("0-3", "0-3", 0, 3), ("4-6", "4-6", 4, 6), ("7-10", "7-10", 7, 10), ("11+", "11+", 11, 99))),
-        _q("Total wides in match?", "Match mein total wides?", "bowling", "easy", 25,
-           "match_total_wides", "match_end", "range",
-           _opts(("0-6", "0-6", 0, 6), ("7-12", "7-12", 7, 12), ("13-18", "13-18", 13, 18), ("19+", "19+", 19, 99))),
-        _q("Total no-balls in match?", "Match mein no-balls?", "bowling", "medium", 35,
-           "match_total_noballs", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("1st innings all out?", "Kya pehli innings all out hogi?", "bowling", "medium", 40,
-           "innings_1_total_wickets", "innings_1_end", "range",
-           _opts(("Yes (10 wkts)", "Haan", 10, 10), ("8-9 wickets", "8-9 wickets", 8, 9), ("5-7 wickets", "5-7 wickets", 5, 7), ("Under 5 wkts", "5 se kam", 0, 4))),
-        _q("2nd innings all out?", "Kya doosri innings all out hogi?", "bowling", "medium", 40,
-           "innings_2_total_wickets", "match_end", "range",
-           _opts(("Yes (10 wkts)", "Haan", 10, 10), ("8-9 wickets", "8-9 wickets", 8, 9), ("5-7 wickets", "5-7 wickets", 5, 7), ("Under 5 wkts", "5 se kam", 0, 4))),
-        _q("1st innings first wicket over?", "Pehli innings ka pehla wicket kis over?", "bowling", "hard", 50,
-           "innings_1_first_wicket_over", "innings_1_end", "range",
-           _opts(("Over 1", "Over 1", 0, 1), ("Over 2-3", "Over 2-3", 2, 3), ("Over 4-6", "Over 4-6", 4, 6), ("After over 6", "6 ke baad", 7, 20))),
-        _q("Match total caught dismissals?", "Match mein catch out?", "bowling", "medium", 35,
-           "match_total_caught", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-7", "5-7", 5, 7), ("8-10", "8-10", 8, 10), ("11+", "11+", 11, 99))),
-        _q("1st innings dot ball percentage?", "Pehli innings dot ball %?", "bowling", "hard", 50,
-           "innings_1_dot_pct", "innings_1_end", "range",
-           _opts(("Under 35%", "35% se kam", 0, 34.99), ("35-45%", "35-45%", 35, 45), ("46-55%", "46-55%", 46, 55), ("55%+", "55%+", 55.01, 100))),
-        _q("Will both teams score 160+?", "Kya dono teams 160+ banayengi?", "bowling", "hard", 55,
-           "both_teams_160", "match_end", "range",
-           _opts(("Both 160+", "Dono 160+", 1, 1), ("Only 1st innings", "Sirf pehli", 2, 2), ("Only 2nd innings", "Sirf doosri", 3, 3), ("Neither", "Koi nahi", 0, 0))),
-        _q("2nd innings catches?", "Doosri innings mein catches?", "bowling", "easy", 25,
-           "innings_2_catches", "match_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-4", "3-4", 3, 4), ("5-6", "5-6", 5, 6), ("7+", "7+", 7, 99))),
-        _q("1st innings runouts?", "Pehli innings mein runouts?", "bowling", "hard", 50,
-           "innings_1_runouts", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("2nd innings runouts?", "Doosri innings mein runouts?", "bowling", "hard", 50,
-           "innings_2_runouts", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Best bowling economy in match?", "Match ki best economy?", "bowling", "hard", 55,
-           "match_best_economy", "match_end", "range",
-           _opts(("Under 5.0", "5.0 se kam", 0, 4.99), ("5.0-6.5", "5.0-6.5", 5.0, 6.5), ("6.6-8.0", "6.6-8.0", 6.6, 8.0), ("8.0+", "8.0+", 8.01, 99))),
-        _q("1st innings stumpings?", "Pehli innings mein stumpings?", "bowling", "hard", 60,
-           "innings_1_stumpings", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2+", "2+", 2, 99), ("Runout instead", "Runout hoga", -1, -1))),
-    ]
-    questions.extend(bowling_qs)
-
-    # ==================== POWERPLAY (25) ====================
-    pp_qs = [
-        _q("1st innings powerplay (1-6) runs?", "Pehli innings PP runs?", "powerplay", "medium", 45,
-           "innings_1_pp_runs", "innings_1_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("2nd innings powerplay (1-6) runs?", "Doosri innings PP runs?", "powerplay", "medium", 45,
-           "innings_2_pp_runs", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("1st innings PP wickets?", "Pehli innings PP wickets?", "powerplay", "medium", 40,
-           "innings_1_pp_wickets", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 10))),
-        _q("2nd innings PP wickets?", "Doosri innings PP wickets?", "powerplay", "medium", 40,
-           "innings_2_pp_wickets", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 10))),
-        _q("1st innings PP boundaries (4s+6s)?", "Pehli innings PP boundaries?", "powerplay", "medium", 40,
-           "innings_1_pp_boundaries", "innings_1_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-7", "5-7", 5, 7), ("8-10", "8-10", 8, 10), ("11+", "11+", 11, 99))),
-        _q("2nd innings PP boundaries (4s+6s)?", "Doosri innings PP boundaries?", "powerplay", "medium", 40,
-           "innings_2_pp_boundaries", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-7", "5-7", 5, 7), ("8-10", "8-10", 8, 10), ("11+", "11+", 11, 99))),
-        _q("1st innings PP run rate?", "Pehli innings PP run rate?", "powerplay", "hard", 50,
-           "innings_1_pp_rr", "innings_1_end", "range",
-           _opts(("Under 6.0", "6.0 se kam", 0, 5.99), ("6.0-7.5", "6.0-7.5", 6.0, 7.5), ("7.6-9.5", "7.6-9.5", 7.6, 9.5), ("9.5+", "9.5+", 9.51, 99))),
-        _q("2nd innings PP run rate?", "Doosri innings PP run rate?", "powerplay", "hard", 50,
-           "innings_2_pp_rr", "match_end", "range",
-           _opts(("Under 6.0", "6.0 se kam", 0, 5.99), ("6.0-7.5", "6.0-7.5", 6.0, 7.5), ("7.6-9.5", "7.6-9.5", 7.6, 9.5), ("9.5+", "9.5+", 9.51, 99))),
-        _q("Which team will have better PP score?", "Kis team ka PP score better hoga?", "powerplay", "medium", 40,
-           "better_pp_team", "match_end", "range",
-           _opts(("1st batting team", "Pehle batting team", 1, 1), ("2nd batting team", "Baad wali team", 2, 2), ("Equal (within 5)", "Barabar", 0, 0), ("Both under 35", "Dono 35 se kam", -1, -1))),
-        _q("PP sixes in match (both innings)?", "Match PP mein total sixes?", "powerplay", "hard", 50,
-           "match_pp_sixes", "match_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("PP fours in match (both innings)?", "Match PP mein total fours?", "powerplay", "medium", 40,
-           "match_pp_fours", "match_end", "range",
-           _opts(("0-5", "0-5", 0, 5), ("6-9", "6-9", 6, 9), ("10-13", "10-13", 10, 13), ("14+", "14+", 14, 99))),
-        _q("1st innings PP wides?", "Pehli innings PP mein wides?", "powerplay", "easy", 25,
-           "innings_1_pp_wides", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-4", "3-4", 3, 4), ("5+", "5+", 5, 99))),
-        _q("Combined PP runs (both innings)?", "Dono innings PP runs combined?", "powerplay", "hard", 55,
-           "match_pp_runs", "match_end", "range",
-           _opts(("0-70", "0-70", 0, 70), ("71-95", "71-95", 71, 95), ("96-120", "96-120", 96, 120), ("121+", "121+", 121, 999))),
-        _q("1st over of the match runs?", "Match ka pehla over runs?", "powerplay", "hard", 55,
-           "innings_1_first_over_runs", "innings_1_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-8", "5-8", 5, 8), ("9-12", "9-12", 9, 12), ("13+", "13+", 13, 99))),
-        _q("Wicket in 1st over of match?", "Match ke pehle over mein wicket?", "powerplay", "hard", 60,
-           "innings_1_first_over_wicket", "innings_1_end", "range",
-           _opts(("No wicket", "Nahi", 0, 0), ("1 wicket", "1 wicket", 1, 1), ("2+ wickets", "2+ wickets", 2, 10), ("Boundary + Wicket", "Boundary + Wicket", -1, -1))),
-        _q("1st innings PP extras?", "Pehli innings PP extras?", "powerplay", "easy", 25,
-           "innings_1_pp_extras", "innings_1_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("2nd innings PP extras?", "Doosri innings PP extras?", "powerplay", "easy", 25,
-           "innings_2_pp_extras", "match_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("1st innings PP dot balls?", "Pehli innings PP dot balls?", "powerplay", "hard", 50,
-           "innings_1_pp_dots", "innings_1_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-16", "11-16", 11, 16), ("17-22", "17-22", 17, 22), ("23+", "23+", 23, 99))),
-        _q("Will any opener score 30+ in PP?", "Kya koi opener PP mein 30+ karega?", "powerplay", "medium", 40,
-           "match_opener_30_pp", "match_end", "range",
-           _opts(("No", "Nahi", 0, 0), ("1 opener", "1 opener", 1, 1), ("2 openers", "2 openers", 2, 2), ("3+ openers", "3+ openers", 3, 99))),
-        _q("1st innings 1-3 overs score?", "Pehli innings 1-3 overs score?", "powerplay", "hard", 50,
-           "innings_1_first3_runs", "innings_1_end", "range",
-           _opts(("0-15", "0-15", 0, 15), ("16-25", "16-25", 16, 25), ("26-35", "26-35", 26, 35), ("36+", "36+", 36, 999))),
-        _q("PP wickets combined (both innings)?", "Dono innings PP mein total wickets?", "powerplay", "medium", 40,
-           "match_pp_wickets", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 20))),
-        _q("Higher PP score - which innings?", "Kaunsi innings ka PP score zyada?", "powerplay", "easy", 30,
-           "higher_pp_innings", "match_end", "range",
-           _opts(("1st innings", "Pehli", 1, 1), ("2nd innings", "Doosri", 2, 2), ("Equal", "Barabar", 0, 0), ("Both under 40", "Dono 40 se kam", -1, -1))),
-        _q("1st innings PP no-balls?", "Pehli innings PP no-balls?", "powerplay", "easy", 25,
-           "innings_1_pp_noballs", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("2nd innings PP dot balls?", "Doosri innings PP dot balls?", "powerplay", "hard", 50,
-           "innings_2_pp_dots", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-16", "11-16", 11, 16), ("17-22", "17-22", 17, 22), ("23+", "23+", 23, 99))),
-        _q("2nd innings 1st over runs?", "Doosri innings ka pehla over runs?", "powerplay", "hard", 50,
-           "innings_2_first_over_runs", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-8", "5-8", 5, 8), ("9-12", "9-12", 9, 12), ("13+", "13+", 13, 99))),
-    ]
-    questions.extend(pp_qs)
-
-    # ==================== DEATH OVERS (25) ====================
-    death_qs = [
-        _q("1st innings death overs (16-20) runs?", "Pehli innings death overs runs?", "death_overs", "medium", 45,
-           "innings_1_death_runs", "innings_1_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("2nd innings death overs (16-20) runs?", "Doosri innings death overs runs?", "death_overs", "medium", 45,
-           "innings_2_death_runs", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("1st innings death overs wickets?", "Pehli innings death wickets?", "death_overs", "medium", 40,
-           "innings_1_death_wickets", "innings_1_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 10))),
-        _q("2nd innings death overs wickets?", "Doosri innings death wickets?", "death_overs", "medium", 40,
-           "innings_2_death_wickets", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 10))),
-        _q("1st innings death overs sixes?", "Pehli innings death overs sixes?", "death_overs", "medium", 40,
-           "innings_1_death_sixes", "innings_1_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("2nd innings death overs sixes?", "Doosri innings death overs sixes?", "death_overs", "medium", 40,
-           "innings_2_death_sixes", "match_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("Death overs total sixes (both innings)?", "Dono innings death sixes?", "death_overs", "hard", 55,
-           "match_death_sixes", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-9", "5-9", 5, 9), ("10-14", "10-14", 10, 14), ("15+", "15+", 15, 99))),
-        _q("Death overs total boundaries?", "Death overs mein boundaries?", "death_overs", "hard", 50,
-           "match_death_boundaries", "match_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 99))),
-        _q("1st innings 18th over runs?", "Pehli innings 18th over runs?", "death_overs", "hard", 55,
-           "innings_1_over18_runs", "innings_1_end", "range",
-           _opts(("0-6", "0-6", 0, 6), ("7-12", "7-12", 7, 12), ("13-18", "13-18", 13, 18), ("19+", "19+", 19, 99))),
-        _q("1st innings 20th over runs?", "Pehli innings last over runs?", "death_overs", "hard", 55,
-           "innings_1_over20_runs", "innings_1_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 99))),
-        _q("2nd innings last over runs?", "Doosri innings last over runs?", "death_overs", "hard", 55,
-           "innings_2_last_over_runs", "match_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 99))),
-        _q("Death overs run rate (both innings)?", "Death overs run rate?", "death_overs", "hard", 55,
-           "match_death_rr", "match_end", "range",
-           _opts(("Under 9.0", "9.0 se kam", 0, 8.99), ("9.0-11.0", "9.0-11.0", 9.0, 11.0), ("11.1-13.0", "11.1-13.0", 11.1, 13.0), ("13.0+", "13.0+", 13.01, 99))),
-        _q("1st innings death fours?", "Pehli innings death fours?", "death_overs", "medium", 35,
-           "innings_1_death_fours", "innings_1_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("2nd innings death fours?", "Doosri innings death fours?", "death_overs", "medium", 35,
-           "innings_2_death_fours", "match_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("Will there be a wicket in last over?", "Kya last over mein wicket girega?", "death_overs", "medium", 40,
-           "match_last_over_wicket", "match_end", "range",
-           _opts(("No", "Nahi", 0, 0), ("1 wicket", "1 wicket", 1, 1), ("2+ wickets", "2+ wickets", 2, 10), ("Match ends before", "Match pehle khatam", -1, -1))),
-        _q("Death overs wides (both innings)?", "Death overs mein wides?", "death_overs", "easy", 25,
-           "match_death_wides", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("1st innings death overs extras?", "Pehli innings death extras?", "death_overs", "easy", 25,
-           "innings_1_death_extras", "innings_1_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("Better death overs - which innings?", "Kaunsi innings death overs better?", "death_overs", "medium", 40,
-           "better_death_innings", "match_end", "range",
-           _opts(("1st innings", "Pehli", 1, 1), ("2nd innings", "Doosri", 2, 2), ("Equal", "Barabar", 0, 0), ("Both under 35", "Dono 35 se kam", -1, -1))),
-        _q("1st innings score 15-20 overs?", "Pehli innings 15-20 overs score?", "death_overs", "medium", 45,
-           "innings_1_last5_runs", "innings_1_end", "range",
-           _opts(("0-40", "0-40", 0, 40), ("41-60", "41-60", 41, 60), ("61-80", "61-80", 61, 80), ("81+", "81+", 81, 999))),
-        _q("2nd innings score 15-20 overs?", "Doosri innings 15-20 overs score?", "death_overs", "medium", 45,
-           "innings_2_last5_runs", "match_end", "range",
-           _opts(("0-40", "0-40", 0, 40), ("41-60", "41-60", 41, 60), ("61-80", "61-80", 61, 80), ("81+", "81+", 81, 999))),
-        _q("Death no-balls (both innings)?", "Death overs mein no-balls?", "death_overs", "hard", 50,
-           "match_death_noballs", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("1st innings 19th over runs?", "Pehli innings 19th over?", "death_overs", "hard", 55,
-           "innings_1_over19_runs", "innings_1_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 99))),
-        _q("2nd innings 19th over runs?", "Doosri innings 19th over?", "death_overs", "hard", 55,
-           "innings_2_over19_runs", "match_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 999))),
-        _q("Death overs dot balls?", "Death mein dot balls?", "death_overs", "hard", 50,
-           "match_death_dots", "match_end", "range",
-           _opts(("0-8", "0-8", 0, 8), ("9-14", "9-14", 9, 14), ("15-20", "15-20", 15, 20), ("21+", "21+", 21, 99))),
-        _q("Combined death runs (both innings)?", "Dono innings death runs?", "death_overs", "hard", 55,
-           "match_death_runs", "match_end", "range",
-           _opts(("0-70", "0-70", 0, 70), ("71-100", "71-100", 71, 100), ("101-130", "101-130", 101, 130), ("131+", "131+", 131, 999))),
-    ]
-    questions.extend(death_qs)
-
-    # ==================== MATCH (30) ====================
-    match_qs = [
-        _q("Who will win the toss?", "Toss kaun jeetega?", "match", "easy", 20,
-           "toss_winner", "toss", "text_match",
-           _opts(("Team A (batting first)", "Team A", 0, 0), ("Team B (batting first)", "Team B", 0, 0), ("Team A (bowling first)", "Team A bowling", 0, 0), ("Team B (bowling first)", "Team B bowling", 0, 0))),
-        _q("Toss winner will choose to?", "Toss jeetne wala kya karega?", "match", "easy", 20,
-           "toss_choice", "toss", "text_match",
-           _opts(("Bat first", "Batting", 0, 0), ("Bowl first", "Bowling", 0, 0), ("Bat (day match)", "Batting (din)", 0, 0), ("Bowl (night match)", "Bowling (raat)", 0, 0))),
-        _q("Match winner?", "Match kaun jeetega?", "match", "medium", 50,
-           "match_winner", "match_end", "text_match",
-           _opts(("Team batting first", "Pehle batting team", 0, 0), ("Team bowling first", "Pehle bowling team", 0, 0), ("Tie/Super Over", "Tie/Super Over", 0, 0), ("No Result", "No Result", 0, 0))),
-        _q("Victory margin type?", "Jeet ka tarika?", "match", "medium", 40,
-           "victory_type", "match_end", "text_match",
-           _opts(("By runs", "Runs se", 0, 0), ("By wickets", "Wickets se", 0, 0), ("Super Over", "Super Over", 0, 0), ("No Result/Tie", "No Result/Tie", 0, 0))),
-        _q("If batting first wins, margin?", "Agar batting team jeeti, margin?", "match", "hard", 60,
-           "batting_first_win_margin", "match_end", "range",
-           _opts(("1-15 runs", "1-15 runs", 1, 15), ("16-30 runs", "16-30 runs", 16, 30), ("31-50 runs", "31-50 runs", 31, 50), ("51+ runs", "51+ runs", 51, 999))),
-        _q("If chasing team wins, wickets in hand?", "Chase mein jeet, kitne wickets baaki?", "match", "hard", 60,
-           "chasing_win_wickets", "match_end", "range",
-           _opts(("1-3 wickets", "1-3 wickets", 1, 3), ("4-5 wickets", "4-5 wickets", 4, 5), ("6-7 wickets", "6-7 wickets", 6, 7), ("8-10 wickets", "8-10 wickets", 8, 10))),
-        _q("Total match runs?", "Match mein total runs?", "match", "hard", 60,
-           "match_total_runs", "match_end", "range",
-           _opts(("0-300", "0-300", 0, 300), ("301-340", "301-340", 301, 340), ("341-380", "341-380", 341, 380), ("381+", "381+", 381, 999))),
-        _q("Will match go to last over?", "Kya match last over tak jayega?", "match", "medium", 45,
-           "match_last_over", "match_end", "range",
-           _opts(("Yes - finished in 20th", "Haan - 20th over", 1, 1), ("Finished by 18th", "18th over tak", 2, 2), ("Finished by 15th", "15th over tak", 3, 3), ("Super Over needed", "Super Over", 4, 4))),
-        _q("Run difference between innings?", "Innings ka run fark?", "match", "hard", 55,
-           "innings_run_diff", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-25", "11-25", 11, 25), ("26-40", "26-40", 26, 40), ("41+", "41+", 41, 999))),
-        _q("Higher scoring innings?", "Kis innings mein zyada runs?", "match", "easy", 25,
-           "higher_scoring_innings", "match_end", "range",
-           _opts(("1st innings", "Pehli innings", 1, 1), ("2nd innings", "Doosri innings", 2, 2), ("Exactly equal", "Bilkul barabar", 0, 0), ("Within 5 runs", "5 runs ke andar", -1, -1))),
-        _q("Total overs bowled in match?", "Match mein total overs?", "match", "medium", 35,
-           "match_total_overs", "match_end", "range",
-           _opts(("Under 35", "35 se kam", 0, 34.5), ("35-38", "35-38", 35, 38), ("38.1-39.5", "38.1-39.5", 38.1, 39.5), ("Full 40", "Poore 40", 39.6, 40))),
-        _q("Will match have a Super Over?", "Kya Super Over hoga?", "match", "hard", 80,
-           "super_over", "match_end", "range",
-           _opts(("No", "Nahi", 0, 0), ("Yes", "Haan", 1, 1), ("Match abandoned", "Match radd", -1, -1), ("No result", "No result", -2, -2))),
-        _q("Match pace - fast or slow?", "Match fast hoga ya slow?", "match", "medium", 40,
-           "match_total_runs", "match_end", "range",
-           _opts(("Low scoring (<300)", "Kam score (<300)", 0, 299), ("Medium (300-340)", "Medium (300-340)", 300, 340), ("High scoring (341-380)", "High (341-380)", 341, 380), ("Run fest (381+)", "Run fest (381+)", 381, 999))),
-        _q("Will there be a rain delay?", "Kya baarish hogi?", "match", "hard", 70,
-           "rain_delay", "match_end", "range",
-           _opts(("No rain", "Baarish nahi", 0, 0), ("Short delay", "Thodi der", 1, 1), ("DLS method used", "DLS laga", 2, 2), ("Match abandoned", "Match radd", 3, 3))),
-        _q("1st innings 10-15 overs runs?", "Pehli innings 10-15 overs runs?", "match", "hard", 50,
-           "innings_1_middle_runs", "innings_1_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-45", "31-45", 31, 45), ("46-60", "46-60", 46, 60), ("61+", "61+", 61, 999))),
-        _q("2nd innings 10-15 overs runs?", "Doosri innings 10-15 overs runs?", "match", "hard", 50,
-           "innings_2_middle_runs", "match_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-45", "31-45", 31, 45), ("46-60", "46-60", 46, 60), ("61+", "61+", 61, 999))),
-        _q("Will 1st innings total be chased?", "Kya pehli innings ka score chase hoga?", "match", "medium", 45,
-           "chase_success", "match_end", "range",
-           _opts(("Yes - chased easily", "Haan aasani se", 1, 1), ("Yes - close finish", "Haan - close", 2, 2), ("No - defended", "Nahi - defended", 0, 0), ("No - huge margin", "Nahi - bada margin", -1, -1))),
-        _q("Match total wickets?", "Match mein total wickets?", "match", "medium", 40,
-           "match_total_wickets", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-14", "11-14", 11, 14), ("15-17", "15-17", 15, 17), ("18-20", "18-20", 18, 20))),
-        _q("1st innings 7-12 overs runs?", "Pehli innings 7-12 overs runs?", "match", "hard", 50,
-           "innings_1_mid_overs_runs", "innings_1_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("2nd innings 7-12 overs runs?", "Doosri innings 7-12 overs runs?", "match", "hard", 50,
-           "innings_2_mid_overs_runs", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-50", "36-50", 36, 50), ("51-65", "51-65", 51, 65), ("66+", "66+", 66, 999))),
-        _q("Match highest partnership?", "Match ki sabse badi partnership?", "match", "hard", 55,
-           "match_highest_partnership", "match_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-55", "31-55", 31, 55), ("56-80", "56-80", 56, 80), ("81+", "81+", 81, 999))),
-        _q("Innings break advantage?", "Innings break ke baad kaun better?", "match", "medium", 35,
-           "innings_break_advantage", "match_end", "range",
-           _opts(("Batting team dominated", "Batting team", 1, 1), ("Bowling team dominated", "Bowling team", 2, 2), ("Even contest", "Barabar", 0, 0), ("Rain affected", "Baarish", -1, -1))),
-        _q("Will match finish in 38 overs?", "Kya match 38 overs mein khatam?", "match", "medium", 40,
-           "match_total_overs", "match_end", "range",
-           _opts(("Yes - under 38", "Haan", 0, 37.5), ("38-39 overs", "38-39 overs", 38, 39.5), ("Full 40 overs", "Poore 40", 39.6, 40), ("Match shortened", "Match chhota", -1, -1))),
-        _q("Required run rate at 15 overs?", "15 overs pe required RR?", "match", "hard", 55,
-           "innings_2_rr_at_15", "match_end", "range",
-           _opts(("Under 8.0", "8.0 se kam", 0, 7.99), ("8.0-10.0", "8.0-10.0", 8.0, 10.0), ("10.1-12.0", "10.1-12.0", 10.1, 12.0), ("12.0+", "12.0+", 12.01, 99))),
-        _q("1st ball of match outcome?", "Match ki pehli ball?", "match", "hard", 65,
-           "first_ball_outcome", "innings_1_end", "range",
-           _opts(("Dot ball", "Dot ball", 0, 0), ("1-2 runs", "1-2 runs", 1, 2), ("Boundary (4/6)", "Boundary", 4, 6), ("Wicket/Wide", "Wicket/Wide", -1, -1))),
-        _q("Match total boundaries (4s+6s)?", "Match mein total boundaries?", "match", "medium", 45,
-           "match_total_boundaries", "match_end", "range",
-           _opts(("0-20", "0-20", 0, 20), ("21-30", "21-30", 21, 30), ("31-40", "31-40", 31, 40), ("41+", "41+", 41, 999))),
-        _q("Middle overs (7-15) total runs?", "Middle overs total runs?", "match", "hard", 50,
-           "match_middle_runs", "match_end", "range",
-           _opts(("0-100", "0-100", 0, 100), ("101-130", "101-130", 101, 130), ("131-160", "131-160", 131, 160), ("161+", "161+", 161, 999))),
-        _q("2nd innings required rate at start?", "Chase ka starting RR?", "match", "medium", 40,
-           "innings_2_req_rr", "match_end", "range",
-           _opts(("Under 7.5", "7.5 se kam", 0, 7.49), ("7.5-8.5", "7.5-8.5", 7.5, 8.5), ("8.6-10.0", "8.6-10.0", 8.6, 10.0), ("10.0+", "10.0+", 10.01, 99))),
-        _q("Match total extras?", "Match mein total extras?", "match", "medium", 35,
-           "match_total_extras", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-18", "11-18", 11, 18), ("19-25", "19-25", 19, 25), ("26+", "26+", 26, 999))),
-        _q("1st innings completed overs?", "Pehli innings kitne overs?", "match", "easy", 25,
-           "innings_1_total_overs", "innings_1_end", "range",
-           _opts(("Under 18", "18 se kam", 0, 17.5), ("18-19", "18-19", 18, 19.5), ("Full 20", "Poore 20", 20, 20), ("Shortened", "Chhota", -1, -1))),
-    ]
-    questions.extend(match_qs)
-
-    # ==================== PLAYER PERFORMANCE (25) ====================
-    player_qs = [
-        _q("Highest run scorer's runs?", "Top scorer ke kitne runs?", "player_performance", "hard", 60,
-           "highest_run_scorer_runs", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-60", "36-60", 36, 60), ("61-85", "61-85", 61, 85), ("86+", "86+", 86, 999))),
-        _q("Best bowler wickets in match?", "Best bowler ke wickets?", "player_performance", "medium", 45,
-           "best_bowler_wickets", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 10))),
-        _q("Number of fifties in match?", "Match mein kitni fifties?", "player_performance", "medium", 40,
-           "match_fifties_count", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Number of centuries in match?", "Match mein centuries?", "player_performance", "hard", 80,
-           "match_centuries_count", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2+", "2+", 2, 99), ("None but 90+ score", "90+ lekin century nahi", -1, -1))),
-        _q("Most catches by a fielder?", "Sabse zyada catches?", "player_performance", "hard", 50,
-           "max_catches_by_fielder", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2", "2", 2, 2), ("3", "3", 3, 3), ("4+", "4+", 4, 99))),
-        _q("1st innings top scorer runs?", "Pehli innings top scorer?", "player_performance", "hard", 55,
-           "innings_1_highest_score", "innings_1_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-55", "31-55", 31, 55), ("56-80", "56-80", 56, 80), ("81+", "81+", 81, 999))),
-        _q("2nd innings top scorer runs?", "Doosri innings top scorer?", "player_performance", "hard", 55,
-           "innings_2_highest_score", "match_end", "range",
-           _opts(("0-30", "0-30", 0, 30), ("31-55", "31-55", 31, 55), ("56-80", "56-80", 56, 80), ("81+", "81+", 81, 999))),
-        _q("Number of ducks in match?", "Match mein ducks?", "player_performance", "medium", 35,
-           "match_total_ducks", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-4", "3-4", 3, 4), ("5+", "5+", 5, 99))),
-        _q("Total players with 30+ runs?", "30+ runs wale players?", "player_performance", "medium", 40,
-           "players_30plus", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("Top scorer's strike rate?", "Top scorer ki strike rate?", "player_performance", "hard", 55,
-           "top_scorer_sr", "match_end", "range",
-           _opts(("Under 120", "120 se kam", 0, 119.99), ("120-150", "120-150", 120, 150), ("151-180", "151-180", 151, 180), ("180+", "180+", 180.01, 999))),
-        _q("Will any player score 40+ & take wicket?", "Kya all-rounder performance?", "player_performance", "hard", 70,
-           "allrounder_40_runs_wicket", "match_end", "range",
-           _opts(("No", "Nahi", 0, 0), ("1 player", "1 player", 1, 1), ("2+ players", "2+ players", 2, 99), ("Close miss", "Almost", -1, -1))),
-        _q("Fastest fifty balls faced?", "Sabse tez fifty kitni balls mein?", "player_performance", "hard", 65,
-           "fastest_fifty_balls", "match_end", "range",
-           _opts(("No fifty", "Koi fifty nahi", 0, 0), ("Under 25 balls", "25 se kam", 1, 24), ("25-35 balls", "25-35 balls", 25, 35), ("36+ balls", "36+ balls", 36, 999))),
-        _q("Best bowler economy rate?", "Best bowler economy?", "player_performance", "hard", 50,
-           "match_best_economy", "match_end", "range",
-           _opts(("Under 5.0", "5.0 se kam", 0, 4.99), ("5.0-6.5", "5.0-6.5", 5.0, 6.5), ("6.6-8.0", "6.6-8.0", 6.6, 8.0), ("8.0+", "8.0+", 8.01, 99))),
-        _q("Total players with 2+ wickets?", "2+ wickets wale bowlers?", "player_performance", "medium", 40,
-           "bowlers_2plus_wickets", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Highest strike rate in match (min 15 balls)?", "Sabse zyada SR (15+ balls)?", "player_performance", "hard", 55,
-           "match_highest_sr", "match_end", "range",
-           _opts(("Under 150", "150 se kam", 0, 149.99), ("150-180", "150-180", 150, 180), ("181-220", "181-220", 181, 220), ("220+", "220+", 220.01, 999))),
-        _q("Total 6s by single batsman?", "Ek batsman ke max sixes?", "player_performance", "medium", 40,
-           "max_sixes_by_batsman", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("Opening pair highest score?", "Opening pair ka highest?", "player_performance", "medium", 40,
-           "match_highest_opening", "match_end", "range",
-           _opts(("0-25", "0-25", 0, 25), ("26-50", "26-50", 26, 50), ("51-80", "51-80", 51, 80), ("81+", "81+", 81, 999))),
-        _q("Total 4s by single batsman?", "Ek batsman ke max fours?", "player_performance", "medium", 35,
-           "max_fours_by_batsman", "match_end", "range",
-           _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))),
-        _q("Will opener score highest in innings?", "Kya opener top scorer hoga?", "player_performance", "medium", 40,
-           "opener_top_scorer", "match_end", "range",
-           _opts(("Yes - in both innings", "Haan dono mein", 1, 1), ("Yes - in 1 innings", "Haan 1 mein", 2, 2), ("No", "Nahi", 0, 0), ("Captain top scores", "Captain top", -1, -1))),
-        _q("Best bowling figures in match?", "Best bowling figures?", "player_performance", "hard", 55,
-           "best_bowler_wickets", "match_end", "range",
-           _opts(("0-1 wickets", "0-1 wickets", 0, 1), ("2 wickets", "2 wickets", 2, 2), ("3 wickets", "3 wickets", 3, 3), ("4+ wickets", "4+ wickets", 4, 10))),
-        _q("Highest partnership in match?", "Match ki best partnership?", "player_performance", "hard", 55,
-           "match_highest_partnership", "match_end", "range",
-           _opts(("0-35", "0-35", 0, 35), ("36-60", "36-60", 36, 60), ("61-90", "61-90", 61, 90), ("91+", "91+", 91, 999))),
-        _q("1st innings lowest individual score?", "Pehli innings min score?", "player_performance", "easy", 25,
-           "innings_1_lowest_score", "innings_1_end", "range",
-           _opts(("0 (duck)", "0 (duck)", 0, 0), ("1-5", "1-5", 1, 5), ("6-10", "6-10", 6, 10), ("11+", "11+", 11, 999))),
-        _q("Keeper catches in match?", "Keeper ke catches?", "player_performance", "medium", 40,
-           "keeper_catches", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-4", "3-4", 3, 4), ("5+", "5+", 5, 99))),
-        _q("Total retired hurt in match?", "Match mein retired hurt?", "player_performance", "hard", 70,
-           "match_retired_hurt", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2+", "2+", 2, 99), ("Injury timeout used", "Injury timeout", -1, -1))),
-        _q("Players scoring in single digits?", "Single digit mein out?", "player_performance", "medium", 35,
-           "match_single_digit_scores", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-7", "5-7", 5, 7), ("8-10", "8-10", 8, 10), ("11+", "11+", 11, 99))),
-    ]
-    questions.extend(player_qs)
-
-    # ==================== SPECIAL (20) ====================
-    special_qs = [
-        _q("Total extras in match?", "Match extras?", "special", "medium", 40,
-           "match_total_extras", "match_end", "range",
-           _opts(("0-10", "0-10", 0, 10), ("11-18", "11-18", 11, 18), ("19-25", "19-25", 19, 25), ("26+", "26+", 26, 999))),
-        _q("Total wides in match?", "Match mein wides?", "special", "easy", 25,
-           "match_total_wides", "match_end", "range",
-           _opts(("0-6", "0-6", 0, 6), ("7-12", "7-12", 7, 12), ("13-18", "13-18", 13, 18), ("19+", "19+", 19, 99))),
-        _q("Total no-balls in match?", "Match mein no-balls?", "special", "medium", 35,
-           "match_total_noballs", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("Total byes in match?", "Match mein byes?", "special", "hard", 50,
-           "match_total_byes", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1-3", "1-3", 1, 3), ("4-6", "4-6", 4, 6), ("7+", "7+", 7, 99))),
-        _q("Total runouts in the match?", "Match mein runouts?", "special", "hard", 55,
-           "match_total_runouts", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("First ball of innings 2 result?", "Innings 2 ki pehli ball?", "special", "hard", 60,
-           "innings_2_first_ball", "match_end", "range",
-           _opts(("Dot ball", "Dot ball", 0, 0), ("1-2 runs", "1-2 runs", 1, 2), ("Boundary", "Boundary", 4, 6), ("Wide/No-ball", "Wide/No-ball", -1, -1))),
-        _q("1st innings leg byes?", "Pehli innings leg byes?", "special", "hard", 50,
-           "innings_1_legbyes", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-5", "3-5", 3, 5), ("6+", "6+", 6, 99))),
-        _q("Total caught & bowled in match?", "Match mein caught & bowled?", "special", "hard", 60,
-           "match_total_cb", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Total penalty runs in match?", "Match mein penalty runs?", "special", "hard", 65,
-           "match_penalty_runs", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1-5", "1-5", 1, 5), ("6-10", "6-10", 6, 10), ("11+", "11+", 11, 99))),
-        _q("1st innings no-balls?", "Pehli innings no-balls?", "special", "easy", 25,
-           "innings_1_no_balls", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2-3", "2-3", 2, 3), ("4+", "4+", 4, 99))),
-        _q("2nd innings no-balls?", "Doosri innings no-balls?", "special", "easy", 25,
-           "innings_2_no_balls", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2-3", "2-3", 2, 3), ("4+", "4+", 4, 99))),
-        _q("Total stumpings in match?", "Match mein stumpings?", "special", "hard", 60,
-           "match_total_stumpings", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Total LBW in match?", "Match mein LBW?", "special", "hard", 55,
-           "match_total_lbw", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Total bowled dismissals?", "Match mein bowled?", "special", "medium", 40,
-           "match_total_bowled", "match_end", "range",
-           _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        _q("Total hit wicket in match?", "Match mein hit wicket?", "special", "hard", 80,
-           "match_hit_wicket", "match_end", "range",
-           _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2+", "2+", 2, 99), ("Obstructing field", "Obstructing", -1, -1))),
-        _q("Match total caught dismissals?", "Catch out kitne?", "special", "medium", 35,
-           "match_total_caught", "match_end", "range",
-           _opts(("0-4", "0-4", 0, 4), ("5-7", "5-7", 5, 7), ("8-10", "8-10", 8, 10), ("11+", "11+", 11, 99))),
-        _q("1st innings byes?", "Pehli innings byes?", "special", "hard", 50,
-           "innings_1_byes", "innings_1_end", "range",
-           _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-5", "3-5", 3, 5), ("6+", "6+", 6, 99))),
-        _q("2nd innings wides?", "Doosri innings wides?", "special", "easy", 25,
-           "innings_2_wides", "match_end", "range",
-           _opts(("0-3", "0-3", 0, 3), ("4-6", "4-6", 4, 6), ("7-10", "7-10", 7, 10), ("11+", "11+", 11, 99))),
-        _q("1st innings wides?", "Pehli innings wides?", "special", "easy", 25,
-           "innings_1_wides", "innings_1_end", "range",
-           _opts(("0-3", "0-3", 0, 3), ("4-6", "4-6", 4, 6), ("7-10", "7-10", 7, 10), ("11+", "11+", 11, 99))),
-        _q("2nd innings extras?", "Doosri innings extras?", "special", "easy", 25,
-           "innings_2_extras", "match_end", "range",
-           _opts(("0-5", "0-5", 0, 5), ("6-10", "6-10", 6, 10), ("11-15", "11-15", 11, 15), ("16+", "16+", 16, 99))),
-    ]
-    questions.extend(special_qs)
-
-    # Add timestamps
-    for q in questions:
-        q["created_at"] = now
-        q["updated_at"] = now
-
-    return questions
-
-
-def generate_expanded_pool(target=2000):
-    """
-    Generate an expanded question pool up to 2000.
-    Uses the base 200 + per-over questions + variations.
-    """
-    base = generate_200_questions()
-    if target <= len(base):
-        return base[:target]
-
-    now = utc_now().isoformat()
-    extra = []
-
-    # ---- Per-Over Scoring (Over 1-20 × 2 innings = ~240 questions) ----
-    for innings in [1, 2]:
-        inn_label_en = "1st" if innings == 1 else "2nd"
-        inn_label_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-
-        for over in range(1, 21):
-            extra.append(_q(
-                f"Runs scored in over {over} of {inn_label_en} innings?",
-                f"{inn_label_hi} innings ke over {over} mein kitne runs?",
-                "batting" if over <= 6 else ("death_overs" if over >= 16 else "batting"),
-                "easy" if over <= 6 else "medium",
-                25 + (over * 2),
-                f"innings_{innings}_over_{over}_runs", trigger, "range",
-                _opts(("0-5", "0-5", 0, 5), ("6-10", "6-10", 6, 10), ("11-16", "11-16", 11, 16), ("17+", "17+", 17, 99))
-            ))
-
-    # ---- Cumulative Score at Over X (12 key overs × 2 innings = ~48) ----
-    key_overs = [1, 3, 6, 8, 10, 12, 14, 16, 18, 20]
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for ov in key_overs:
-            if ov <= 6:
-                ranges = _opts(("0-30", "0-30", 0, 30), ("31-50", "31-50", 31, 50), ("51-70", "51-70", 51, 70), ("71+", "71+", 71, 999))
-            elif ov <= 12:
-                ranges = _opts(("0-60", "0-60", 0, 60), ("61-90", "61-90", 61, 90), ("91-120", "91-120", 91, 120), ("121+", "121+", 121, 999))
-            else:
-                ranges = _opts(("0-100", "0-100", 0, 100), ("101-140", "101-140", 101, 140), ("141-180", "141-180", 141, 180), ("181+", "181+", 181, 999))
-            extra.append(_q(
-                f"{inn_en} innings score after {ov} overs?",
-                f"{inn_hi} innings {ov} overs ke baad score?",
-                "powerplay" if ov <= 6 else ("death_overs" if ov >= 16 else "batting"),
-                "medium", 35 + ov,
-                f"innings_{innings}_score_at_over_{ov}", trigger, "range", ranges
-            ))
-
-    # ---- Wickets at key overs (~20) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for ov in [6, 10, 15, 20]:
-            extra.append(_q(
-                f"Wickets fallen in {inn_en} innings by over {ov}?",
-                f"{inn_hi} innings mein {ov} overs tak kitne wickets?",
-                "bowling", "medium", 40,
-                f"innings_{innings}_wickets_at_over_{ov}", trigger, "range",
-                _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))
-            ))
-
-    # ---- Run rate variations (~40) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        # Powerplay RR
-        extra.append(_q(
-            f"{inn_en} innings powerplay run rate?",
-            f"{inn_hi} innings powerplay ka run rate?",
-            "powerplay", "medium", 45,
-            f"innings_{innings}_powerplay_rr", trigger, "range",
-            _opts(("0-6.0", "0-6.0", 0, 6), ("6.1-8.0", "6.1-8.0", 6.1, 8), ("8.1-10.0", "8.1-10.0", 8.1, 10), ("10.1+", "10.1+", 10.1, 99))
-        ))
-        # Death overs RR
-        extra.append(_q(
-            f"{inn_en} innings death overs (16-20) run rate?",
-            f"{inn_hi} innings death overs ka run rate?",
-            "death_overs", "hard", 55,
-            f"innings_{innings}_death_rr", trigger, "range",
-            _opts(("0-8.0", "0-8.0", 0, 8), ("8.1-10.5", "8.1-10.5", 8.1, 10.5), ("10.6-13.0", "10.6-13.0", 10.6, 13), ("13.1+", "13.1+", 13.1, 99))
-        ))
-        # Middle overs RR
-        extra.append(_q(
-            f"{inn_en} innings middle overs (7-15) run rate?",
-            f"{inn_hi} innings middle overs ka run rate?",
-            "batting", "medium", 40,
-            f"innings_{innings}_middle_rr", trigger, "range",
-            _opts(("0-6.5", "0-6.5", 0, 6.5), ("6.6-8.5", "6.6-8.5", 6.6, 8.5), ("8.6-10.5", "8.6-10.5", 8.6, 10.5), ("10.6+", "10.6+", 10.6, 99))
-        ))
-
-    # ---- Boundary count per phase (~24) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for phase, phase_en, phase_hi in [("powerplay", "powerplay", "powerplay"), ("middle", "middle overs", "middle overs"), ("death", "death overs", "death overs")]:
-            for btype, btype_en, btype_hi in [("fours", "fours", "fours"), ("sixes", "sixes", "sixes")]:
-                extra.append(_q(
-                    f"{inn_en} innings {phase_en} {btype_en}?",
-                    f"{inn_hi} innings {phase_hi} {btype_hi}?",
-                    "powerplay" if phase == "powerplay" else ("death_overs" if phase == "death" else "batting"),
-                    "medium", 35,
-                    f"innings_{innings}_{phase}_{btype}", trigger, "range",
-                    _opts(("0-2", "0-2", 0, 2), ("3-5", "3-5", 3, 5), ("6-8", "6-8", 6, 8), ("9+", "9+", 9, 99))
-                ))
-
-    # ---- Partnership questions (~20) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        extra.append(_q(
-            f"Highest partnership in {inn_en} innings (runs)?",
-            f"{inn_hi} innings ki sabse badi partnership?",
-            "batting", "hard", 55,
-            f"innings_{innings}_highest_partnership", trigger, "range",
-            _opts(("0-25", "0-25", 0, 25), ("26-50", "26-50", 26, 50), ("51-80", "51-80", 51, 80), ("81+", "81+", 81, 999))
-        ))
-        extra.append(_q(
-            f"First wicket fall score in {inn_en} innings?",
-            f"{inn_hi} innings mein pehla wicket kis score pe?",
-            "batting", "medium", 45,
-            f"innings_{innings}_first_wicket_score", trigger, "range",
-            _opts(("0-15", "0-15", 0, 15), ("16-35", "16-35", 16, 35), ("36-60", "36-60", 36, 60), ("61+", "61+", 61, 999))
-        ))
-        extra.append(_q(
-            f"Balls for first boundary in {inn_en} innings?",
-            f"{inn_hi} innings ki pehli boundary kitni balls mein?",
-            "batting", "easy", 30,
-            f"innings_{innings}_first_boundary_ball", trigger, "range",
-            _opts(("1-3", "1-3", 1, 3), ("4-8", "4-8", 4, 8), ("9-15", "9-15", 9, 15), ("16+", "16+", 16, 999))
-        ))
-
-    # ---- Dot ball questions (~16) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        extra.append(_q(
-            f"Total dot balls in {inn_en} innings?",
-            f"{inn_hi} innings mein kitni dot balls?",
-            "bowling", "hard", 50,
-            f"innings_{innings}_dot_balls", trigger, "range",
-            _opts(("0-40", "0-40", 0, 40), ("41-55", "41-55", 41, 55), ("56-70", "56-70", 56, 70), ("71+", "71+", 71, 999))
-        ))
-        extra.append(_q(
-            f"Dot ball percentage in {inn_en} innings?",
-            f"{inn_hi} innings dot ball %?",
-            "bowling", "hard", 55,
-            f"innings_{innings}_dot_pct", trigger, "range",
-            _opts(("0-30%", "0-30%", 0, 30), ("31-40%", "31-40%", 31, 40), ("41-50%", "41-50%", 41, 50), ("51%+", "51%+", 51, 100))
-        ))
-
-    # ---- Extras variations (~16) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for extra_type, en, hi in [("no_balls", "no balls", "no balls"), ("leg_byes", "leg byes", "leg byes")]:
-            extra.append(_q(
-                f"{inn_en} innings total {en}?",
-                f"{inn_hi} innings mein kitne {hi}?",
-                "special", "medium", 35,
-                f"innings_{innings}_{extra_type}", trigger, "range",
-                _opts(("0", "0", 0, 0), ("1-2", "1-2", 1, 2), ("3-5", "3-5", 3, 5), ("6+", "6+", 6, 99))
-            ))
-
-    # ---- Individual milestone questions (~40) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        extra.extend([
-            _q(f"Any half-century in {inn_en} innings?", f"{inn_hi} innings mein koi 50+ score?",
-               "player_performance", "easy", 30,
-               f"innings_{innings}_any_fifty", trigger, "yes_no",
-               _opts(("Yes", "Haan", 1, 999), ("No", "Nahi", 0, 0), ("Multiple 50s", "Kai 50+", 2, 999), ("Century!", "Century!", 100, 999))),
-            _q(f"Any century in {inn_en} innings?", f"{inn_hi} innings mein koi century?",
-               "player_performance", "hard", 70,
-               f"innings_{innings}_any_century", trigger, "yes_no",
-               _opts(("Yes", "Haan", 1, 999), ("No", "Nahi", 0, 0), ("150+", "150+", 150, 999), ("200+", "200+", 200, 999))),
-            _q(f"Any 3-wicket haul in {inn_en} innings?", f"{inn_hi} innings mein koi 3 wicket?",
-               "bowling", "medium", 40,
-               f"innings_{innings}_any_3wkt", trigger, "yes_no",
-               _opts(("Yes", "Haan", 1, 999), ("No", "Nahi", 0, 0), ("4-wicket", "4 wicket", 4, 999), ("5+ wickets!", "5+ wickets!", 5, 999))),
-            _q(f"Fastest fifty in {inn_en} innings (balls)?", f"{inn_hi} innings fastest 50 kitni balls?",
-               "player_performance", "hard", 60,
-               f"innings_{innings}_fastest_fifty_balls", trigger, "range",
-               _opts(("No 50", "No 50", 0, 0), ("15-25 balls", "15-25 balls", 15, 25), ("26-35 balls", "26-35 balls", 26, 35), ("36+ balls", "36+ balls", 36, 999))),
-            _q(f"Most sixes by one player in {inn_en} innings?", f"{inn_hi} innings ek player ke max sixes?",
-               "batting", "medium", 40,
-               f"innings_{innings}_max_sixes_player", trigger, "range",
-               _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6+", "6+", 6, 99))),
-        ])
-
-    # ---- Match outcome variations (~30) ----
-    extra.extend([
-        _q("Match winning margin (runs)?", "Match kitne runs se jeeta?", "match", "hard", 60,
-            "match_winning_margin_runs", "match_end", "range",
-            _opts(("1-10", "1-10", 1, 10), ("11-30", "11-30", 11, 30), ("31-60", "31-60", 31, 60), ("61+/Wickets", "61+/Wickets", 61, 999))),
-        _q("Match winning margin (wickets)?", "Match kitne wickets se jeeta?", "match", "hard", 60,
-            "match_winning_margin_wickets", "match_end", "range",
-            _opts(("Runs win", "Runs se", -1, 0), ("1-3 wkts", "1-3 wkts", 1, 3), ("4-6 wkts", "4-6 wkts", 4, 6), ("7+ wkts", "7+ wkts", 7, 99))),
-        _q("Last over runs?", "Last over mein kitne runs?", "death_overs", "hard", 65,
-            "match_last_over_runs", "match_end", "range",
-            _opts(("0-6", "0-6", 0, 6), ("7-12", "7-12", 7, 12), ("13-18", "13-18", 13, 18), ("19+", "19+", 19, 99))),
-        _q("Was there a Super Over?", "Kya Super Over hua?", "match", "hard", 80,
-            "match_super_over", "match_end", "yes_no",
-            _opts(("No", "Nahi", 0, 0), ("Yes", "Haan", 1, 1), ("Tie", "Tie", -1, -1), ("DLS", "DLS", -2, -2))),
-        _q("Total extras in match?", "Match mein total extras?", "special", "medium", 35,
-            "match_total_extras", "match_end", "range",
-            _opts(("0-10", "0-10", 0, 10), ("11-20", "11-20", 11, 20), ("21-30", "21-30", 21, 30), ("31+", "31+", 31, 999))),
-        _q("Total dot balls in match?", "Match mein total dot balls?", "bowling", "hard", 50,
-            "match_total_dots", "match_end", "range",
-            _opts(("0-80", "0-80", 0, 80), ("81-100", "81-100", 81, 100), ("101-120", "101-120", 101, 120), ("121+", "121+", 121, 999))),
-        _q("Total catches in match?", "Match mein total catches?", "special", "medium", 35,
-            "match_total_catches", "match_end", "range",
-            _opts(("0-5", "0-5", 0, 5), ("6-9", "6-9", 6, 9), ("10-13", "10-13", 10, 13), ("14+", "14+", 14, 99))),
-        _q("Total stumpings in match?", "Match mein total stumpings?", "special", "hard", 50,
-            "match_total_stumpings", "match_end", "range",
-            _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        _q("Total run-outs in match?", "Match mein total run-outs?", "special", "hard", 55,
-            "match_total_runouts", "match_end", "range",
-            _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2-3", "2-3", 2, 3), ("4+", "4+", 4, 99))),
-        _q("Man of the Match role?", "MoM ka role?", "player_performance", "hard", 50,
-            "mom_role", "match_end", "category",
-            _opts(("Batsman", "Batsman", 1, 1), ("Bowler", "Bowler", 2, 2), ("All-rounder", "All-rounder", 3, 3), ("Keeper", "Keeper", 4, 4))),
-    ])
-
-    # ---- Per-over wicket questions (~40) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for over in [1, 2, 3, 4, 5, 6, 7, 10, 12, 15, 16, 17, 18, 19, 20]:
-            extra.append(_q(
-                f"Any wicket in over {over} of {inn_en} innings?",
-                f"{inn_hi} innings ke over {over} mein wicket?",
-                "bowling" if over <= 15 else "death_overs",
-                "easy", 25,
-                f"innings_{innings}_wicket_in_over_{over}", trigger, "yes_no",
-                _opts(("No wicket", "Nahi", 0, 0), ("1 wicket", "1 wicket", 1, 1), ("2 wickets", "2 wickets", 2, 2), ("3+ wickets!", "3+ wickets!", 3, 99))
-            ))
-
-    # ---- Sixes/Fours per over for key overs (~20) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for over in [1, 6, 10, 15, 20]:
-            extra.append(_q(
-                f"Sixes in over {over} of {inn_en} innings?",
-                f"{inn_hi} innings over {over} mein sixes?",
-                "batting" if over <= 6 else "death_overs",
-                "medium", 35,
-                f"innings_{innings}_sixes_in_over_{over}", trigger, "range",
-                _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))
-            ))
-
-    # ---- Bowling economy per bowler position (~20) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        extra.extend([
-            _q(f"Best bowling economy in {inn_en} innings?", f"{inn_hi} innings best economy?",
-               "bowling", "hard", 50,
-               f"innings_{innings}_best_economy", trigger, "range",
-               _opts(("0-5.0", "0-5.0", 0, 5), ("5.1-7.0", "5.1-7.0", 5.1, 7), ("7.1-9.0", "7.1-9.0", 7.1, 9), ("9.1+", "9.1+", 9.1, 99))),
-            _q(f"Worst bowling economy in {inn_en} innings?", f"{inn_hi} innings worst economy?",
-               "bowling", "medium", 40,
-               f"innings_{innings}_worst_economy", trigger, "range",
-               _opts(("0-8.0", "0-8.0", 0, 8), ("8.1-10.5", "8.1-10.5", 8.1, 10.5), ("10.6-13.0", "10.6-13.0", 10.6, 13), ("13.1+", "13.1+", 13.1, 99))),
-            _q(f"Most maidens in {inn_en} innings?", f"{inn_hi} innings max maidens?",
-               "bowling", "hard", 55,
-               f"innings_{innings}_most_maidens", trigger, "range",
-               _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))),
-        ])
-
-    # ---- Per-Over Boundary Questions (all overs × 2 innings × fours+sixes = ~80) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for over in range(1, 21):
-            extra.append(_q(
-                f"Fours in over {over} of {inn_en} innings?",
-                f"{inn_hi} innings over {over} mein fours?",
-                "powerplay" if over <= 6 else ("death_overs" if over >= 16 else "batting"),
-                "easy", 25,
-                f"innings_{innings}_fours_in_over_{over}", trigger, "range",
-                _opts(("0", "0", 0, 0), ("1", "1", 1, 1), ("2", "2", 2, 2), ("3+", "3+", 3, 99))
-            ))
-
-    # ---- Runs off specific ball types per over (~80) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for over in range(1, 21):
-            extra.append(_q(
-                f"Singles in over {over} of {inn_en} innings?",
-                f"{inn_hi} innings over {over} mein singles?",
-                "powerplay" if over <= 6 else ("death_overs" if over >= 16 else "batting"),
-                "easy", 20,
-                f"innings_{innings}_singles_over_{over}", trigger, "range",
-                _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6", "6", 6, 6))
-            ))
-
-    # ---- Cumulative boundaries at key overs (10 overs × 2 inn × 2 types = 40) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for ov in [3, 6, 8, 10, 12, 14, 16, 18, 20]:
-            extra.append(_q(
-                f"Total fours by over {ov} in {inn_en} innings?",
-                f"{inn_hi} innings over {ov} tak total fours?",
-                "batting", "medium", 35,
-                f"innings_{innings}_total_fours_by_{ov}", trigger, "range",
-                _opts(("0-3", "0-3", 0, 3), ("4-7", "4-7", 4, 7), ("8-11", "8-11", 8, 11), ("12+", "12+", 12, 99))
-            ))
-            extra.append(_q(
-                f"Total sixes by over {ov} in {inn_en} innings?",
-                f"{inn_hi} innings over {ov} tak total sixes?",
-                "batting", "medium", 35,
-                f"innings_{innings}_total_sixes_by_{ov}", trigger, "range",
-                _opts(("0-1", "0-1", 0, 1), ("2-4", "2-4", 2, 4), ("5-7", "5-7", 5, 7), ("8+", "8+", 8, 99))
-            ))
-
-    # ---- Bowling variations per over (40) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for over in range(1, 21):
-            extra.append(_q(
-                f"Dot balls in over {over} of {inn_en} innings?",
-                f"{inn_hi} innings over {over} mein dot balls?",
-                "bowling" if over <= 15 else "death_overs",
-                "medium", 30,
-                f"innings_{innings}_dots_over_{over}", trigger, "range",
-                _opts(("0-1", "0-1", 0, 1), ("2-3", "2-3", 2, 3), ("4-5", "4-5", 4, 5), ("6 (maiden)", "6 (maiden)", 6, 6))
-            ))
-
-    # ---- Phase comparison questions (~30) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        extra.extend([
-            _q(f"More runs in powerplay or death in {inn_en} innings?",
-               f"{inn_hi} innings powerplay ya death mein zyada runs?",
-               "match", "hard", 50,
-               f"innings_{innings}_pp_vs_death_runs", trigger, "category",
-               _opts(("Powerplay", "Powerplay", 1, 1), ("Death", "Death", 2, 2), ("Equal (±5)", "Equal", 0, 0), ("No death overs", "N/A", -1, -1))),
-            _q(f"More wickets in powerplay or middle in {inn_en} innings?",
-               f"{inn_hi} innings powerplay ya middle mein zyada wickets?",
-               "bowling", "hard", 50,
-               f"innings_{innings}_pp_vs_mid_wickets", trigger, "category",
-               _opts(("Powerplay", "Powerplay", 1, 1), ("Middle", "Middle", 2, 2), ("Equal", "Equal", 0, 0), ("Death overs", "Death", 3, 3))),
-            _q(f"Highest scoring over in {inn_en} innings runs?",
-               f"{inn_hi} innings ka sabse zyada scoring over?",
-               "batting", "hard", 55,
-               f"innings_{innings}_highest_over_runs", trigger, "range",
-               _opts(("0-12", "0-12", 0, 12), ("13-18", "13-18", 13, 18), ("19-24", "19-24", 19, 24), ("25+", "25+", 25, 99))),
-            _q(f"Lowest scoring over in {inn_en} innings?",
-               f"{inn_hi} innings ka sabse kam scoring over?",
-               "bowling", "medium", 40,
-               f"innings_{innings}_lowest_over_runs", trigger, "range",
-               _opts(("0 (maiden)", "0 (maiden)", 0, 0), ("1-3", "1-3", 1, 3), ("4-6", "4-6", 4, 6), ("7+", "7+", 7, 99))),
-        ])
-
-    # ---- 2nd innings chase-specific questions (~20) ----
-    extra.extend([
-        _q("Target chased successfully?", "Target chase successful hua?", "match", "easy", 30,
-            "chase_success", "match_end", "yes_no",
-            _opts(("Yes - batting 2nd won", "Haan", 1, 1), ("No - bowling won", "Nahi", 0, 0), ("Tie", "Tie", 2, 2), ("DLS/NR", "DLS/NR", -1, -1))),
-        _q("Required run rate at over 10 of chase?", "Chase mein over 10 pe required RR?", "batting", "hard", 55,
-            "chase_rr_at_10", "match_end", "range",
-            _opts(("Below 7", "7 se neeche", 0, 7), ("7-9", "7-9", 7, 9), ("9.1-11", "9.1-11", 9.1, 11), ("11+", "11+", 11, 99))),
-        _q("Overs remaining when chase completed?", "Chase kitne overs baaki mein hua?", "match", "hard", 60,
-            "chase_overs_remaining", "match_end", "range",
-            _opts(("Not chased", "Nahi hua", -1, 0), ("0-2 overs", "0-2 overs", 0, 12), ("2.1-5 overs", "2.1-5 overs", 13, 30), ("5+ overs left", "5+ overs", 31, 99))),
-        _q("Runs needed in last 5 overs?", "Last 5 overs mein kitne runs chahiye the?", "death_overs", "hard", 55,
-            "chase_last_5_needed", "match_end", "range",
-            _opts(("0-30", "0-30", 0, 30), ("31-50", "31-50", 31, 50), ("51-75", "51-75", 51, 75), ("76+", "76+", 76, 999))),
-        _q("Wickets lost during chase?", "Chase mein kitne wickets gaye?", "batting", "medium", 40,
-            "chase_wickets_lost", "match_end", "range",
-            _opts(("0-3", "0-3", 0, 3), ("4-6", "4-6", 4, 6), ("7-8", "7-8", 7, 8), ("9-10 (all out)", "9-10", 9, 10))),
-    ])
-
-    # ---- Extras per over for key overs (~20) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for over in [1, 6, 10, 15, 18, 20]:
-            extra.append(_q(
-                f"Any extras in over {over} of {inn_en} innings?",
-                f"{inn_hi} innings over {over} mein extras?",
-                "special", "easy", 20,
-                f"innings_{innings}_extras_over_{over}", trigger, "yes_no",
-                _opts(("No extras", "Nahi", 0, 0), ("1 extra", "1", 1, 1), ("2-3 extras", "2-3", 2, 3), ("4+ extras", "4+", 4, 99))
-            ))
-
-    # ---- Fall of wicket position questions (~20) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for wkt in [1, 2, 3, 5, 7, 10]:
-            label = {1: "1st", 2: "2nd", 3: "3rd", 5: "5th", 7: "7th", 10: "last"}.get(wkt, f"{wkt}th")
-            extra.append(_q(
-                f"Score at fall of {label} wicket in {inn_en} innings?",
-                f"{inn_hi} innings {label} wicket kis score pe gira?",
-                "batting", "hard", 50,
-                f"innings_{innings}_fow_{wkt}", trigger, "range",
-                _opts(("0-30", "0-30", 0, 30), ("31-70", "31-70", 31, 70), ("71-120", "71-120", 71, 120), ("121+/DNF", "121+/DNF", 121, 999))
-            ))
-
-    # ---- Scoring rate change questions (~16) ----
-    for innings in [1, 2]:
-        inn_en = "1st" if innings == 1 else "2nd"
-        inn_hi = "Pehli" if innings == 1 else "Doosri"
-        trigger = "innings_1_end" if innings == 1 else "match_end"
-        for from_ov, to_ov in [(1, 6), (7, 12), (13, 16), (17, 20)]:
-            extra.append(_q(
-                f"Runs between overs {from_ov}-{to_ov} in {inn_en} innings?",
-                f"{inn_hi} innings over {from_ov}-{to_ov} mein runs?",
-                "powerplay" if to_ov <= 6 else ("death_overs" if from_ov >= 16 else "batting"),
-                "medium", 40,
-                f"innings_{innings}_runs_{from_ov}_to_{to_ov}", trigger, "range",
-                _opts(("0-25", "0-25", 0, 25), ("26-45", "26-45", 26, 45), ("46-65", "46-65", 46, 65), ("66+", "66+", 66, 999))
-            ))
-
-    # Combine base + extra, trim to target
-    all_qs = base + extra
-    for q in extra:
-        q["created_at"] = now
-        q["updated_at"] = now
-
-    return all_qs[:target]
+if __name__ == "__main__":
+    asyncio.run(seed_questions())

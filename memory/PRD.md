@@ -17,23 +17,24 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive Cri
 
 #### CricketData.org API Integration (COMPLETED)
 - [x] 17 APIs integrated with strict IPL filtering and team alignment
-- [x] Auto-sync startup + score normalization
 - [x] Data Accuracy: 100% IPL, 0 non-IPL, 0 duplicates, 0 team swaps
 
-#### World-Class Celebrations — Canvas Particle Engine + Sound (COMPLETED - March 31, 2026)
-- [x] **Custom ParticleEngine class** — HTML5 Canvas with physics (gravity, friction, wind, wobble, rotation, trails)
-- [x] **6 particle shapes** — circle, ember, stump, confetti, spark, firework
-- [x] **SIX "MAXIMUM!"** — 260+ particles (120 fire embers + 80 sparks + 60 floating), golden explosion, 12 light rays, screen shake=12, "OUT OF THE PARK", 3.5s
-- [x] **FOUR "BOUNDARY!"** — 270+ particles (140 electric blue embers + 60 sparks + 60 horizontal sweep + 40 ambient), 12 light rays, 3 boundary streaks, screen shake=10, "RACING TO THE FENCE", 3s
-- [x] **WICKET "TIMBER!"** — 162+ particles (12 flying stumps + 100 dust debris + 50 red sparks), dark vignette, screen shake=18, slam-from-top text, 3.2s
-- [x] **PRIZE "CHAMPION!"** — 300+ confetti (150+100 rain) + 3 firework bursts (120 star particles) + 40 gold sparkles, rotating conic burst, "VICTORY ROYALE", 4s
-- [x] **Web Audio API Sound Effects** — Procedural synthesis, zero external files:
-  - SIX: Bass hit + bat crack + crowd roar (2.5s)
-  - FOUR: Bat crack + bass hit + crowd cheer (1.8s)
-  - WICKET: Stumps crash + bails tinkle + crowd gasp
-  - PRIZE: Victory fanfare (C5-E5-G5-C6) + sparkle shimmer + crowd eruption
-- [x] **Multi-phase system** — flash → main → fadeout → dismiss
-- [x] **useScreenShake hook** — RAF-based with cleanup
+#### World-Class Celebrations — Canvas Particle Engine + Sound (COMPLETED)
+- [x] SIX: 260+ fire embers, golden explosion, crowd roar sound
+- [x] FOUR: 270+ electric blue particles, boundary streaks, bat crack sound
+- [x] WICKET: Flying stumps, dust debris, stumps crash sound
+- [x] PRIZE: 300 confetti, firework bursts, victory fanfare sound
+
+#### Question Pool & Templates (COMPLETED - March 31, 2026)
+- [x] **16 questions seeded** (bilingual Hindi+English)
+- [x] **Difficulty-based points**: Easy=55, Medium=70, Hard=90
+- [x] **Distribution**: 2 Easy, 5 Medium, 9 Hard
+- [x] **2 Templates**:
+  - First Innings (in_match): 4 questions, 305 pts — runs, wickets, sixes, fours
+  - Full Match (full_match): 12 questions, 965 pts — winner, death overs, player performance, extras, century
+- [x] **Evaluation rules**: range_match (with min/max), boolean_match (threshold), exact_match
+- [x] **Categories**: batting, bowling, match, death_overs, player_performance, special
+- [x] **Total Points**: 1270 across both templates
 
 #### AI Commentary, WhatsApp Share Card, Auth, Admin — All complete
 
@@ -43,6 +44,5 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive Cri
 ### Remaining/Backlog Tasks
 1. **P1**: Redis caching layer for hot API responses
 2. **P1**: Pagination improvements (backend + frontend)
-3. **P2**: 200-question pool architecture
-4. **P2**: Advanced template routing (full_match vs in_match)
-5. **P2**: Socket.IO live score push via Redis pub/sub
+3. **P2**: Auto-settlement engine for seeded questions
+4. **P2**: Socket.IO live score push via Redis pub/sub
