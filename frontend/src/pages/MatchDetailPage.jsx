@@ -60,6 +60,9 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   const [profileLoading, setProfileLoading] = useState(false);
   const [celebration, setCelebration] = useState(null);
 
+  // Last score tracking for auto-celebration detection
+  const lastScoreRef = useRef(null);
+
   const fetchContests = useCallback(async () => {
     try {
       const res = await apiClient.get(`/matches/${match.id}/contests`);
@@ -82,6 +85,71 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     } catch (_) {}
   }, [match?.id]);
 
+  // ===== LIVE DATA POLLING (45s) =====
+  // Fetches: scorecard, AI commentary, and detects events for celebrations
+  const fetchLiveData = useCallback(async () => {
+    if (!match?.id || match?.status !== 'live') return;
+
+    try {
+      const [scRes, aiRes] = await Promise.allSettled([
+        apiClient.get(`/matches/${match.id}/scorecard`),
+        apiClient.get(`/matches/${match.id}/ai-commentary`),
+      ]);
+
+      const newScorecard = scRes.status === 'fulfilled' ? scRes.value.data : null;
+      const newAi = aiRes.status === 'fulfilled' ? aiRes.value.data : null;
+
+      // Update scorecard
+      if (newScorecard) {
+        setScorecardData(newScorecard);
+
+        // ===== AUTO-CELEBRATION DETECTION =====
+        // Compare previous score with new to detect 4/6/wicket
+        const prevScore = lastScoreRef.current;
+        const currentInnings = newScorecard?.scorecard?.[0] || newScorecard?.scorecard?.[1];
+        const batting = currentInnings?.batting || [];
+
+        if (prevScore && batting.length > 0) {
+          // Check for new wickets
+          const prevWickets = prevScore.wickets || 0;
+          const newWickets = batting.filter(b => b.dismissal && b.dismissal !== 'not out').length;
+          if (newWickets > prevWickets) {
+            setCelebration('wicket');
+          } else {
+            // Check for sixes and fours by comparing totals
+            const prevSixes = prevScore.sixes || 0;
+            const prevFours = prevScore.fours || 0;
+            const newSixes = batting.reduce((s, b) => s + (parseInt(b['6s']) || 0), 0);
+            const newFours = batting.reduce((s, b) => s + (parseInt(b['4s']) || 0), 0);
+
+            if (newSixes > prevSixes) {
+              setCelebration('six');
+            } else if (newFours > prevFours) {
+              setCelebration('four');
+            }
+          }
+        }
+
+        // Store current stats for next comparison
+        if (batting.length > 0) {
+          lastScoreRef.current = {
+            wickets: batting.filter(b => b.dismissal && b.dismissal !== 'not out').length,
+            sixes: batting.reduce((s, b) => s + (parseInt(b['6s']) || 0), 0),
+            fours: batting.reduce((s, b) => s + (parseInt(b['4s']) || 0), 0),
+          };
+        }
+      }
+
+      // Update AI commentary
+      if (newAi || newScorecard) {
+        setBbbData({ ai: newAi, scorecard: newScorecard || scorecardData });
+        setBbbLoading(false);
+      }
+    } catch (err) {
+      console.error('Live data fetch error:', err);
+    }
+  }, [match?.id, match?.status, scorecardData]);
+
   useEffect(() => {
     if (match?.id) {
       fetchContests();
@@ -92,6 +160,19 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         .catch(() => {});
     }
   }, [match?.id, fetchContests, fetchMatchInfo]);
+
+  // ===== 45-SECOND POLLING for LIVE matches =====
+  useEffect(() => {
+    if (!match?.id || match?.status !== 'live') return;
+
+    // Initial fetch
+    fetchLiveData();
+
+    // Poll every 45 seconds
+    const pollInterval = setInterval(fetchLiveData, 45000);
+
+    return () => clearInterval(pollInterval);
+  }, [match?.id, match?.status, fetchLiveData]);
 
   // Lazy load tabs
   useEffect(() => {
