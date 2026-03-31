@@ -28,18 +28,22 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with CricketData.org A
 - **3 Sections each**: LIVE | UPCOMING/OPEN | COMPLETED/LOCKED
 - **Match Card 3 Actions**: Make Live | Add Contest (template select) | Make Unlive
 - **Contest Card 5 Actions**: Make Live | Make Unlive | AI Resolve | AI Answers | Manual Resolve + Delete
-- **IST Dates Fixed**: All times display in GMT+5:30 (Asia/Kolkata)
-- **Date Corruption Fixed**: Schedule sync now ALWAYS updates start_time (was storing IST as UTC)
-- **Status Fix**: PBKS vs GT correctly shows UPCOMING (was wrongly completed)
-- **Match Unlive**: Backend allows live→upcoming transition
-- **Auto Live/Unlive**: AutoPilot manages contest lifecycle (24hr auto-live, 6th over lock, interval lock)
 - **Max 5 contests/match**: Enforced backend + frontend
+
+### Phase 5 - Critical Bug Fixes (DONE - 31 Mar 2026)
+- **Autopilot Manual Override**: Added `manual_override` flag to matches and contests. When admin manually changes status, autopilot and sync APIs respect this flag and skip auto-changes.
+- **Join Contest Fix**: Backend now allows joining contests with status `open` OR `live` (was only `open`). Also fixed timezone-aware lock_time comparison.
+- **Contest Fetch Fix**: Contests are fetched and displayed for matches regardless of status (live, upcoming, completed).
+- **IST Date Fix**: Backend returns `start_time_ist` field with properly formatted IST time (e.g., "24 May 2026, 07:30 PM IST"). Frontend uses `timeZone: 'Asia/Kolkata'` for date formatting.
+- **Match Sorting Fix**: Backend sorts by `start_time` descending (most recent first). Frontend re-sorts: upcoming ascending (nearest first), completed descending (most recent first).
 
 ## Key Endpoints
 - POST /api/auth/check-phone, POST /api/auth/login
 - GET /api/matches, PUT /api/matches/{id}/status
+- GET /api/matches/{id}/contests
 - GET /api/contests, POST /api/admin/contests
 - PUT /api/admin/contests/{id}/status, DELETE /api/admin/contests/{id}
+- POST /api/contests/{id}/join
 - POST /api/matches/live/sync-ipl-schedule
 
 ## Pending Tasks
