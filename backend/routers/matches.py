@@ -673,6 +673,178 @@ async def sync_live_matches(
 
 
 @router.post(
+    "/live/sync-ipl-schedule",
+    summary="Sync FULL IPL 2026 schedule from series_info API (1 call = 70 matches)"
+)
+async def sync_ipl_schedule(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Master sync: Fetches entire IPL 2026 schedule from CricketData.org series_info API.
+    - Creates new matches with proper cricketdata_id
+    - Updates existing matches (status, scores, cricketdata_id)
+    - Auto-links orphan matches by team name matching
+    - Auto-creates contests for upcoming/live matches
+    Uses 1 API call only.
+    """
+    from services.api_cache import cached_cricket
+    from services.cricket_data import cricket_service, _get_short_name, IPL_TEAMS
+
+    IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
+
+    # Fetch full schedule (uses MongoDB cache if available)
+    series_data = await cached_cricket.get_series_info(db, IPL_SERIES_ID)
+    if not series_data:
+        return {"error": "Could not fetch IPL schedule from API", "synced": 0}
+
+    match_list = series_data.get("matchList", [])
+    series_info = series_data.get("info", {})
+    now = utc_now().isoformat()
+
+    created = 0
+    updated = 0
+    linked = 0
+    contests_created = 0
+    errors = []
+
+    for api_match in match_list:
+        cd_id = api_match.get("id", "")
+        if not cd_id:
+            continue
+
+        teams = api_match.get("teams", [])
+        team_info = api_match.get("teamInfo", [])
+        match_started = api_match.get("matchStarted", False)
+        match_ended = api_match.get("matchEnded", False)
+
+        if match_ended:
+            m_status = "completed"
+        elif match_started:
+            m_status = "live"
+        else:
+            m_status = "upcoming"
+
+        # Build team data
+        t1_name = teams[0] if len(teams) > 0 else "?"
+        t2_name = teams[1] if len(teams) > 1 else "?"
+        t1_short = _get_short_name(team_info[0].get("shortname", t1_name)) if len(team_info) > 0 else _get_short_name(t1_name)
+        t2_short = _get_short_name(team_info[1].get("shortname", t2_name)) if len(team_info) > 1 else _get_short_name(t2_name)
+        t1_img = team_info[0].get("img", "") if len(team_info) > 0 else ""
+        t2_img = team_info[1].get("img", "") if len(team_info) > 1 else ""
+
+        # Scores from API
+        scores = []
+        for s in api_match.get("score", []):
+            scores.append({
+                "inning": s.get("inning", ""),
+                "r": s.get("r", 0),
+                "w": s.get("w", 0),
+                "o": s.get("o", 0),
+                "runs": s.get("r", 0),
+                "wickets": s.get("w", 0),
+                "overs": s.get("o", 0),
+            })
+
+        # Check if already exists by cricketdata_id
+        existing = await db.matches.find_one(
+            {"$or": [
+                {"cricketdata_id": cd_id},
+                {"external_match_id": cd_id},
+            ]},
+            {"_id": 0}
+        )
+
+        if not existing:
+            # Try matching by team names (for matches synced from Cricbuzz without cd_id)
+            existing = await db.matches.find_one(
+                {
+                    "team_a.short_name": {"$in": [t1_short, t2_short]},
+                    "team_b.short_name": {"$in": [t1_short, t2_short]},
+                    "cricketdata_id": {"$in": [None, "", "NONE"]},
+                },
+                {"_id": 0}
+            )
+            if existing:
+                # Link cricketdata_id to orphan match
+                await db.matches.update_one(
+                    {"id": existing["id"]},
+                    {"$set": {"cricketdata_id": cd_id, "external_match_id": cd_id}}
+                )
+                linked += 1
+
+        if existing:
+            # Update existing match
+            updates = {
+                "updated_at": now,
+                "status_text": api_match.get("status", ""),
+                "venue": api_match.get("venue", existing.get("venue", "")),
+                "cricketdata_id": cd_id,
+            }
+
+            # Update status (only forward transitions)
+            old_status = existing.get("status", "upcoming")
+            if m_status != old_status:
+                VALID = {"upcoming": ["live", "completed"], "live": ["completed"]}
+                if m_status in VALID.get(old_status, []):
+                    updates["status"] = m_status
+
+            # Update scores
+            if scores:
+                updates["live_score"] = {"scores": scores, "updated_at": now}
+
+            # Update team images if missing
+            if not existing.get("team_a", {}).get("img") and t1_img:
+                updates["team_a.img"] = t1_img
+            if not existing.get("team_b", {}).get("img") and t2_img:
+                updates["team_b.img"] = t2_img
+
+            await db.matches.update_one({"id": existing["id"]}, {"$set": updates})
+            updated += 1
+        else:
+            # Create new match
+            match_doc = {
+                "id": generate_id(),
+                "external_match_id": cd_id,
+                "cricketdata_id": cd_id,
+                "source": "cricketdata",
+                "team_a": {"name": t1_name, "short_name": t1_short, "img": t1_img},
+                "team_b": {"name": t2_name, "short_name": t2_short, "img": t2_img},
+                "match_type": api_match.get("matchType", "t20"),
+                "venue": api_match.get("venue", ""),
+                "start_time": api_match.get("dateTimeGMT", now),
+                "status": m_status,
+                "status_text": api_match.get("status", ""),
+                "live_score": {"scores": scores, "updated_at": now} if scores else None,
+                "templates_assigned": [],
+                "created_at": now,
+                "updated_at": now,
+            }
+            try:
+                await db.matches.insert_one(match_doc)
+                del match_doc["_id"]
+                created += 1
+
+                # Auto-create contest for upcoming/live matches
+                ac = await _auto_create_contest(db, match_doc)
+                if ac:
+                    contests_created += 1
+            except Exception as e:
+                errors.append(f"Insert failed for {t1_short} vs {t2_short}: {str(e)}")
+
+    return {
+        "series": series_info.get("name", "IPL 2026"),
+        "total_from_api": len(match_list),
+        "created": created,
+        "updated": updated,
+        "linked_orphans": linked,
+        "contests_auto_created": contests_created,
+        "synced": created + updated,
+        "errors": errors[:5] if errors else [],
+    }
+
+
+@router.post(
     "/{match_id}/sync-score",
     summary="Sync live score for a match"
 )

@@ -263,14 +263,14 @@ export default function HomePage({ onMatchClick }) {
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
                       {s.t1img && <img src={s.t1img} alt="" className="w-4 h-4 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
-                      <span className="text-[10px] font-black text-white">{t1Short}</span>
+                      <span className="text-[10px] font-black text-white">{t1Norm}</span>
                     </div>
                     {s.t1s && <span className="text-[10px] font-black" style={{ color: t1Color, textShadow: `0 0 6px ${t1Color}44` }}>{s.t1s}</span>}
                   </div>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
                       {s.t2img && <img src={s.t2img} alt="" className="w-4 h-4 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
-                      <span className="text-[10px] font-black text-white">{t2Short}</span>
+                      <span className="text-[10px] font-black text-white">{t2Norm}</span>
                     </div>
                     {s.t2s && <span className="text-[10px] font-black" style={{ color: t2Color, textShadow: `0 0 6px ${t2Color}44` }}>{s.t2s}</span>}
                   </div>
@@ -350,7 +350,7 @@ export default function HomePage({ onMatchClick }) {
                 <span className="w-6 text-[11px] font-black relative z-10" style={{ color: '#fff', textShadow: `0 0 10px ${teamPrimary}` }}>{i + 1}</span>
                 <div className="flex-1 flex items-center gap-2 relative z-10">
                   {team.img && <img src={team.img} alt={team.shortname} className="w-5 h-5 rounded-sm" style={{ filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.4))' }} />}
-                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}66` }}>{team.shortname}</span>
+                  <span className="text-xs font-black" style={{ color: '#fff', textShadow: `0 0 8px ${teamPrimary}66` }}>{teamShort}</span>
                 </div>
                 <span className="w-7 text-center text-xs font-bold relative z-10" style={{ color: 'rgba(255,255,255,0.85)' }}>{team.matches}</span>
                 <span className="w-7 text-center text-xs font-black relative z-10" style={{ color: '#4ade80' }}>{team.wins}</span>
@@ -671,9 +671,9 @@ function TeamMatchesDrawer({ team, onClose }) {
               </div>
               <div className="flex items-center gap-2">
                 {t1.img && <img src={t1.img} alt="" className="w-5 h-5 rounded-sm" />}
-                <span className="text-xs font-black text-white flex-1">{t1.shortname || t1.name || '?'}</span>
+                <span className="text-xs font-black text-white flex-1">{normalizeTeam(t1.shortname || t1.name || '?')}</span>
                 <span className="text-[10px] font-bold" style={{ color: COLORS.text.secondary }}>vs</span>
-                <span className="text-xs font-black text-white flex-1 text-right">{t2.shortname || t2.name || '?'}</span>
+                <span className="text-xs font-black text-white flex-1 text-right">{normalizeTeam(t2.shortname || t2.name || '?')}</span>
                 {t2.img && <img src={t2.img} alt="" className="w-5 h-5 rounded-sm" />}
               </div>
               {m.venue && (
@@ -763,11 +763,11 @@ function MatchFullDataView({ match, onBack, onClose, teamColor }) {
             <div className="flex items-center justify-center gap-4 mb-1">
               <div className="flex items-center gap-2">
                 {t1.img && <img src={t1.img} alt="" className="w-6 h-6 rounded" />}
-                <span className="text-sm font-black text-white">{t1.shortname || '?'}</span>
+                <span className="text-sm font-black text-white">{normalizeTeam(t1.shortname || '?')}</span>
               </div>
               <span className="text-[10px] font-bold" style={{ color: teamColor }}>VS</span>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-white">{t2.shortname || '?'}</span>
+                <span className="text-sm font-black text-white">{normalizeTeam(t2.shortname || '?')}</span>
                 {t2.img && <img src={t2.img} alt="" className="w-6 h-6 rounded" />}
               </div>
             </div>
@@ -938,7 +938,7 @@ function SquadTab({ data, teamColor }) {
         <div key={ti}>
           <div className="flex items-center gap-2 mb-2">
             {team.img && <img src={team.img} alt="" className="w-5 h-5 rounded" />}
-            <span className="text-[11px] font-black text-white">{team.teamName || team.shortname}</span>
+            <span className="text-[11px] font-black text-white">{normalizeTeam(team.teamName || team.shortname || '')}</span>
             <span className="text-[9px]" style={{ color: COLORS.text.tertiary }}>{(team.players || []).length} players</span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">

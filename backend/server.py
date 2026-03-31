@@ -139,10 +139,16 @@ async def lifespan(app: FastAPI):
         # Seed IPL encyclopedia data (idempotent)
         try:
             from services.ipl_data_seeder import seed_ipl_data
-            ipl_result = await seed_ipl_data(db)
+            ipl_result = await seed_ipl_data(db_manager.db)
             logger.info(f"IPL data seeded: {ipl_result}")
         except Exception as e:
             logger.warning(f"IPL data seeding failed (non-critical): {e}")
+
+        # Auto-sync IPL 2026 schedule from CricketData.org on startup
+        try:
+            await _auto_sync_ipl_schedule(db_manager.db)
+        except Exception as e:
+            logger.warning(f"IPL schedule auto-sync failed (non-critical): {e}")
         
         logger.info("Application startup complete")
         
@@ -176,6 +182,7 @@ async def create_indexes():
     await db.matches.create_indexes([
         IndexModel([("id", ASCENDING)], unique=True),
         IndexModel([("external_match_id", ASCENDING)], sparse=True),
+        IndexModel([("cricketdata_id", ASCENDING)], sparse=True),
         IndexModel([("status", ASCENDING)]),
         IndexModel([("start_time", ASCENDING)]),
         IndexModel([("status", ASCENDING), ("start_time", ASCENDING)]),
@@ -228,6 +235,106 @@ async def create_indexes():
     ])
     
     logger.info("Database indexes created/verified (bulk)")
+
+    # API Cache indexes for fast lookups
+    await db.api_cache.create_indexes([
+        IndexModel([("cache_type", ASCENDING), ("cache_key", ASCENDING)], unique=True),
+        IndexModel([("cached_at", ASCENDING)]),
+    ])
+
+
+
+async def _auto_sync_ipl_schedule(db):
+    """Auto-sync IPL 2026 schedule on startup using series_info API."""
+    from services.api_cache import cached_cricket
+    from services.cricket_data import _get_short_name
+    from models.schemas import generate_id, utc_now
+
+    IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
+
+    series_data = await cached_cricket.get_series_info(db, IPL_SERIES_ID)
+    if not series_data:
+        logger.warning("Auto-sync: Could not fetch IPL schedule")
+        return
+
+    match_list = series_data.get("matchList", [])
+    now = utc_now().isoformat()
+    created = 0
+    updated = 0
+
+    for api_match in match_list:
+        cd_id = api_match.get("id", "")
+        if not cd_id:
+            continue
+
+        teams = api_match.get("teams", [])
+        team_info = api_match.get("teamInfo", [])
+        match_ended = api_match.get("matchEnded", False)
+        match_started = api_match.get("matchStarted", False)
+        m_status = "completed" if match_ended else ("live" if match_started else "upcoming")
+
+        t1_name = teams[0] if len(teams) > 0 else "?"
+        t2_name = teams[1] if len(teams) > 1 else "?"
+        t1_short = _get_short_name(team_info[0].get("shortname", t1_name)) if len(team_info) > 0 else _get_short_name(t1_name)
+        t2_short = _get_short_name(team_info[1].get("shortname", t2_name)) if len(team_info) > 1 else _get_short_name(t2_name)
+        t1_img = team_info[0].get("img", "") if len(team_info) > 0 else ""
+        t2_img = team_info[1].get("img", "") if len(team_info) > 1 else ""
+
+        scores = []
+        for s in api_match.get("score", []):
+            scores.append({
+                "inning": s.get("inning", ""), "r": s.get("r", 0), "w": s.get("w", 0),
+                "o": s.get("o", 0), "runs": s.get("r", 0), "wickets": s.get("w", 0), "overs": s.get("o", 0),
+            })
+
+        # Check if exists
+        existing = await db.matches.find_one(
+            {"$or": [{"cricketdata_id": cd_id}, {"external_match_id": cd_id}]}, {"_id": 0}
+        )
+        if not existing:
+            # Try team name match
+            existing = await db.matches.find_one(
+                {"team_a.short_name": {"$in": [t1_short, t2_short]},
+                 "team_b.short_name": {"$in": [t1_short, t2_short]},
+                 "cricketdata_id": {"$in": [None, "", "NONE"]}}, {"_id": 0}
+            )
+            if existing:
+                await db.matches.update_one(
+                    {"id": existing["id"]}, {"$set": {"cricketdata_id": cd_id, "external_match_id": cd_id}}
+                )
+
+        if existing:
+            updates = {"updated_at": now, "cricketdata_id": cd_id, "status_text": api_match.get("status", "")}
+            old_status = existing.get("status", "upcoming")
+            if m_status != old_status:
+                VALID = {"upcoming": ["live", "completed"], "live": ["completed"]}
+                if m_status in VALID.get(old_status, []):
+                    updates["status"] = m_status
+            if scores:
+                updates["live_score"] = {"scores": scores, "updated_at": now}
+            if not existing.get("team_a", {}).get("img") and t1_img:
+                updates["team_a.img"] = t1_img
+            if not existing.get("team_b", {}).get("img") and t2_img:
+                updates["team_b.img"] = t2_img
+            await db.matches.update_one({"id": existing["id"]}, {"$set": updates})
+            updated += 1
+        else:
+            match_doc = {
+                "id": generate_id(), "external_match_id": cd_id, "cricketdata_id": cd_id,
+                "source": "cricketdata",
+                "team_a": {"name": t1_name, "short_name": t1_short, "img": t1_img},
+                "team_b": {"name": t2_name, "short_name": t2_short, "img": t2_img},
+                "match_type": api_match.get("matchType", "t20"),
+                "venue": api_match.get("venue", ""),
+                "start_time": api_match.get("dateTimeGMT", now),
+                "status": m_status, "status_text": api_match.get("status", ""),
+                "live_score": {"scores": scores, "updated_at": now} if scores else None,
+                "templates_assigned": [], "created_at": now, "updated_at": now,
+            }
+            await db.matches.insert_one(match_doc)
+            created += 1
+
+    logger.info(f"Auto-sync IPL schedule: {created} created, {updated} updated (total {len(match_list)} matches)")
 
 
 

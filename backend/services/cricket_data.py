@@ -30,6 +30,8 @@ IPL_TEAMS = {
     "MI": "MI", "CSK": "CSK", "RCB": "RCB", "KKR": "KKR",
     "DC": "DC", "PBKS": "PBKS", "RR": "RR", "SRH": "SRH",
     "GT": "GT", "LSG": "LSG",
+    # API shortname aliases
+    "RCBW": "RCB", "KXIP": "PBKS",
 }
 
 HEADERS = {
@@ -212,9 +214,9 @@ class CricketDataAPI:
                 continue
 
             t1_name = team_info[0].get("name", "?")
-            t1_short = team_info[0].get("shortname", _get_short_name(t1_name))
+            t1_short = _get_short_name(team_info[0].get("shortname", t1_name))
             t2_name = team_info[1].get("name", "?")
-            t2_short = team_info[1].get("shortname", _get_short_name(t2_name))
+            t2_short = _get_short_name(team_info[1].get("shortname", t2_name))
 
             status_text = m.get("status", "")
             match_started = m.get("matchStarted", False)
@@ -380,27 +382,16 @@ class UnifiedCricketService:
 
     async def get_live_matches(self, ipl_only: bool = False) -> Dict[str, Any]:
         """
-        Get current matches. Tries Cricbuzz first, falls back to CricketData.
+        Get current matches. Uses CricketData.org API as PRIMARY source.
+        Cricbuzz scraping removed per user requirement.
         Returns: {matches: [], source: str, cached: bool}
         """
         cache_key = f"matches_ipl_{ipl_only}"
         if self._is_cached(cache_key):
             return {**self._cache[cache_key], "cached": True}
 
-        # Try Cricbuzz first (unlimited)
+        # PRIMARY: CricketData.org API (reliable REST API)
         loop = asyncio.get_running_loop()
-        matches = await loop.run_in_executor(None, self.cricbuzz.fetch_matches)
-
-        if matches:
-            self._last_source = "cricbuzz"
-            if ipl_only:
-                matches = [m for m in matches if m.get('is_ipl')]
-            result = {"matches": matches, "source": "cricbuzz", "cached": False, "count": len(matches)}
-            self._set_cache(cache_key, result)
-            return result
-
-        # Fallback to CricketData.org
-        logger.info("Cricbuzz failed, falling back to CricketData.org")
         matches = await loop.run_in_executor(None, self.cricketdata.fetch_matches)
 
         if matches:
@@ -413,7 +404,7 @@ class UnifiedCricketService:
 
         # Both failed
         self._last_source = "none"
-        return {"matches": [], "source": "none", "cached": False, "count": 0, "error": "Both sources failed"}
+        return {"matches": [], "source": "none", "cached": False, "count": 0, "error": "API source failed"}
 
     async def get_match_score(self, slug: str) -> Optional[Dict]:
         """Get detailed score for a Cricbuzz match."""

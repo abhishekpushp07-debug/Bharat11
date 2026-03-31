@@ -25,9 +25,14 @@ IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 )
 async def get_ipl_points_table(db: AsyncIOMotorDatabase = Depends(get_db)):
     """Team standings: matches, wins, losses, ties, NR. Cached in MongoDB."""
+    from services.cricket_data import _get_short_name
     data = await cached_cricket.get_series_points(db, IPL_SERIES_ID)
     if not data:
         return {"error": "Could not fetch points table", "teams": []}
+    # Normalize shortnames (RCBW -> RCB etc.)
+    for team in data:
+        sn = team.get("shortname", "")
+        team["shortname"] = _get_short_name(sn)
     return {"series_id": IPL_SERIES_ID, "teams": data}
 
 

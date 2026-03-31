@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
-import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS } from '../constants/teams';
+import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS, normalizeTeam } from '../constants/teams';
 import { ArrowLeft, Clock, MapPin, Trophy, Users, ChevronRight, Loader2, Check, Coins, Swords, BarChart3, User2, Lock, Unlock, Radio, X } from 'lucide-react';
 import ScorecardView from '../components/ScorecardView';
 import MoodMeter from '../components/MoodMeter';
@@ -501,7 +501,7 @@ function SquadTab({ squads, loading, onPlayerClick }) {
           <button key={i} data-testid={`squad-team-${i}`} onClick={() => setActiveTeam(i)}
             className="flex-1 py-2.5 text-xs font-bold text-center transition-all"
             style={{ color: activeTeam === i ? '#fff' : COLORS.text.tertiary, background: activeTeam === i ? COLORS.primary.main : 'transparent', boxShadow: activeTeam === i ? '0 2px 8px rgba(255,59,59,0.3)' : 'none' }}>
-            {t.shortname || t.teamName?.split(' ')[0]}
+            {normalizeTeam(t.shortname || t.teamName?.split(' ')[0] || '')}
             <span className="text-[9px] ml-1 opacity-60">({(t.players || []).length})</span>
           </button>
         ))}
