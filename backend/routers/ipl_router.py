@@ -83,7 +83,7 @@ async def get_ipl_records(
     if category:
         query["category"] = category
     cursor = db.ipl_records.find(query, {"_id": 0}).sort("category", 1)
-    records = await cursor.to_list(length=100)
+    records = await cursor.to_list(length=200)
     return {"records": records, "total": len(records)}
 
 

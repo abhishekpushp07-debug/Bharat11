@@ -23,7 +23,7 @@ const TEAM_LIST = [
   { short: 'LSG', name: 'Lucknow Super Giants' },
 ];
 
-const RECORD_ICONS = { bat: TrendingUp, flame: Flame, crown: Crown, zap: Zap, target: Target, rocket: Zap, award: Award, crosshair: Target, shield: Trophy, circle: Star, trophy: Trophy, 'alert-circle': Flame, hand: Users, calendar: Star, 'chevrons-right': ChevronRight, 'indian-rupee': Star };
+const RECORD_ICONS = { bat: TrendingUp, flame: Flame, crown: Crown, zap: Zap, target: Target, rocket: Zap, award: Award, crosshair: Target, shield: Trophy, circle: Star, trophy: Trophy, 'alert-circle': Flame, hand: Users, calendar: Star, 'chevrons-right': ChevronRight, 'indian-rupee': Star, bomb: Flame, baby: Star, glasses: Star, heart: Star, skull: Flame, 'alert-triangle': Flame, 'alert-octagon': Flame, ban: Flame, 'x-circle': Flame, 'shield-alert': Flame, 'user-x': Star, 'x-square': Star, repeat: Star, timer: Star, 'party-popper': Star, 'rotate-cw': Star, star: Star, swords: Target, flag: Star, 'bar-chart': TrendingUp, 'bar-chart-2': TrendingUp, 'trending-up': TrendingUp, globe: Star, gauge: Zap, clock: Star, medal: Award, milestone: Star, lock: Star, gavel: Star, 'arrow-up': TrendingUp, 'arrow-up-right': TrendingUp, users: Users };
 
 export default function SearchPage({ onMatchClick, onBack }) {
   const [query, setQuery] = useState('');
@@ -36,6 +36,7 @@ export default function SearchPage({ onMatchClick, onBack }) {
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeRecordTab, setActiveRecordTab] = useState('batting');
   const inputRef = useRef(null);
   const searchTimer = useRef(null);
 
@@ -92,7 +93,13 @@ export default function SearchPage({ onMatchClick, onBack }) {
 
   const battingRecords = records.filter(r => r.category === 'batting');
   const bowlingRecords = records.filter(r => r.category === 'bowling');
-  const specialRecords = records.filter(r => r.category === 'team' || r.category === 'special');
+  const fieldingRecords = records.filter(r => r.category === 'fielding');
+  const teamRecords = records.filter(r => r.category === 'team');
+  const controversyRecords = records.filter(r => r.category === 'controversy');
+  const funRecords = records.filter(r => r.category === 'fun');
+  const championsRecords = records.filter(r => r.category === 'champions');
+  const auctionRecords = records.filter(r => r.category === 'auction');
+  const specialRecords = records.filter(r => r.category === 'special');
   const starPlayers = players.slice(0, 15);
 
   return (
@@ -163,9 +170,12 @@ export default function SearchPage({ onMatchClick, onBack }) {
               <h3 className="text-sm font-bold text-white" style={{ fontFamily: "'Orbitron', sans-serif", letterSpacing: '1px' }}>
                 IPL RECORDS
               </h3>
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: '#FFD70022', color: '#FFD700' }}>
+                {records.length}+
+              </span>
             </div>
 
-            {/* Featured Record - Biggest one */}
+            {/* Featured Record Banner */}
             {battingRecords[0] && (
               <div className="rounded-2xl overflow-hidden relative" style={{ height: '100px' }}>
                 <div className="absolute inset-0" style={{
@@ -190,10 +200,46 @@ export default function SearchPage({ onMatchClick, onBack }) {
               </div>
             )}
 
-            {/* Batting Records Grid */}
-            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#ef4444' }}>Batting</div>
+            {/* Category Tabs */}
+            <div className="overflow-x-auto no-scrollbar pb-1">
+              <div className="flex gap-1.5" style={{ width: 'max-content' }}>
+                {[
+                  { key: 'batting', label: 'Batting', color: '#ef4444', count: battingRecords.length },
+                  { key: 'bowling', label: 'Bowling', color: '#a855f7', count: bowlingRecords.length },
+                  { key: 'fielding', label: 'Fielding', color: '#10b981', count: fieldingRecords.length },
+                  { key: 'team', label: 'Team', color: '#3b82f6', count: teamRecords.length },
+                  { key: 'champions', label: 'Champions', color: '#FFD700', count: championsRecords.length },
+                  { key: 'controversy', label: 'Drama', color: '#f97316', count: controversyRecords.length },
+                  { key: 'fun', label: 'Fun Facts', color: '#22c55e', count: funRecords.length },
+                  { key: 'auction', label: 'Auction', color: '#f59e0b', count: auctionRecords.length },
+                ].map(tab => (
+                  <button key={tab.key} data-testid={`record-tab-${tab.key}`}
+                    onClick={() => setActiveRecordTab(tab.key)}
+                    className="shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-1"
+                    style={{
+                      background: activeRecordTab === tab.key ? `${tab.color}22` : COLORS.background.card,
+                      color: activeRecordTab === tab.key ? tab.color : COLORS.text.tertiary,
+                      border: `1px solid ${activeRecordTab === tab.key ? `${tab.color}55` : COLORS.border?.light || '#333'}`,
+                    }}>
+                    {tab.label}
+                    <span className="text-[8px] opacity-70">{tab.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Records Grid */}
             <div className="grid grid-cols-2 gap-2">
-              {battingRecords.slice(1).map((r, i) => {
+              {(activeRecordTab === 'batting' ? battingRecords.slice(1) :
+                activeRecordTab === 'bowling' ? bowlingRecords :
+                activeRecordTab === 'fielding' ? fieldingRecords :
+                activeRecordTab === 'team' ? teamRecords :
+                activeRecordTab === 'champions' ? championsRecords :
+                activeRecordTab === 'controversy' ? controversyRecords :
+                activeRecordTab === 'fun' ? funRecords :
+                activeRecordTab === 'auction' ? auctionRecords :
+                specialRecords
+              ).map((r) => {
                 const IconComp = RECORD_ICONS[r.icon] || Star;
                 return (
                   <div key={r.title} className="p-3 rounded-xl relative overflow-hidden" style={{
@@ -202,45 +248,12 @@ export default function SearchPage({ onMatchClick, onBack }) {
                   }}>
                     <div className="absolute top-2 right-2 opacity-10"><IconComp size={28} color={r.color} /></div>
                     <div className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: r.color }}>{r.title}</div>
-                    <div className="text-lg font-black text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{r.value}</div>
+                    <div className="text-base font-black text-white leading-tight" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{r.value}</div>
                     <div className="text-[10px] mt-0.5" style={{ color: COLORS.text.tertiary }}>{r.holder}</div>
+                    {r.year && <div className="text-[8px] mt-0.5 italic" style={{ color: COLORS.text.tertiary + '88' }}>{r.year}</div>}
                   </div>
                 );
               })}
-            </div>
-
-            {/* Bowling Records */}
-            <div className="text-[10px] font-bold uppercase tracking-wider mt-2" style={{ color: '#a855f7' }}>Bowling</div>
-            <div className="grid grid-cols-2 gap-2">
-              {bowlingRecords.map((r, i) => {
-                const IconComp = RECORD_ICONS[r.icon] || Star;
-                return (
-                  <div key={r.title} className="p-3 rounded-xl relative overflow-hidden" style={{
-                    background: COLORS.background.card,
-                    border: `1px solid ${r.color}15`
-                  }}>
-                    <div className="absolute top-2 right-2 opacity-10"><IconComp size={28} color={r.color} /></div>
-                    <div className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: r.color }}>{r.title}</div>
-                    <div className="text-lg font-black text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{r.value}</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: COLORS.text.tertiary }}>{r.holder}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Special Records */}
-            <div className="text-[10px] font-bold uppercase tracking-wider mt-2" style={{ color: '#FFD700' }}>Team & Special</div>
-            <div className="grid grid-cols-2 gap-2">
-              {specialRecords.map((r) => (
-                <div key={r.title} className="p-3 rounded-xl" style={{
-                  background: COLORS.background.card,
-                  border: `1px solid ${r.color}15`
-                }}>
-                  <div className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: r.color }}>{r.title}</div>
-                  <div className="text-lg font-black text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{r.value}</div>
-                  <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{r.holder}</div>
-                </div>
-              ))}
             </div>
           </div>
 
