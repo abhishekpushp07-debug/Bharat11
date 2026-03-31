@@ -10,7 +10,8 @@ import apiClient from '../../api/client';
 import { COLORS } from '../../constants/design';
 import {
   Loader2, Plus, Play, Pause, Trash2, Trophy, Power, Lock,
-  Eye, Zap, Settings, RefreshCw, X, Users, Coins, ChevronDown, ChevronUp
+  Eye, Zap, Settings, RefreshCw, X, Users, Coins, ChevronDown, ChevronUp,
+  Radio
 } from 'lucide-react';
 
 const MAX_CONTESTS = 5;
@@ -247,6 +248,12 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
   const [autoGenning, setAutoGenning] = useState(false);
   const [form, setForm] = useState({ template_id: '', name: '' });
 
+  // Score Fetch state
+  const [fetchActive, setFetchActive] = useState(false);
+  const [fetchCount, setFetchCount] = useState(0);
+  const [fetchElapsed, setFetchElapsed] = useState(0);
+  const [fetchToggling, setFetchToggling] = useState(false);
+
   const tA = m.team_a?.short_name || '?';
   const tB = m.team_b?.short_name || '?';
   const contests = allContests.filter(c => c.match_id === m.id);
@@ -288,6 +295,41 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
     finally { setAutoGenning(false); }
   };
 
+  // Check fetch status on expand
+  useEffect(() => {
+    if (!expanded) return;
+    let mounted = true;
+    const checkFetchStatus = async () => {
+      try {
+        const res = await apiClient.get(`/admin/matches/${m.id}/score-fetch-status`);
+        if (!mounted) return;
+        setFetchActive(res.data.running);
+        setFetchCount(res.data.fetch_count || 0);
+        setFetchElapsed(res.data.elapsed_minutes || 0);
+      } catch (_) {}
+    };
+    checkFetchStatus();
+    // Poll status every 10s while expanded
+    const iv = setInterval(checkFetchStatus, 10000);
+    return () => { mounted = false; clearInterval(iv); };
+  }, [expanded, m.id]);
+
+  const handleToggleScoreFetch = async () => {
+    setFetchToggling(true);
+    try {
+      if (fetchActive) {
+        await apiClient.post(`/admin/matches/${m.id}/stop-score-fetch`);
+        setFetchActive(false);
+        showMsg(`Score fetch STOPPED for ${tA} vs ${tB}`, 'info');
+      } else {
+        const res = await apiClient.post(`/admin/matches/${m.id}/start-score-fetch`);
+        setFetchActive(true);
+        showMsg(`Score fetch STARTED for ${tA} vs ${tB} (every 15s, max 5h)`, 'success');
+      }
+    } catch (e) { showMsg(e?.response?.data?.detail || e.message, 'error'); }
+    finally { setFetchToggling(false); }
+  };
+
   return (
     <div data-testid={`match-card-${m.id}`} className="rounded-xl overflow-hidden"
       style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
@@ -314,7 +356,7 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
             <div className="text-[10px] font-semibold" style={{ color: '#f59e0b' }}>{m.status_text}</div>
           )}
 
-          {/* 3 MATCH ACTIONS + AUTO TEMPLATES */}
+          {/* MATCH ACTIONS + AUTO TEMPLATES + SCORE FETCH */}
           <div className="flex gap-1.5 flex-wrap">
             {m.status === 'upcoming' && (
               <ActionBtn testId={`match-live-${m.id}`} onClick={() => handleMatchStatus('live')}
@@ -340,7 +382,43 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
                 label={autoGenning ? 'Generating...' : 'Auto 5 Templates'}
                 bg="#8b5cf622" color="#a78bfa" />
             )}
+
+            {/* SCORE FETCH BUTTON */}
+            {m.status !== 'completed' && (
+              <button
+                data-testid={`match-score-fetch-${m.id}`}
+                onClick={handleToggleScoreFetch}
+                disabled={fetchToggling}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-bold disabled:opacity-50 transition-all active:scale-95"
+                style={{
+                  background: fetchActive ? '#22c55e' : '#06b6d422',
+                  color: fetchActive ? '#fff' : '#06b6d4',
+                  border: `1px solid ${fetchActive ? '#22c55e' : '#06b6d433'}`,
+                  boxShadow: fetchActive ? '0 0 12px #22c55e55' : 'none',
+                }}>
+                {fetchToggling ? <Loader2 size={10} className="animate-spin" /> :
+                  fetchActive ? <Radio size={10} className="animate-pulse" /> : <Radio size={10} />}
+                {fetchToggling ? '...' : fetchActive ? 'LIVE Fetching' : 'Score Fetch'}
+              </button>
+            )}
           </div>
+
+          {/* Score Fetch Status Banner */}
+          {fetchActive && (
+            <div className="flex items-center gap-2 p-2 rounded-lg" style={{ background: '#22c55e11', border: '1px solid #22c55e22' }}>
+              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }} />
+              <span className="text-[9px] font-bold" style={{ color: '#22c55e' }}>
+                Scorecard auto-fetching every 15s
+              </span>
+              <span className="text-[9px]" style={{ color: '#4ade80' }}>
+                ({fetchCount} fetches, {fetchElapsed}m elapsed)
+              </span>
+              <button onClick={handleToggleScoreFetch} className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded"
+                style={{ background: '#ef444422', color: '#ef4444' }}>
+                STOP
+              </button>
+            </div>
+          )}
 
           {/* Add Contest Form */}
           {showAdd && (

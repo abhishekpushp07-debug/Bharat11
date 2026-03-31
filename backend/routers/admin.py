@@ -2362,3 +2362,72 @@ async def _create_5_templates(match_id: str, db: AsyncIOMotorDatabase):
 
 # ==================== USER MANAGEMENT (Legacy, moved to /users above) ====================
 # Removed duplicate endpoints - consolidated in the main user management section above.
+
+
+
+# ==================== SCORE FETCHER ENDPOINTS ====================
+
+@router.post(
+    "/matches/{match_id}/start-score-fetch",
+    summary="Start 15s scorecard fetching for a specific match"
+)
+async def start_score_fetch(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Start fetching scorecard every 15 seconds for a match.
+    Auto-stops when match completes or after 5 hours."""
+    from services.score_fetcher import score_fetcher
+
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0, "id": 1, "cricketdata_id": 1, "external_match_id": 1, "team_a": 1, "team_b": 1})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    cd_id = match.get("cricketdata_id") or match.get("external_match_id", "")
+    if not cd_id:
+        raise HTTPException(status_code=400, detail="Match has no CricketData ID. Sync IPL first.")
+
+    result = await score_fetcher.start_fetch(match_id, cd_id, db)
+    ta = match.get("team_a", {}).get("short_name", "?")
+    tb = match.get("team_b", {}).get("short_name", "?")
+    result["match_name"] = f"{ta} vs {tb}"
+    return result
+
+
+@router.post(
+    "/matches/{match_id}/stop-score-fetch",
+    summary="Stop scorecard fetching for a specific match"
+)
+async def stop_score_fetch(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.score_fetcher import score_fetcher
+    return await score_fetcher.stop_fetch(match_id)
+
+
+@router.get(
+    "/score-fetch/status",
+    summary="Get status of all active score fetchers"
+)
+async def get_score_fetch_status(
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.score_fetcher import score_fetcher
+    return score_fetcher.get_status()
+
+
+@router.get(
+    "/matches/{match_id}/score-fetch-status",
+    summary="Get score fetch status for a specific match"
+)
+async def get_match_score_fetch_status(
+    match_id: str,
+    current_user: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from services.score_fetcher import score_fetcher
+    return score_fetcher.get_match_status(match_id)
