@@ -468,10 +468,10 @@ async def seed_super_admin():
             logger.info(f"Updated super admin {SUPER_ADMIN_PHONE}: {list(updates.keys())}")
         return
     
-    from core.security import jwt_manager
+    from core.security import password_hasher
     from models.schemas import generate_id, generate_referral_code, utc_now
     
-    pin_hash = jwt_manager.hash_pin(SUPER_ADMIN_PIN)
+    pin_hash = password_hasher.hash(SUPER_ADMIN_PIN)
     user_doc = {
         "id": generate_id(),
         "phone": SUPER_ADMIN_PHONE,
