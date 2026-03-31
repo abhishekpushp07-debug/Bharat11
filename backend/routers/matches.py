@@ -725,13 +725,21 @@ async def sync_ipl_schedule(
         else:
             m_status = "upcoming"
 
-        # Build team data
-        t1_name = teams[0] if len(teams) > 0 else "?"
-        t2_name = teams[1] if len(teams) > 1 else "?"
-        t1_short = _get_short_name(team_info[0].get("shortname", t1_name)) if len(team_info) > 0 else _get_short_name(t1_name)
-        t2_short = _get_short_name(team_info[1].get("shortname", t2_name)) if len(team_info) > 1 else _get_short_name(t2_name)
-        t1_img = team_info[0].get("img", "") if len(team_info) > 0 else ""
-        t2_img = team_info[1].get("img", "") if len(team_info) > 1 else ""
+        # Build team data — use teamInfo as source of truth (teams[] and teamInfo[] can be in different orders!)
+        if len(team_info) >= 2:
+            t1_name = team_info[0].get("name", teams[0] if teams else "?")
+            t1_short = _get_short_name(team_info[0].get("shortname", t1_name))
+            t1_img = team_info[0].get("img", "")
+            t2_name = team_info[1].get("name", teams[1] if len(teams) > 1 else "?")
+            t2_short = _get_short_name(team_info[1].get("shortname", t2_name))
+            t2_img = team_info[1].get("img", "")
+        else:
+            t1_name = teams[0] if len(teams) > 0 else "?"
+            t2_name = teams[1] if len(teams) > 1 else "?"
+            t1_short = _get_short_name(t1_name)
+            t2_short = _get_short_name(t2_name)
+            t1_img = ""
+            t2_img = ""
 
         # Scores from API
         scores = []

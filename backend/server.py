@@ -273,12 +273,21 @@ async def _auto_sync_ipl_schedule(db):
         match_started = api_match.get("matchStarted", False)
         m_status = "completed" if match_ended else ("live" if match_started else "upcoming")
 
-        t1_name = teams[0] if len(teams) > 0 else "?"
-        t2_name = teams[1] if len(teams) > 1 else "?"
-        t1_short = _get_short_name(team_info[0].get("shortname", t1_name)) if len(team_info) > 0 else _get_short_name(t1_name)
-        t2_short = _get_short_name(team_info[1].get("shortname", t2_name)) if len(team_info) > 1 else _get_short_name(t2_name)
-        t1_img = team_info[0].get("img", "") if len(team_info) > 0 else ""
-        t2_img = team_info[1].get("img", "") if len(team_info) > 1 else ""
+        # Use teamInfo as source of truth (teams[] and teamInfo[] can be in different orders!)
+        if len(team_info) >= 2:
+            t1_name = team_info[0].get("name", teams[0] if teams else "?")
+            t1_short = _get_short_name(team_info[0].get("shortname", t1_name))
+            t1_img = team_info[0].get("img", "")
+            t2_name = team_info[1].get("name", teams[1] if len(teams) > 1 else "?")
+            t2_short = _get_short_name(team_info[1].get("shortname", t2_name))
+            t2_img = team_info[1].get("img", "")
+        else:
+            t1_name = teams[0] if teams else "?"
+            t2_name = teams[1] if len(teams) > 1 else "?"
+            t1_short = _get_short_name(t1_name)
+            t2_short = _get_short_name(t2_name)
+            t1_img = ""
+            t2_img = ""
 
         scores = []
         for s in api_match.get("score", []):
@@ -335,6 +344,63 @@ async def _auto_sync_ipl_schedule(db):
             created += 1
 
     logger.info(f"Auto-sync IPL schedule: {created} created, {updated} updated (total {len(match_list)} matches)")
+
+    # Phase 2: For completed matches WITHOUT scores, fetch from match_scorecard API
+    completed_no_score = db.matches.find({
+        "status": "completed",
+        "cricketdata_id": {"$nin": [None, ""]},
+        "$or": [
+            {"live_score": None},
+            {"live_score.scores": {"$size": 0}},
+            {"live_score.scores.0.r": 0, "live_score.scores.1.r": 0},
+        ]
+    }, {"_id": 0, "id": 1, "cricketdata_id": 1, "team_a.short_name": 1, "team_b.short_name": 1})
+
+    scores_fetched = 0
+    async for match in completed_no_score:
+        cd_id = match.get("cricketdata_id")
+        if not cd_id:
+            continue
+        try:
+            sc_data = await cached_cricket.get_scorecard(db, cd_id)
+            if sc_data:
+                scorecard = sc_data.get("scorecard", [])
+                real_scores = []
+                for inn in scorecard:
+                    inning_name = inn.get("inning", "")
+                    batting = inn.get("batting", [])
+                    total_runs = sum(int(b.get("r", 0)) for b in batting)
+                    total_wickets = len([b for b in batting if b.get("dismissal") and b["dismissal"] != "not out"])
+                    total_overs = inn.get("totals", {}).get("O", "0")
+                    # Also try extras
+                    extras = inn.get("extras", {}).get("t", 0) if isinstance(inn.get("extras"), dict) else 0
+                    real_scores.append({
+                        "inning": inning_name,
+                        "r": total_runs + extras,
+                        "w": total_wickets,
+                        "o": total_overs,
+                        "runs": total_runs + extras,
+                        "wickets": total_wickets,
+                        "overs": total_overs,
+                    })
+                if real_scores:
+                    await db.matches.update_one(
+                        {"id": match["id"]},
+                        {"$set": {
+                            "live_score": {"scores": real_scores, "updated_at": now},
+                            "match_winner": sc_data.get("matchWinner", ""),
+                        }}
+                    )
+                    ta = match.get("team_a", {}).get("short_name", "?")
+                    tb = match.get("team_b", {}).get("short_name", "?")
+                    score_strs = [str(s.get("r", 0)) + "/" + str(s.get("w", 0)) for s in real_scores]
+                    logger.info(f"Fetched scores for {ta} vs {tb}: {score_strs}")
+                    scores_fetched += 1
+        except Exception as e:
+            logger.warning(f"Score fetch failed for {cd_id}: {e}")
+
+    if scores_fetched:
+        logger.info(f"Auto-sync Phase 2: Fetched scores for {scores_fetched} completed matches")
 
 
 

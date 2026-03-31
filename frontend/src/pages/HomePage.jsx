@@ -492,13 +492,30 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
   const scores = score?.scores || [];
   const cardImg = getTeamCardImage(teamA.short_name) || getTeamCardImage(teamB.short_name);
 
+  // Smart score-team mapping: match inning name to team
+  const getTeamScore = (teamName, teamShort) => {
+    if (!scores.length) return null;
+    const tn = (teamName || '').toLowerCase();
+    const ts = (teamShort || '').toLowerCase();
+    // Find the inning that matches this team
+    const found = scores.find(s => {
+      const inning = (s.inning || '').toLowerCase();
+      return inning.includes(tn) || inning.includes(ts) ||
+        (tn && tn.split(' ').some(w => w.length > 3 && inning.includes(w)));
+    });
+    if (found && (found.r > 0 || found.runs > 0 || found.w > 0 || found.wickets > 0)) return found;
+    return null;
+  };
+  const scoreA = getTeamScore(teamA.name, teamA.short_name) || (scores[0]?.r > 0 ? scores[0] : null);
+  const scoreB = getTeamScore(teamB.name, teamB.short_name) || (scores[1]?.r > 0 ? scores[1] : null);
+
   return (
     <div data-testid={`match-card-${match.id}`}
       className={`rounded-2xl overflow-hidden cursor-pointer transition-all active:scale-[0.97] ${isLive ? 'animate-border-glow' : 'card-hover'} match-card-sparkle`}
       style={{
         background: 'linear-gradient(135deg, #0d0d0d, #1a0a0f, #0d0d0d, #150810)',
         border: `1px solid ${isLive ? COLORS.primary.main + '55' : 'rgba(180,30,50,0.15)'}`,
-        opacity: isCompleted ? 0.75 : 1
+        opacity: 1
       }}
       onClick={() => onClick?.(match)}>
 
@@ -530,7 +547,7 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-live-pulse" /> LIVE
               </span>
             )}
-            {isCompleted && <span className="text-[10px] font-semibold" style={{ color: COLORS.text.tertiary }}>ENDED</span>}
+            {isCompleted && <span className="text-[10px] font-semibold" style={{ color: '#10B981' }}>COMPLETED</span>}
           </div>
           <div className="flex items-center gap-1.5">
             <Clock size={12} color={isLive ? COLORS.primary.main : COLORS.warning.main} />
@@ -549,9 +566,9 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
           </div>
           <div>
             <div className="text-sm font-bold text-white">{teamA.short_name || 'TBD'}</div>
-            {scores[0] ? (
+            {scoreA ? (
               <div className="text-sm font-bold animate-count" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
-                {scores[0].r || scores[0].runs}/{scores[0].w || scores[0].wickets} <span className="text-[10px]">({scores[0].o || scores[0].overs})</span>
+                {scoreA.r || scoreA.runs}/{scoreA.w || scoreA.wickets} <span className="text-[10px]">({scoreA.o || scoreA.overs})</span>
               </div>
             ) : (
               <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamA.name || ''}</div>
@@ -571,9 +588,9 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
           </div>
           <div className="text-right">
             <div className="text-sm font-bold text-white">{teamB.short_name || 'TBD'}</div>
-            {scores[1] ? (
+            {scoreB ? (
               <div className="text-sm font-bold animate-count" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
-                {scores[1].r || scores[1].runs}/{scores[1].w || scores[1].wickets} <span className="text-[10px]">({scores[1].o || scores[1].overs})</span>
+                {scoreB.r || scoreB.runs}/{scoreB.w || scoreB.wickets} <span className="text-[10px]">({scoreB.o || scoreB.overs})</span>
               </div>
             ) : (
               <div className="text-[10px]" style={{ color: COLORS.text.tertiary }}>{teamB.name || ''}</div>
@@ -582,6 +599,13 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
         </div>
       </div>
 
+      {/* Match result for completed matches */}
+      {isCompleted && match.status_text && (
+        <div className="px-4 py-2 text-center" style={{ background: 'rgba(16,185,129,0.06)', borderBottom: `1px solid rgba(16,185,129,0.1)` }}>
+          <span className="text-[11px] font-bold" style={{ color: '#10B981' }}>{match.status_text}</span>
+        </div>
+      )}
+
       {/* Bottom action strip */}
       <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary, borderTop: `1px solid ${COLORS.border.light}` }}>
         <div className="flex items-center gap-1.5">
@@ -589,7 +613,7 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
           <span className="text-[10px] truncate max-w-[150px]" style={{ color: COLORS.text.tertiary }}>{match.venue || ''}</span>
         </div>
         <div className="flex items-center gap-1 text-xs font-bold" style={{ color: COLORS.primary.main }}>
-          {isLive ? 'Live Score' : isCompleted ? 'View Results' : 'Predict Now'} <ChevronRight size={14} />
+          {isLive ? 'Live Score' : isCompleted ? 'Scorecard' : 'Predict Now'} <ChevronRight size={14} />
         </div>
       </div>
     </div>
