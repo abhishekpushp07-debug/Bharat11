@@ -1,9 +1,26 @@
 import { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { COLORS } from '../constants/design';
-import { getTeamLogo, getTeamGradient } from '../constants/teams';
+import { getTeamGradient } from '../constants/teams';
 import { Share2, X, Download } from 'lucide-react';
 import ConfettiEffect from './ConfettiEffect';
+
+// Local team logo mapping — served from /public/team-logos/ (CORS-safe for html2canvas)
+const TEAM_LOGO_MAP = {
+  'GT': '/team-logos/GT.jpg',
+  'DC': '/team-logos/DC.jpg',
+  'CSK': '/team-logos/CSK.jpg',
+  'LSG': '/team-logos/LSG.jpg',
+  'PK': '/team-logos/PK.jpg',
+  'PBKS': '/team-logos/PK.jpg',
+  'MI': '/team-logos/MI.jpg',
+  'RCB': '/team-logos/RCB.jpg',
+  'KKR': '/team-logos/KKR.jpg',
+  'RR': '/team-logos/RR.jpg',
+  'SRH': '/team-logos/SRH.jpg',
+  'SH': '/team-logos/SRH.jpg',
+};
+const getLocalLogo = (shortName) => shortName ? (TEAM_LOGO_MAP[shortName.toUpperCase()] || null) : null;
 
 /**
  * WORLD'S BEST WhatsApp Share Card — Topps Chrome / NBA Top Shot collectible aesthetic
@@ -18,6 +35,9 @@ export default function ShareCard({ match, rank, totalPlayers, score, totalPoint
   const teamA = match?.team_a || {};
   const teamB = match?.team_b || {};
   const scores = match?.live_score?.scores || [];
+
+  const logoASrc = getLocalLogo(teamA.short_name);
+  const logoBSrc = getLocalLogo(teamB.short_name);
 
   const handleShare = async () => {
     if (!cardRef.current) return;
@@ -178,9 +198,9 @@ export default function ShareCard({ match, rank, totalPlayers, score, totalPoint
                   boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                   overflow: 'hidden',
                 }}>
-                  {getTeamLogo(teamA.short_name) ?
-                    <img src={getTeamLogo(teamA.short_name)} alt="" style={{ width: '36px', height: '36px', objectFit: 'contain' }} /> :
-                    <span style={{ fontSize: '14px', fontWeight: 900, color: '#fff' }}>{teamA.short_name}</span>
+                  {logoASrc ?
+                    <img src={logoASrc} alt={teamA.short_name} crossOrigin="anonymous" style={{ width: '36px', height: '36px', objectFit: 'contain', borderRadius: '6px' }} /> :
+                    <span style={{ fontSize: '16px', fontWeight: 900, color: '#fff', letterSpacing: '1px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{teamA.short_name || '?'}</span>
                   }
                 </div>
                 <div>
@@ -206,9 +226,9 @@ export default function ShareCard({ match, rank, totalPlayers, score, totalPoint
                   boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                   overflow: 'hidden',
                 }}>
-                  {getTeamLogo(teamB.short_name) ?
-                    <img src={getTeamLogo(teamB.short_name)} alt="" style={{ width: '36px', height: '36px', objectFit: 'contain' }} /> :
-                    <span style={{ fontSize: '14px', fontWeight: 900, color: '#fff' }}>{teamB.short_name}</span>
+                  {logoBSrc ?
+                    <img src={logoBSrc} alt={teamB.short_name} crossOrigin="anonymous" style={{ width: '36px', height: '36px', objectFit: 'contain', borderRadius: '6px' }} /> :
+                    <span style={{ fontSize: '16px', fontWeight: 900, color: '#fff', letterSpacing: '1px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{teamB.short_name || '?'}</span>
                   }
                 </div>
                 <div style={{ textAlign: 'right' }}>

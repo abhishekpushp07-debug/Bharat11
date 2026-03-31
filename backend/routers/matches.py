@@ -1270,3 +1270,53 @@ async def get_mood_meter(
         "total_votes": total,
         "user_vote": user_vote,
     }
+
+
+
+# ==================== IMAGE PROXY ====================
+
+@router.get(
+    "/team-logo/{short_name}",
+    summary="Proxy team logo for CORS-safe rendering",
+)
+async def get_team_logo(short_name: str):
+    """
+    Proxies team logo from CricketData API to bypass CORS for html2canvas.
+    Returns base64 data URL.
+    """
+    import httpx
+    import base64
+
+    TEAM_LOGOS = {
+        'CSK': 'https://g.cricapi.com/iapi/135-637852956181378533.png?w=48',
+        'DC': 'https://g.cricapi.com/iapi/148-637874596301457910.png?w=48',
+        'GT': 'https://g.cricapi.com/iapi/172-637852957798476823.png?w=48',
+        'KKR': 'https://g.cricapi.com/iapi/206-637852958714346149.png?w=48',
+        'LSG': 'https://g.cricapi.com/iapi/215-637876059669009476.png?w=48',
+        'MI': 'https://g.cricapi.com/iapi/226-637852956375593901.png?w=48',
+        'PBKS': 'https://g.cricapi.com/iapi/247-637852956959778791.png?w=48',
+        'PK': 'https://g.cricapi.com/iapi/247-637852956959778791.png?w=48',
+        'RR': 'https://g.cricapi.com/iapi/251-637852956607161886.png?w=48',
+        'RCB': 'https://g.cricapi.com/iapi/21439-638468478038395955.jpg?w=48',
+        'RCBW': 'https://g.cricapi.com/iapi/21439-638468478038395955.jpg?w=48',
+        'SRH': 'https://g.cricapi.com/iapi/279-637852957609490368.png?w=48',
+        'SH': 'https://g.cricapi.com/iapi/279-637852957609490368.png?w=48',
+    }
+
+    # Normalize
+    name_map = {'RCBW': 'RCB', 'PK': 'PBKS', 'SH': 'SRH'}
+    normalized = name_map.get(short_name.upper(), short_name.upper())
+    url = TEAM_LOGOS.get(normalized) or TEAM_LOGOS.get(short_name.upper())
+
+    if not url:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            content_type = resp.headers.get('content-type', 'image/png')
+            b64 = base64.b64encode(resp.content).decode('utf-8')
+            return {"data_url": f"data:{content_type};base64,{b64}", "team": short_name}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch logo: {str(e)}")

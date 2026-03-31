@@ -159,7 +159,7 @@ function UserAnswerModal({ contestId, userId, onClose }) {
   );
 }
 
-export default function LeaderboardPage({ contestId, match, onBack }) {
+export default function LeaderboardPage({ contestId, match: propMatch, onBack }) {
   const [data, setData] = useState(null);
   const [myPos, setMyPos] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -168,7 +168,11 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
   const [showShare, setShowShare] = useState(false);
   const [moodData, setMoodData] = useState(null);
   const [badgeData, setBadgeData] = useState(null);
+  const [matchData, setMatchData] = useState(propMatch);
   const { joinContest, leaveContest, on, off } = useSocketStore();
+
+  // Use propMatch if available, otherwise fetch from contest data
+  const match = matchData || propMatch;
 
   const fetchData = useCallback(async () => {
     try {
@@ -176,13 +180,23 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
         apiClient.get(`/contests/${contestId}/leaderboard?limit=50`),
         apiClient.get(`/contests/${contestId}/leaderboard/me`)
       ]);
-      if (lbRes.status === 'fulfilled') setData(lbRes.value.data);
+      if (lbRes.status === 'fulfilled') {
+        setData(lbRes.value.data);
+        // If match not available, fetch it using match_id from leaderboard data
+        if (!propMatch && lbRes.value.data?.match_id) {
+          try {
+            const matchRes = await apiClient.get(`/matches/${lbRes.value.data.match_id}`);
+            if (matchRes.data) setMatchData(matchRes.data);
+          } catch (_) {}
+        }
+      }
       if (meRes.status === 'fulfilled') setMyPos(meRes.value.data);
 
       // Fetch mood data for ShareCard
-      if (match?.id) {
+      const mId = propMatch?.id || matchData?.id;
+      if (mId) {
         try {
-          const moodRes = await apiClient.get(`/matches/${match.id}/mood-meter`);
+          const moodRes = await apiClient.get(`/matches/${mId}/mood-meter`);
           setMoodData(moodRes.data);
         } catch (_) {}
       }
@@ -193,7 +207,7 @@ export default function LeaderboardPage({ contestId, match, onBack }) {
       } catch (_) {}
     } catch (_) { /* silent */ }
     finally { setLoading(false); }
-  }, [contestId, match?.id]);
+  }, [contestId, propMatch, matchData?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

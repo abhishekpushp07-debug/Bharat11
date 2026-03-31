@@ -29,9 +29,11 @@ export default function PlayerView({ onBackToAdmin }) {
   const handleBackFromPrediction = useCallback(() => { setSelectedContestId(null); setActiveTab(selectedMatch ? 'matchDetail' : 'contests'); }, [selectedMatch]);
   const handleBackFromLeaderboard = useCallback(() => { setSelectedContestId(null); setActiveTab('contests'); }, []);
 
-  const handleContestClick = useCallback(({ entry, contest }) => {
+  const handleContestClick = useCallback(({ entry, contest, match: contestMatch }) => {
     const cid = contest?.id || entry?.contest_id;
     if (!cid) return;
+    // Store match data from contest entry for leaderboard usage
+    if (contestMatch) setSelectedMatch(contestMatch);
     // Only live contests go to prediction page, everything else goes to leaderboard
     contest?.status === 'live' ? handleOpenPrediction(cid) : handleOpenLeaderboard(cid);
   }, [handleOpenLeaderboard, handleOpenPrediction]);

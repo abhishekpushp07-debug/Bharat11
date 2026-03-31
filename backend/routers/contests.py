@@ -838,7 +838,7 @@ async def get_leaderboard(
     db: AsyncIOMotorDatabase = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=100)
 ):
-    contest = await db.contests.find_one({"id": contest_id}, {"_id": 0, "id": 1, "name": 1, "current_participants": 1, "prize_pool": 1})
+    contest = await db.contests.find_one({"id": contest_id}, {"_id": 0, "id": 1, "name": 1, "current_participants": 1, "prize_pool": 1, "match_id": 1})
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
 
@@ -877,6 +877,7 @@ async def get_leaderboard(
     return {
         "contest_id": contest_id,
         "contest_name": contest.get("name", ""),
+        "match_id": contest.get("match_id", ""),
         "total_participants": contest.get("current_participants", 0),
         "prize_pool": contest.get("prize_pool", 0),
         "leaderboard": leaderboard
