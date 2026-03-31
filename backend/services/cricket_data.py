@@ -38,6 +38,9 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0'
 }
 
+# Canonical set of all 10 IPL short names for strict validation
+IPL_SHORT_NAMES = {"MI", "CSK", "RCB", "KKR", "DC", "PBKS", "RR", "SRH", "GT", "LSG"}
+
 
 def _get_short_name(name: str) -> str:
     """Get IPL short name or first 3 chars."""
@@ -48,6 +51,66 @@ def _get_short_name(name: str) -> str:
         if full.lower() in name.lower() or name.lower() in full.lower():
             return short
     return name[:3].upper()
+
+
+def _align_team_info(teams: list, team_info: list) -> tuple:
+    """
+    Correctly align teamInfo[] entries to match teams[] ordering.
+    
+    CricketData API BUG: teams[] and teamInfo[] are in DIFFERENT random orders.
+    teams[] is the SOURCE OF TRUTH for team_a (index 0) and team_b (index 1).
+    teamInfo[] has detailed info (name, shortname, img) but in RANDOM order.
+    
+    Returns: (team_a_info_dict, team_b_info_dict) aligned to teams[] order.
+    """
+    if len(teams) < 2 or len(team_info) < 2:
+        return (team_info[0] if team_info else {}, team_info[1] if len(team_info) > 1 else {})
+
+    # Get canonical short name for teams[0] (this is always team_a)
+    team_a_short = _get_short_name(teams[0])
+
+    # Get canonical short names for both teamInfo entries
+    ti_0_short = _get_short_name(team_info[0].get("shortname", team_info[0].get("name", "")))
+    ti_1_short = _get_short_name(team_info[1].get("shortname", team_info[1].get("name", "")))
+
+    # Match by short name (most reliable — handles "Royal Challengers Bengaluru" vs "Bangalore")
+    if ti_0_short == team_a_short:
+        return (team_info[0], team_info[1])
+    if ti_1_short == team_a_short:
+        return (team_info[1], team_info[0])
+
+    # Fallback: substring match on full names
+    ta_lower = teams[0].strip().lower()
+    ti0_name = team_info[0].get("name", "").strip().lower()
+    ti1_name = team_info[1].get("name", "").strip().lower()
+
+    if ta_lower in ti0_name or ti0_name in ta_lower:
+        return (team_info[0], team_info[1])
+    if ta_lower in ti1_name or ti1_name in ta_lower:
+        return (team_info[1], team_info[0])
+
+    # Last resort: return as-is with a warning
+    logger.warning(f"_align_team_info: Could not match teams={teams} to teamInfo names=[{ti0_name}, {ti1_name}]")
+    return (team_info[0], team_info[1])
+
+
+def _is_strictly_ipl(teams: list, team_info: list) -> bool:
+    """
+    Returns True ONLY if BOTH teams are confirmed IPL teams.
+    Uses strict whitelist — no partial matching, no guessing.
+    """
+    shorts = set()
+
+    # Try teamInfo first (has explicit shortname field)
+    if len(team_info) >= 2:
+        for ti in team_info[:2]:
+            short = _get_short_name(ti.get("shortname", ti.get("name", "")))
+            shorts.add(short)
+    elif len(teams) >= 2:
+        for t in teams[:2]:
+            shorts.add(_get_short_name(t))
+
+    return len(shorts) >= 2 and shorts.issubset(IPL_SHORT_NAMES)
 
 
 def _parse_match_status(status_text: str) -> str:
@@ -202,32 +265,42 @@ class CricketDataAPI:
             return None
 
     def fetch_matches(self) -> List[Dict[str, Any]]:
-        """Fetch current matches."""
+        """
+        Fetch current matches from CricketData.org API.
+        Uses _align_team_info() to fix random teamInfo[] ordering.
+        Uses _is_strictly_ipl() for bulletproof IPL-only filtering.
+        """
         data = self._call("currentMatches")
         if not data:
             return []
 
         matches = []
+        skipped_non_ipl = 0
         for m in data.get("data", []):
+            teams = m.get("teams", [])
             team_info = m.get("teamInfo", [])
-            if len(team_info) < 2:
+            if len(team_info) < 2 or len(teams) < 2:
                 continue
 
-            t1_name = team_info[0].get("name", "?")
-            t1_short = _get_short_name(team_info[0].get("shortname", t1_name))
-            t2_name = team_info[1].get("name", "?")
-            t2_short = _get_short_name(team_info[1].get("shortname", t2_name))
+            # STRICT IPL CHECK — both teams must be in IPL whitelist
+            is_ipl = _is_strictly_ipl(teams, team_info)
+            if not is_ipl:
+                skipped_non_ipl += 1
+                continue
 
-            status_text = m.get("status", "")
-            match_started = m.get("matchStarted", False)
+            # ALIGN teamInfo to teams[] order (fixes the random swap bug)
+            team_a_info, team_b_info = _align_team_info(teams, team_info)
+
+            t1_name = team_a_info.get("name", teams[0])
+            t1_short = _get_short_name(team_a_info.get("shortname", t1_name))
+            t1_img = team_a_info.get("img", "")
+            t2_name = team_b_info.get("name", teams[1])
+            t2_short = _get_short_name(team_b_info.get("shortname", t2_name))
+            t2_img = team_b_info.get("img", "")
+
             match_ended = m.get("matchEnded", False)
-
-            if match_ended:
-                match_status = "completed"
-            elif match_started:
-                match_status = "live"
-            else:
-                match_status = "upcoming"
+            match_started = m.get("matchStarted", False)
+            match_status = "completed" if match_ended else ("live" if match_started else "upcoming")
 
             scores = []
             for s in m.get("score", []):
@@ -238,32 +311,21 @@ class CricketDataAPI:
                     "overs": s.get("o", 0)
                 })
 
-            name_str = m.get("name", "")
-            is_ipl = any(k in name_str.lower() for k in ['ipl', 'indian premier league'])
-            # Also check team names against IPL teams
-            if not is_ipl:
-                is_ipl = (
-                    any(t1_name.lower() in k.lower() or k.lower() in t1_name.lower() for k in IPL_TEAMS)
-                    and any(t2_name.lower() in k.lower() or k.lower() in t2_name.lower() for k in IPL_TEAMS)
-                )
-
-            match_status = "completed" if match_ended else ("live" if match_started else "upcoming")
-
             matches.append({
                 'source': 'cricketdata',
                 'source_id': m.get("id", ""),
-                'team_a': {'name': t1_name, 'short_name': t1_short},
-                'team_b': {'name': t2_name, 'short_name': t2_short},
+                'team_a': {'name': t1_name, 'short_name': t1_short, 'img': t1_img},
+                'team_b': {'name': t2_name, 'short_name': t2_short, 'img': t2_img},
                 'status': match_status,
-                'status_text': status_text,
-                'is_ipl': is_ipl,
+                'status_text': m.get("status", ""),
+                'is_ipl': True,
                 'scores': scores,
                 'venue': m.get("venue", ""),
                 'date': m.get("dateTimeGMT", ""),
                 'match_type': m.get("matchType", ""),
             })
 
-        logger.info(f"CricketData: fetched {len(matches)} matches (API call used)")
+        logger.info(f"CricketData: {len(matches)} IPL matches fetched, {skipped_non_ipl} non-IPL skipped")
         return matches
 
     def fetch_scorecard(self, cricapi_match_id: str) -> Optional[Dict[str, Any]]:

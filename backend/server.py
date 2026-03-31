@@ -247,7 +247,7 @@ async def create_indexes():
 async def _auto_sync_ipl_schedule(db):
     """Auto-sync IPL 2026 schedule on startup using series_info API."""
     from services.api_cache import cached_cricket
-    from services.cricket_data import _get_short_name
+    from services.cricket_data import _get_short_name, _align_team_info
     from models.schemas import generate_id, utc_now
 
     IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
@@ -273,14 +273,15 @@ async def _auto_sync_ipl_schedule(db):
         match_started = api_match.get("matchStarted", False)
         m_status = "completed" if match_ended else ("live" if match_started else "upcoming")
 
-        # Use teamInfo as source of truth (teams[] and teamInfo[] can be in different orders!)
-        if len(team_info) >= 2:
-            t1_name = team_info[0].get("name", teams[0] if teams else "?")
-            t1_short = _get_short_name(team_info[0].get("shortname", t1_name))
-            t1_img = team_info[0].get("img", "")
-            t2_name = team_info[1].get("name", teams[1] if len(teams) > 1 else "?")
-            t2_short = _get_short_name(team_info[1].get("shortname", t2_name))
-            t2_img = team_info[1].get("img", "")
+        # ALIGN teamInfo to teams[] order (fixes random API swap bug)
+        if len(team_info) >= 2 and len(teams) >= 2:
+            team_a_info, team_b_info = _align_team_info(teams, team_info)
+            t1_name = team_a_info.get("name", teams[0])
+            t1_short = _get_short_name(team_a_info.get("shortname", t1_name))
+            t1_img = team_a_info.get("img", "")
+            t2_name = team_b_info.get("name", teams[1])
+            t2_short = _get_short_name(team_b_info.get("shortname", t2_name))
+            t2_img = team_b_info.get("img", "")
         else:
             t1_name = teams[0] if teams else "?"
             t2_name = teams[1] if len(teams) > 1 else "?"
@@ -320,7 +321,11 @@ async def _auto_sync_ipl_schedule(db):
                 if m_status in VALID.get(old_status, []):
                     updates["status"] = m_status
             if scores:
-                updates["live_score"] = {"scores": scores, "updated_at": now}
+                existing_scores = existing.get("live_score", {}).get("scores", [])
+                existing_has_real = any(s.get("r", 0) > 0 or s.get("runs", 0) > 0 for s in existing_scores)
+                new_has_real = any(s.get("r", 0) > 0 or s.get("runs", 0) > 0 for s in scores)
+                if new_has_real or not existing_has_real:
+                    updates["live_score"] = {"scores": scores, "updated_at": now}
             if not existing.get("team_a", {}).get("img") and t1_img:
                 updates["team_a.img"] = t1_img
             if not existing.get("team_b", {}).get("img") and t2_img:

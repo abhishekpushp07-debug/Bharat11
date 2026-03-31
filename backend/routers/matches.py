@@ -597,9 +597,13 @@ async def sync_live_matches(
         if not source_id:
             continue
 
-        # Check if already exists
+        # Check if already exists (by external_match_id OR cricketdata_id to prevent duplicates)
         existing = await db.matches.find_one(
-            {"external_match_id": source_id}, {"_id": 0}
+            {"$or": [
+                {"external_match_id": source_id},
+                {"cricketdata_id": source_id},
+            ]},
+            {"_id": 0}
         )
 
         if existing:
@@ -631,9 +635,26 @@ async def sync_live_matches(
                     if ac:
                         contests_created += 1
         else:
-            # Create new match
+            # Before creating — also check by team short_names to prevent duplicates
             team_a = lm.get("team_a", {})
             team_b = lm.get("team_b", {})
+            ta_short = team_a.get("short_name", "")
+            tb_short = team_b.get("short_name", "")
+            if ta_short and tb_short:
+                team_match = await db.matches.find_one({
+                    "team_a.short_name": {"$in": [ta_short, tb_short]},
+                    "team_b.short_name": {"$in": [ta_short, tb_short]},
+                }, {"_id": 0, "id": 1})
+                if team_match:
+                    # Link cricketdata_id to existing match instead of creating duplicate
+                    await db.matches.update_one(
+                        {"id": team_match["id"]},
+                        {"$set": {"cricketdata_id": source_id, "external_match_id": source_id, "updated_at": now}}
+                    )
+                    updated += 1
+                    continue
+
+            # Create new match
             start_time = lm.get("date", now)
 
             match = {
@@ -689,7 +710,7 @@ async def sync_ipl_schedule(
     Uses 1 API call only.
     """
     from services.api_cache import cached_cricket
-    from services.cricket_data import cricket_service, _get_short_name, IPL_TEAMS
+    from services.cricket_data import cricket_service, _get_short_name, _align_team_info, IPL_SHORT_NAMES
 
     IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 
@@ -725,14 +746,15 @@ async def sync_ipl_schedule(
         else:
             m_status = "upcoming"
 
-        # Build team data — use teamInfo as source of truth (teams[] and teamInfo[] can be in different orders!)
-        if len(team_info) >= 2:
-            t1_name = team_info[0].get("name", teams[0] if teams else "?")
-            t1_short = _get_short_name(team_info[0].get("shortname", t1_name))
-            t1_img = team_info[0].get("img", "")
-            t2_name = team_info[1].get("name", teams[1] if len(teams) > 1 else "?")
-            t2_short = _get_short_name(team_info[1].get("shortname", t2_name))
-            t2_img = team_info[1].get("img", "")
+        # ALIGN teamInfo to teams[] order (fixes random API swap bug)
+        if len(team_info) >= 2 and len(teams) >= 2:
+            team_a_info, team_b_info = _align_team_info(teams, team_info)
+            t1_name = team_a_info.get("name", teams[0])
+            t1_short = _get_short_name(team_a_info.get("shortname", t1_name))
+            t1_img = team_a_info.get("img", "")
+            t2_name = team_b_info.get("name", teams[1])
+            t2_short = _get_short_name(team_b_info.get("shortname", t2_name))
+            t2_img = team_b_info.get("img", "")
         else:
             t1_name = teams[0] if len(teams) > 0 else "?"
             t2_name = teams[1] if len(teams) > 1 else "?"
@@ -797,9 +819,13 @@ async def sync_ipl_schedule(
                 if m_status in VALID.get(old_status, []):
                     updates["status"] = m_status
 
-            # Update scores
+            # Update scores — NEVER overwrite non-zero scores with zeros
             if scores:
-                updates["live_score"] = {"scores": scores, "updated_at": now}
+                existing_scores = existing.get("live_score", {}).get("scores", [])
+                existing_has_real_data = any(s.get("r", 0) > 0 or s.get("runs", 0) > 0 for s in existing_scores)
+                new_has_real_data = any(s.get("r", 0) > 0 or s.get("runs", 0) > 0 for s in scores)
+                if new_has_real_data or not existing_has_real_data:
+                    updates["live_score"] = {"scores": scores, "updated_at": now}
 
             # Update team images if missing
             if not existing.get("team_a", {}).get("img") and t1_img:
