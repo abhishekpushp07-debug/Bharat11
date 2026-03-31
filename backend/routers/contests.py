@@ -52,7 +52,7 @@ class PredictionItem(BaseModel):
 
 
 class SubmitPredictions(BaseModel):
-    predictions: list[PredictionItem] = Field(..., min_length=1, max_length=15)
+    predictions: list[PredictionItem] = Field(..., min_length=1, max_length=50)
 
 
 class ResolveQuestion(BaseModel):

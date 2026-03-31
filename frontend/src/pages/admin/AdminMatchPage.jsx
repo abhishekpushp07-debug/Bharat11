@@ -49,12 +49,20 @@ export default function AdminMatchPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [mR, tR, cR] = await Promise.all([
-        apiClient.get('/matches?limit=50'),
+      const [liveR, upR, compR, tR, cR] = await Promise.all([
+        apiClient.get('/matches?status=live&limit=50'),
+        apiClient.get('/matches?status=upcoming&limit=50'),
+        apiClient.get('/matches?status=completed&limit=50'),
         apiClient.get('/admin/templates?limit=50'),
         apiClient.get('/admin/contests?limit=50')
       ]);
-      setMatches(mR.data.matches || []);
+      // Merge all matches, upcoming sorted nearest first, completed sorted recent first
+      const allMatches = [
+        ...(liveR.data.matches || []),
+        ...(upR.data.matches || []),
+        ...(compR.data.matches || []),
+      ];
+      setMatches(allMatches);
       setTemplates(tR.data.templates || []);
       setAllContests(cR.data.contests || []);
     } catch (e) { showMsg(e?.response?.data?.detail || e.message, 'error'); }
@@ -76,11 +84,13 @@ export default function AdminMatchPage() {
     finally { setSyncing(false); }
   };
 
-  // Group by status
+  // Group by status with proper sorting
   const grouped = (items, statusKey = 'status') => {
     const live = items.filter(i => i[statusKey] === 'live');
-    const upcoming = items.filter(i => i[statusKey] === 'upcoming' || i[statusKey] === 'open');
-    const completed = items.filter(i => !['live', 'upcoming', 'open'].includes(i[statusKey]));
+    const upcoming = items.filter(i => i[statusKey] === 'upcoming' || i[statusKey] === 'open')
+      .sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
+    const completed = items.filter(i => !['live', 'upcoming', 'open'].includes(i[statusKey]))
+      .sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0));
     return { live, upcoming, completed };
   };
 

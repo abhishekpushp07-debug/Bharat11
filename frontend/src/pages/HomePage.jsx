@@ -72,6 +72,7 @@ export default function HomePage({ onMatchClick }) {
   const [pointsTable, setPointsTable] = useState([]);
   const [showFullTable, setShowFullTable] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState(null);
+  const [matchTab, setMatchTab] = useState('upcoming');
   const refreshTimer = useRef(null);
   const tickerRef = useRef(null);
 
@@ -220,100 +221,95 @@ export default function HomePage({ onMatchClick }) {
         </div>
       </div>
 
-      {/* Live Score Ticker (horizontal scroll) */}
-      {liveTicker.length > 0 && (
-        <div data-testid="live-ticker">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="relative">
-              <Activity size={14} color="#FF3B3B" className="animate-pulse" />
-              <div className="absolute inset-0 animate-ping" style={{ opacity: 0.3 }}>
-                <Activity size={14} color="#FF3B3B" />
+      {/* Matches Section with Tabs — Upcoming | Completed */}
+      {loading ? (
+        <div className="space-y-3"><MatchSkeleton /><MatchSkeleton /></div>
+      ) : (
+        <div>
+          {/* Live Now */}
+          {liveMatches.length > 0 && (
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: COLORS.primary.main }} />
+                <h2 className="text-base font-semibold text-white">Live Now</h2>
+              </div>
+              <div className="space-y-3">
+                {liveMatches.map((match, i) => (
+                  <motion.div key={match.id}
+                    initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: i * 0.08, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}>
+                    <MatchCard match={match} isLive onClick={onMatchClick} />
+                  </motion.div>
+                ))}
               </div>
             </div>
-            <span className="text-xs font-black tracking-wider" style={{ color: '#FF3B3B', textShadow: '0 0 8px rgba(255,59,59,0.4)' }}>IPL LIVE</span>
-            <div className="h-3 w-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
-            <span className="text-[10px] font-bold" style={{ color: COLORS.text.secondary }}>{liveTicker.length} matches</span>
-          </div>
-          <div ref={tickerRef} className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            {liveTicker.map((s, i) => {
-              const t1Short = (s.t1.match(/\[(\w+)\]/)?.[1]) || s.t1.split(' ')[0];
-              const t2Short = (s.t2.match(/\[(\w+)\]/)?.[1]) || s.t2.split(' ')[0];
-              const t1Norm = normalizeTeam(t1Short);
-              const t2Norm = normalizeTeam(t2Short);
-              const t1Color = (TEAM_COLORS[t1Norm] || { primary: '#888' }).primary;
-              const t2Color = (TEAM_COLORS[t2Norm] || { primary: '#888' }).primary;
-              const isLiveMatch = s.ms === 'live';
-              const isResult = s.ms === 'result';
-              return (
-                <div key={s.id || i} data-testid={`ticker-${i}`}
-                  className="shrink-0 rounded-xl p-2.5 min-w-[175px] relative overflow-hidden transition-all duration-300"
-                  style={{
-                    background: isLiveMatch
-                      ? `linear-gradient(135deg, rgba(220,40,60,0.12), rgba(180,20,40,0.06), rgba(0,0,0,0.9))`
-                      : isResult
-                        ? `linear-gradient(135deg, rgba(34,197,94,0.08), rgba(0,0,0,0.95))`
-                        : `linear-gradient(135deg, ${t1Color}12, #0d0d14, ${t2Color}08)`,
-                    border: `1px solid ${isLiveMatch ? 'rgba(255,50,50,0.4)' : isResult ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                    boxShadow: isLiveMatch
-                      ? '0 0 20px rgba(255,50,50,0.12), inset 0 0 20px rgba(255,50,50,0.03)'
-                      : isResult ? '0 0 10px rgba(34,197,94,0.08)' : 'none',
-                  }}>
-                  {isLiveMatch && (
-                    <div className="absolute top-0 left-0 right-0 h-px" style={{
-                      background: 'linear-gradient(90deg, transparent, rgba(255,50,50,0.6), transparent)',
-                    }} />
-                  )}
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      {s.t1img && <img src={s.t1img} alt="" className="w-4 h-4 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
-                      <span className="text-[10px] font-black text-white">{t1Norm}</span>
-                    </div>
-                    {s.t1s && <span className="text-[10px] font-black" style={{ color: t1Color, textShadow: `0 0 6px ${t1Color}44` }}>{s.t1s}</span>}
-                  </div>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1.5">
-                      {s.t2img && <img src={s.t2img} alt="" className="w-4 h-4 rounded-sm" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' }} />}
-                      <span className="text-[10px] font-black text-white">{t2Norm}</span>
-                    </div>
-                    {s.t2s && <span className="text-[10px] font-black" style={{ color: t2Color, textShadow: `0 0 6px ${t2Color}44` }}>{s.t2s}</span>}
-                  </div>
-                  <div className="text-[8px] truncate font-bold" style={{
-                    color: isResult ? '#4ade80' : isLiveMatch ? '#FF5555' : COLORS.text.tertiary,
-                    textShadow: isResult ? '0 0 4px rgba(34,197,94,0.3)' : isLiveMatch ? '0 0 4px rgba(255,50,50,0.3)' : 'none',
-                  }}>
-                    {s.status}
-                  </div>
-                  {isLiveMatch && (
-                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,50,50,0.2)' }}>
-                      <div className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-[7px] font-black text-red-400">LIVE</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Live Matches */}
-      {liveMatches.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: COLORS.primary.main }} />
-            <h2 className="text-base font-semibold text-white">Live Now</h2>
+          {/* Sub-Tabs: Upcoming | Completed */}
+          <div className="flex items-center gap-0 p-1 rounded-xl mb-4" style={{ background: COLORS.background.tertiary }}>
+            <button data-testid="match-tab-upcoming"
+              onClick={() => setMatchTab('upcoming')}
+              className="flex-1 px-4 py-2.5 rounded-lg text-xs font-bold transition-all"
+              style={{
+                background: matchTab === 'upcoming' ? COLORS.primary.main : 'transparent',
+                color: matchTab === 'upcoming' ? '#fff' : COLORS.text.secondary,
+                boxShadow: matchTab === 'upcoming' ? '0 2px 8px rgba(255,59,59,0.3)' : 'none',
+              }}>
+              Upcoming ({upcomingMatches.length})
+            </button>
+            <button data-testid="match-tab-completed"
+              onClick={() => setMatchTab('completed')}
+              className="flex-1 px-4 py-2.5 rounded-lg text-xs font-bold transition-all"
+              style={{
+                background: matchTab === 'completed' ? COLORS.primary.main : 'transparent',
+                color: matchTab === 'completed' ? '#fff' : COLORS.text.secondary,
+                boxShadow: matchTab === 'completed' ? '0 2px 8px rgba(255,59,59,0.3)' : 'none',
+              }}>
+              Completed ({completedMatches.length})
+            </button>
           </div>
-          <div className="space-y-3">
-            {liveMatches.map((match, i) => (
-              <motion.div
-                key={match.id}
-                initial={{ opacity: 0, y: 20, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: i * 0.08, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}>
-                <MatchCard match={match} isLive onClick={onMatchClick} />
-              </motion.div>
-            ))}
-          </div>
+
+          {/* Tab Content */}
+          {matchTab === 'upcoming' ? (
+            upcomingMatches.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingMatches.map((match, i) => (
+                  <motion.div key={match.id}
+                    initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: i * 0.06, duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}>
+                    <MatchCard match={match} onClick={onMatchClick} />
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
+                <Calendar size={36} color={COLORS.text.tertiary} className="mx-auto mb-2" />
+                <p className="text-sm font-bold text-white mb-1">No Upcoming Matches</p>
+                <p className="text-xs" style={{ color: COLORS.text.secondary }}>Check back later for new fixtures</p>
+              </div>
+            )
+          ) : (
+            completedMatches.length > 0 ? (
+              <div className="space-y-3">
+                {completedMatches.map((match, i) => (
+                  <motion.div key={match.id}
+                    initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: i * 0.06, duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}>
+                    <MatchCard match={match} isCompleted onClick={onMatchClick} />
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
+                <Trophy size={36} color={COLORS.text.tertiary} className="mx-auto mb-2" />
+                <p className="text-sm font-bold text-white mb-1">No Completed Matches</p>
+                <p className="text-xs" style={{ color: COLORS.text.secondary }}>Results will appear here after matches end</p>
+              </div>
+            )
+          )}
         </div>
       )}
 
@@ -330,7 +326,6 @@ export default function HomePage({ onMatchClick }) {
             </button>
           </div>
           <div className="rounded-xl overflow-hidden" style={{ border: `1px solid rgba(255,255,255,0.06)` }}>
-            {/* Header */}
             <div className="flex items-center px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
               <span className="w-6 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>#</span>
               <span className="flex-1 text-[9px] font-bold" style={{ color: COLORS.text.tertiary }}>TEAM</span>
@@ -354,7 +349,6 @@ export default function HomePage({ onMatchClick }) {
                   background: `linear-gradient(90deg, ${teamPrimary}40, ${teamPrimary}25, ${teamSecondary}15, transparent)`,
                   borderLeft: `3px solid ${teamPrimary}`,
                 }}>
-                {/* Full row team color wash */}
                 <div className="absolute inset-0 pointer-events-none" style={{
                   background: `linear-gradient(90deg, ${teamPrimary}18, ${teamPrimary}08, transparent 70%)`,
                 }} />
@@ -382,34 +376,6 @@ export default function HomePage({ onMatchClick }) {
           onClose={() => setSelectedTeam(null)}
         />
       )}
-
-      {/* Upcoming Matches */}
-      {loading ? (
-        <div className="space-y-3"><MatchSkeleton /><MatchSkeleton /></div>
-      ) : upcomingMatches.length > 0 ? (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-black text-white tracking-tight">Upcoming Matches</h2>
-            <span className="text-xs" style={{ color: COLORS.text.tertiary }}>{upcomingMatches.length} matches</span>
-          </div>
-          <div className="space-y-3">
-            {upcomingMatches.map((match, i) => (
-              <motion.div
-                key={match.id}
-                initial={{ opacity: 0, y: 20, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: i * 0.06, duration: 0.35, ease: [0.22, 0.61, 0.36, 1] }}>
-                <MatchCard match={match} onClick={onMatchClick} />
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      ) : liveMatches.length === 0 ? (
-        <div className="text-center py-10 rounded-2xl" style={{ background: COLORS.background.card }}>
-          <Trophy size={36} color={COLORS.text.tertiary} className="mx-auto mb-2" />
-          <p className="text-sm" style={{ color: COLORS.text.secondary }}>No matches available right now</p>
-        </div>
-      ) : null}
 
       {/* Hot Contests - Instagram Stories Style */}
       {hotContests.length > 0 && (() => {
