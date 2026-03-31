@@ -78,13 +78,20 @@ async def get_ipl_records(
     db: AsyncIOMotorDatabase = Depends(get_db),
     category: str = Query(default=None)
 ):
-    """Get all IPL records, optionally filtered by category."""
+    """Get all IPL records, optionally filtered by category. Redis cached 10min."""
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cache_key = f"ipl:records:c={category or 'all'}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
     query = {}
     if category:
         query["category"] = category
     cursor = db.ipl_records.find(query, {"_id": 0}).sort("category", 1)
     records = await cursor.to_list(length=200)
-    return {"records": records, "total": len(records)}
+    result = {"records": records, "total": len(records)}
+    await cache_set(cache_key, result, CacheTTL.IPL_RECORDS)
+    return result
 
 
 @router.get("/players")
@@ -94,7 +101,12 @@ async def get_ipl_players(
     team: str = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100)
 ):
-    """Get IPL player profiles."""
+    """Get IPL player profiles. Redis cached 10min."""
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cache_key = f"ipl:players:r={role or ''}:t={team or ''}:l={limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
     query = {}
     if role:
         query["role"] = re.compile(re.escape(role), re.IGNORECASE)
@@ -105,7 +117,9 @@ async def get_ipl_players(
         ]
     cursor = db.ipl_players.find(query, {"_id": 0}).limit(limit)
     players = await cursor.to_list(length=limit)
-    return {"players": players, "total": len(players)}
+    result = {"players": players, "total": len(players)}
+    await cache_set(cache_key, result, CacheTTL.IPL_PLAYERS)
+    return result
 
 
 @router.get("/players/{player_name}")
@@ -127,10 +141,16 @@ async def get_player_profile(
 async def get_cap_winners(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    """Get Orange Cap and Purple Cap winners history."""
+    """Get Orange Cap and Purple Cap winners history. Redis cached 10min."""
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cached = await cache_get("ipl:caps")
+    if cached:
+        return cached
     cursor = db.ipl_caps.find({}, {"_id": 0}).sort("year", -1)
     caps = await cursor.to_list(length=20)
-    return {"cap_winners": caps, "total": len(caps)}
+    result = {"cap_winners": caps, "total": len(caps)}
+    await cache_set("ipl:caps", result, CacheTTL.IPL_CAPS)
+    return result
 
 
 @router.get("/seed")

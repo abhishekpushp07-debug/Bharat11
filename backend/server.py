@@ -248,6 +248,23 @@ async def create_indexes():
         IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)]),
         IndexModel([("user_id", ASCENDING), ("reason", ASCENDING)]),
     ])
+
+    # Users collection indexes
+    await db.users.create_indexes([
+        IndexModel([("id", ASCENDING)], unique=True),
+        IndexModel([("phone", ASCENDING)], unique=True),
+        IndexModel([("role", ASCENDING)]),
+    ])
+
+    # IPL data indexes
+    await db.ipl_players.create_indexes([
+        IndexModel([("name", ASCENDING)]),
+        IndexModel([("current_team", ASCENDING)]),
+        IndexModel([("role", ASCENDING)]),
+    ])
+    await db.ipl_records.create_indexes([
+        IndexModel([("category", ASCENDING)]),
+    ])
     
     logger.info("Database indexes created/verified (bulk)")
 
@@ -570,12 +587,15 @@ app.include_router(notifications_router, prefix="/api")
 async def root():
     """API root endpoint."""
     from services.socket_manager import get_socket_status
+    from services.redis_cache import get_cache_stats
+    cache = await get_cache_stats()
     return {
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
         "docs": "/api/docs" if settings.DEBUG else "disabled",
         "socket": get_socket_status(),
+        "cache": cache,
     }
 
 

@@ -293,19 +293,30 @@ async def get_contest_questions(
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
 
-    # Get template
-    template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+    # Cache questions (they rarely change) — but NOT user predictions or lock status
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    q_cache_key = f"contest:{contest_id}:questions"
+    cached_q = await cache_get(q_cache_key)
 
-    # Get questions
-    qids = template.get("question_ids", [])
-    cursor = db.questions.find({"id": {"$in": qids}}, {"_id": 0})
-    questions = await cursor.to_list(length=len(qids))
+    if cached_q:
+        ordered = cached_q["questions"]
+        template_name = cached_q["template_name"]
+    else:
+        # Get template
+        template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
 
-    # Maintain order
-    q_map = {q["id"]: q for q in questions}
-    ordered = [q_map[qid] for qid in qids if qid in q_map]
+        # Get questions
+        qids = template.get("question_ids", [])
+        cursor = db.questions.find({"id": {"$in": qids}}, {"_id": 0})
+        questions = await cursor.to_list(length=len(qids))
+
+        # Maintain order
+        q_map = {q["id"]: q for q in questions}
+        ordered = [q_map[qid] for qid in qids if qid in q_map]
+        template_name = template.get("name", "")
+        await cache_set(q_cache_key, {"questions": ordered, "template_name": template_name}, 600)
 
     # Check if user has existing predictions
     entry = await db.contest_entries.find_one(
@@ -324,7 +335,7 @@ async def get_contest_questions(
 
     return {
         "contest_id": contest_id,
-        "template_name": template.get("name", ""),
+        "template_name": template_name,
         "questions": ordered,
         "total_questions": len(ordered),
         "total_points": sum(q.get("points", 10) for q in ordered),
@@ -459,7 +470,7 @@ async def my_contests(
     contest_ids = list(set(e["contest_id"] for e in all_entries))
     contests_cursor = db.contests.find(
         {"id": {"$in": contest_ids}},
-        {"_id": 0, "id": 1, "name": 1, "status": 1, "match_id": 1, "entry_fee": 1, "prize_pool": 1, "current_participants": 1}
+        {"_id": 0, "id": 1, "name": 1, "status": 1, "match_id": 1, "entry_fee": 1, "prize_pool": 1, "current_participants": 1, "question_count": 1, "template_id": 1, "template_name": 1, "template_type": 1}
     )
     contests_list = await contests_cursor.to_list(length=len(contest_ids))
     contest_map = {c["id"]: c for c in contests_list}
@@ -467,9 +478,25 @@ async def my_contests(
     match_ids = list(set(c.get("match_id", "") for c in contests_list if c.get("match_id")))
     matches_cursor = db.matches.find(
         {"id": {"$in": match_ids}},
-        {"_id": 0, "id": 1, "team_a": 1, "team_b": 1, "status": 1, "start_time": 1}
+        {"_id": 0, "id": 1, "team_a": 1, "team_b": 1, "status": 1, "start_time": 1, "venue": 1, "live_score": 1}
     )
     matches_list = await matches_cursor.to_list(length=len(match_ids))
+
+    # Add IST formatted time to each match
+    from datetime import timedelta, timezone as tz
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+    for m in matches_list:
+        st = m.get("start_time", "")
+        if st:
+            try:
+                from dateutil.parser import parse as dt_parse
+                dt_obj = dt_parse(str(st)) if isinstance(st, str) else st
+                if dt_obj.tzinfo is None:
+                    dt_obj = dt_obj.replace(tzinfo=tz.utc)
+                ist_dt = dt_obj + IST_OFFSET
+                m["start_time_ist"] = ist_dt.strftime("%d %b %Y, %I:%M %p") + " IST"
+            except Exception:
+                m["start_time_ist"] = str(st)
     match_map = {m["id"]: m for m in matches_list}
 
     # Build result with filter BEFORE pagination

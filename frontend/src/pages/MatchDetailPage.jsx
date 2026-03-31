@@ -282,23 +282,23 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
           </div>
 
           {/* Toss + Status Info */}
-          <div className="px-4 py-2.5 flex items-center justify-around text-center" style={{ borderTop: `1px solid ${COLORS.border.light}`, background: 'rgba(0,0,0,0.3)' }}>
+          <div className="px-3 py-2.5 flex items-center justify-between gap-2 text-center" style={{ borderTop: `1px solid ${COLORS.border.light}`, background: 'rgba(0,0,0,0.3)' }}>
             {matchInfo?.toss_winner ? (
-              <div className="flex items-center gap-1.5">
-                <Coins size={12} color={COLORS.accent.gold} />
-                <span className="text-[10px]" style={{ color: COLORS.text.secondary }}>
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <Coins size={12} color={COLORS.accent.gold} className="shrink-0" />
+                <span className="text-[10px] truncate" style={{ color: COLORS.text.secondary }}>
                   Toss: <b style={{ color: COLORS.accent.gold }}>{matchInfo.toss_winner}</b> chose to <b>{matchInfo.toss_choice}</b>
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5">
-                <MapPin size={12} color={COLORS.text.tertiary} />
-                <span className="text-[10px]" style={{ color: COLORS.text.secondary }}>{match?.venue || 'TBD'}</span>
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <MapPin size={12} color={COLORS.text.tertiary} className="shrink-0" />
+                <span className="text-[10px] truncate" style={{ color: COLORS.text.secondary }}>{match?.venue || 'TBD'}</span>
               </div>
             )}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <Clock size={12} color={COLORS.warning.main} />
-              <span className="text-[10px]" style={{ color: COLORS.warning.main }}>
+              <span className="text-[10px] whitespace-nowrap" style={{ color: COLORS.warning.main }}>
                 {isLive ? 'In Progress' : isCompleted ? matchInfo?.status || 'Completed' : (match?.start_time_ist || new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }))}
               </span>
             </div>
@@ -341,20 +341,21 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         ))}
       </div>
 
-      {/* Tab Bar - Glass morphism */}
-      <div className="flex rounded-xl overflow-hidden glass" style={{ border: `1px solid ${COLORS.border.light}` }}>
+      {/* Tab Bar - Glass morphism, scroll on mobile */}
+      <div className="flex rounded-xl overflow-x-auto scrollbar-hide glass" style={{ border: `1px solid ${COLORS.border.light}`, scrollbarWidth: 'none' }}>
         {TABS.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.key;
           return (
             <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setActiveTab(tab.key)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-bold transition-all relative"
+              className="flex-1 flex items-center justify-center gap-1 py-2.5 px-2 text-[10px] font-bold transition-all relative whitespace-nowrap min-w-0"
               style={{
                 color: active ? '#fff' : COLORS.text.tertiary,
                 background: active ? `${COLORS.primary.main}20` : 'transparent',
+                minHeight: '44px',
               }}>
-              <Icon size={14} />
-              {tab.label}
+              <Icon size={13} className="shrink-0" />
+              <span className="truncate">{tab.label}</span>
               {active && <div className="absolute bottom-0 left-1/4 right-1/4 h-[2px] rounded-full" style={{ background: COLORS.primary.main }} />}
             </button>
           );

@@ -324,6 +324,12 @@ async def get_match_contests(
     db: AsyncIOMotorDatabase = Depends(get_db),
     status_filter: Optional[str] = Query(default=None, alias="status")
 ):
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cache_key = f"match:{match_id}:contests:s={status_filter or 'all'}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
     # Verify match exists
     match = await db.matches.find_one({"id": match_id}, {"_id": 0, "id": 1})
     if not match:
@@ -336,7 +342,9 @@ async def get_match_contests(
     cursor = db.contests.find(query, {"_id": 0}).sort("entry_fee", 1)
     contests = await cursor.to_list(length=50)
 
-    return {"match_id": match_id, "contests": contests, "total": len(contests)}
+    result = {"match_id": match_id, "contests": contests, "total": len(contests)}
+    await cache_set(cache_key, result, CacheTTL.CONTESTS_LIST)
+    return result
 
 
 # ==================== NEW PLAYER APIs (LOT1-5) ====================
@@ -405,7 +413,13 @@ async def get_match_fantasy_points(match_id: str, db: AsyncIOMotorDatabase = Dep
     summary="Get detailed match info - toss, winner (LOT2 API 5)"
 )
 async def get_match_info_detail(match_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Returns toss winner/choice, match winner, series_id, scores. Uses MongoDB cache."""
+    """Returns toss winner/choice, match winner, series_id, scores. Redis cached 2min + MongoDB cache."""
+    from services.redis_cache import cache_get, cache_set, CacheTTL
+    cache_key = f"match:{match_id}:info"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
     from services.api_cache import cached_cricket
     from services.settlement_engine import _auto_link_cricketdata_id
 
@@ -423,7 +437,7 @@ async def get_match_info_detail(match_id: str, db: AsyncIOMotorDatabase = Depend
     if not data:
         return {"match_id": match_id, "error": "Could not fetch info"}
 
-    return {
+    result = {
         "match_id": match_id,
         "name": data.get("name", ""),
         "venue": data.get("venue", ""),
@@ -436,6 +450,8 @@ async def get_match_info_detail(match_id: str, db: AsyncIOMotorDatabase = Depend
         "teams": data.get("teams", []),
         "team_info": data.get("teamInfo", []),
     }
+    await cache_set(cache_key, result, CacheTTL.MATCH_INFO)
+    return result
 
 
 # ==================== ADMIN ENDPOINTS ====================

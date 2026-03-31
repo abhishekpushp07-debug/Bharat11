@@ -149,7 +149,7 @@ function ContestCard({ entry, contest, match, index, onClick }) {
   const predictions = entry?.predictions || [];
   const answered = predictions.length;
   const correct = predictions.filter(p => p.is_correct).length;
-  const totalQ = contest?.total_questions || 16;
+  const totalQ = contest?.question_count || contest?.total_questions || 16;
 
   return (
     <motion.div
