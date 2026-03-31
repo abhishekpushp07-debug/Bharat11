@@ -1,132 +1,64 @@
-# Bharat 11 - Fantasy Cricket Prediction PWA
+# Bharat 11 — Fantasy Cricket Prediction PWA
 
 ## Product Overview
-Bharat 11 is an interactive Fantasy Cricket Prediction PWA where users make ball-by-ball predictions on live IPL matches, compete in contests, earn coins, and climb leaderboards.
+A mobile-first PWA for fantasy cricket predictions (IPL T20). Users predict match outcomes via bilingual (Hindi/English) questions, compete in contests, and earn points.
 
-## Tech Stack
-- **Frontend**: React.js (CRA), TailwindCSS, Framer Motion, Zustand
-- **Backend**: FastAPI, MongoDB, Redis (caching)
-- **Auth**: JWT (Phone + PIN based)
-- **External**: CricketData.org API for live match data
-- **AI**: Emergent LLM Key (GPT-5.2) for AI Ball-by-Ball commentary
+## Core Architecture
+- **Frontend**: React.js PWA (port 3000)
+- **Backend**: FastAPI (port 8001, prefix `/api`)
+- **Database**: MongoDB (via MONGO_URL)
+- **Real-time**: Socket.IO (partially integrated)
+- **AI**: OpenAI/Claude via Emergent LLM Key (Ball-by-ball commentary)
+- **Cricket Data**: CricketData.org API (live scores, scorecards)
 
-## Core Features
+## Implemented Features (as of March 31, 2026)
 
-### Authentication
-- Phone + 4-digit PIN login/register
-- Forgot PIN (phone-based reset)
-- Change PIN (3-step flow: old PIN -> new PIN -> confirm)
-- Change Username
-- JWT token refresh flow
-- Rate limiting & brute force protection
+### Auth & Users
+- JWT auth with phone + 4-digit PIN
+- Admin/Player roles
+- Wallet system (deposit, withdrawal, transactions)
 
-### User Features  
-- View live/upcoming/completed matches
-- Join contests and make predictions
-- Dual Points Banner (Fantasy Points + Contest Coins)
-- WhatsApp sharing card (Canvas rendering)
-- Rank progress (Rookie -> Pro -> Expert -> Legend -> GOAT)
-- Referral system with bonus coins
-- Profile with stats, rank, referral code
-- Prediction accuracy tracking
+### Match System
+- Auto-sync from CricketData API (IPL 2025 schedule)
+- Match lifecycle: upcoming -> live -> completed
+- Scorecard polling (45s cache)
+- AI Ball-by-ball commentary (40s TTL)
 
-### Admin Features
-- Match management (sync from CricketData API)
-- Contest CRUD with templates/questions
-- Auto Settlement Engine (AI-powered question resolution)
-- Autopilot (auto match state transitions with manual override)
-- User Management:
-  - Search users by name/phone
-  - View user details (stats, entries, predictions)
-  - Ban/Unban users
-  - Adjust coins (add/deduct with reason)
-  - Reset user PIN
-  - Filter: All / Banned
-- Live ticker management
-- Quick Resolve All (AI nuclear button)
-- IPL Points Table management
+### Question Pool
+- 94 bilingual questions (Hindi + English)
+- Categories: batting, bowling, powerplay, death_overs, match, player_performance, special
+- Difficulty levels: easy (55pts), medium (70pts), hard (90pts)
+- Auto-resolution rules per question (range_match, boolean_match, exact_match)
 
-### Performance
-- Redis caching on live-ticker, matches, points-table APIs
-- MongoDB compound indexes
-- Pagination on all list endpoints
+### Templates & Contests
+- 5-template system per match (1 full_match + 4 in_match)
+- Auto-template generation via Match Engine
+- Contest creation with entry fees and prize pools
+- Auto-settlement engine (45s polling)
 
-## Architecture
-```
-/app/backend/
-  ├── core/ (database, security, redis_manager)
-  ├── models/ (schemas.py - Pydantic models)
-  ├── routers/ (auth, admin, matches, contests, user, wallet, notifications)
-  ├── services/ (auth_service, user_service, cricket_data, autopilot, settlement_engine, ai_commentary, redis_cache)
-  └── repositories/ (user_repository)
+### Admin Dashboard
+- **Auto-Pilot Toggle**: START/STOP autopilot system (auto-resolve, auto-finalize, auto-create)
+- **Match Auto-Engine**: One-tap actions — Seed Questions, Auto Templates All, Auto Contests 24h
+- **Per-Match Controls**: Auto 5 Templates, Make Live/Unlive, Add Contest, AI Resolve
+- Stats dashboard, user management, content management
 
-/app/frontend/src/
-  ├── api/ (client.js - API wrapper)
-  ├── components/ (auth/, ui/, CelebrationOverlay, BottomNav, etc.)
-  ├── pages/ (HomePage, ProfilePage, MatchDetailPage, MyContestsPage, admin/)
-  ├── stores/ (authStore, socketStore)
-  └── constants/ (design.js - COLORS, RANKS, TEAM_COLORS)
-```
-
-## Implemented (as of March 31, 2026)
-- [x] JWT Auth (Phone + PIN)
-- [x] Match sync from CricketData API
-- [x] Contest lifecycle (create -> open -> live -> completed)
-- [x] Predictions system
-- [x] Auto Settlement Engine
-- [x] Autopilot with manual override
-- [x] Redis caching
-- [x] Mobile-optimized UI (360px+)
-- [x] User Name Change
-- [x] Change PIN (3-step flow)
-- [x] Forgot PIN (phone-based reset)
-- [x] Dual Points Banner (fixed total_points)
-- [x] Admin User Management (search, ban/unban, coin adjust, PIN reset)
-- [x] WhatsApp Sharing Card (canvas rendering)
-- [x] Enhanced Profile Page
-- [x] AI Ball-by-Ball Commentary (GPT-5.2)
-- [x] IPL Points Table
-- [x] Referral System
-- [x] **Contest Status Lock**: Predictions blocked for non-live contests (only LIVE allows edit)
-- [x] **Leaderboard Rank Shortcut**: Rank badge on contest cards with tap-to-navigate
-- [x] **Contest Status Protocol**: LIVE=join/predict, OPEN=leaderboard only (Dream11 style), DONE=results
-
-## Contest Status Lifecycle
-- **Live**: Contest open for participation — join, submit, edit answers
-- **Open**: Participation closed, match ongoing, results pending — leaderboard + user answers only
-- **Done/Completed**: Match over, 100% results settled
-
-## Implemented (April 1, 2026 - Session 2)
-- [x] **Contest Lock Fix**: When contest status is 'live', lock_time is IGNORED
-- [x] **Prediction Submission Fix**: Users can submit predictions on live contests
-- [x] **Admin Delete Contest**: Enhanced with auto-refund
-- [x] **AI Commentary 40s Cache TTL**: Commentary regenerates every 40 seconds for live matches
-- [x] **Scorecard Cache 45s**: Reduced from 60s
-- [x] **30s Polling**: Reduced from 45s for responsiveness
-- [x] **Live Update Indicator**: Shows "Updated Xs ago | Poll #N | Refresh"
-- [x] **Global Celebration Overlay**: CelebrationOverlay now renders at root level in BOTH PlayerApp AND PlayerView — animations fire on ANY screen (Home, Contest, Profile, etc.)
-- [x] **Global Scorecard Polling**: Both PlayerApp and PlayerView poll scorecard every 30s to detect 4s/6s/wickets regardless of which page user is on
-- [x] **3 New Questions Added**: Q17 (साझेदारी 60+), Q18 (allrounder), Q19 (2 players 3+ sixes) — total 19 questions
-
-## Implemented (April 1, 2026 - Session 1)
-- [x] **45-Second Auto-Polling**: Scorecard & AI Commentary auto-refresh every 45s for live/open matches
-- [x] **Auto-Celebration Detection**: Compares previous vs current scorecard to detect new fours/sixes/wickets
-- [x] **CelebrationOverlay Animations**: Canvas particle engine with fire embers (SIX), blue beams (FOUR), stump debris (WICKET), gold confetti (PRIZE)
-- [x] **AI Commentary Live Tab**: Match Pulse, Phase Analysis, Timeline, MVPs, Turning Point, Verdict — all auto-updating
-
-
-## Backlog
-### P1
-- Socket.IO real-time integration for live scores (replace 45s polling)
-- Push notifications for match events
-
-### P2
-- Live Prediction Accuracy Leaderboard (Redis sorted sets)
-- Additional heavy UI animations (prize winners, rank ups)
-
-### P3
-- User Management tab improvements
-- Tournament bracket views
+### UX/Animations
+- Global celebration overlay (Four/Six/Wicket animations at root level)
+- Dark theme with gold accents
+- Mobile-first responsive design
 
 ## Credentials
 - Super Admin: Phone: 7004186276, PIN: 5524
+
+## Tech Stack
+- React.js, FastAPI, MongoDB, Socket.IO (ASGI), Pydantic
+- Redis (optional, gracefully bypassed if unavailable)
+- CricketData.org API, Emergent LLM Key (OpenAI/Claude)
+
+## Upcoming Tasks (Priority Order)
+1. **P1**: Socket.IO Frontend Integration (replace 30s polling)
+2. **P1**: Push Notifications for match events
+3. **P2**: Live Prediction Accuracy Leaderboard (Redis sorted sets)
+4. **P2**: Additional heavy UI animations (prize winners, rank ups)
+5. **P2**: WhatsApp sharing (HTML-to-Canvas card generation)
+6. **P3**: User Management improvements
