@@ -68,7 +68,38 @@ async def get_live_ticker(
         data = [m for m in data if "indian premier league" in (m.get("series", "") or "").lower()]
 
     scores = []
+    from datetime import timedelta
+    IST_OFFSET = timedelta(hours=5, minutes=30)
     for m in data:
+        # Convert status text from GMT to IST
+        status_text = m.get("status", "")
+        date_gmt = m.get("dateTimeGMT", "")
+        
+        # Build IST display from dateTimeGMT
+        ist_display = ""
+        if date_gmt:
+            try:
+                from dateutil.parser import parse as dt_parse
+                from datetime import timezone as tz
+                dt_obj = dt_parse(str(date_gmt))
+                if dt_obj.tzinfo is None:
+                    dt_obj = dt_obj.replace(tzinfo=tz.utc)
+                ist_dt = dt_obj + IST_OFFSET
+                ist_display = ist_dt.strftime("%d %b, %I:%M %p") + " IST"
+            except Exception:
+                ist_display = date_gmt
+
+        # Replace GMT time in status with IST
+        if "GMT" in status_text and ist_display:
+            import re
+            status_text = re.sub(
+                r'at\s+\w+\s+\d+,\s+\d+:\d+\s+GMT',
+                f'at {ist_display}',
+                status_text
+            )
+            if "GMT" in status_text:
+                status_text = status_text.replace("GMT", "IST")
+
         scores.append({
             "id": m.get("id", ""),
             "t1": m.get("t1", ""),
@@ -77,9 +108,10 @@ async def get_live_ticker(
             "t2s": m.get("t2s", ""),
             "t1img": m.get("t1img", ""),
             "t2img": m.get("t2img", ""),
-            "status": m.get("status", ""),
+            "status": status_text,
             "ms": m.get("ms", ""),
-            "dateTimeGMT": m.get("dateTimeGMT", ""),
+            "dateTimeGMT": date_gmt,
+            "ist_display": ist_display,
         })
 
     return {"scores": scores, "count": len(scores)}

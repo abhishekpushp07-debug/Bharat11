@@ -160,9 +160,36 @@ async def list_matches(
         query["status"] = match_status
 
     skip = (page - 1) * limit
-    cursor = db.matches.find(query, {"_id": 0}).sort("start_time", -1).skip(skip).limit(limit)
-    matches = await cursor.to_list(length=limit)
-    total = await db.matches.count_documents(query)
+
+    # Smart sorting: when no filter, return live + nearest upcoming + recent completed
+    if not match_status and page == 1:
+        from datetime import timezone as tz
+        now = datetime.now(tz.utc).isoformat()
+
+        # Get all live matches
+        live_matches = await db.matches.find({"status": "live"}, {"_id": 0}).sort("start_time", 1).to_list(20)
+        # Get nearest upcoming matches (ascending by start_time)
+        upcoming_matches = await db.matches.find(
+            {"status": "upcoming", "start_time": {"$gte": now}},
+            {"_id": 0}
+        ).sort("start_time", 1).limit(limit).to_list(limit)
+        # If not enough upcoming from future, also get upcoming without time filter
+        if len(upcoming_matches) < 5:
+            all_upcoming = await db.matches.find({"status": "upcoming"}, {"_id": 0}).sort("start_time", 1).limit(limit).to_list(limit)
+            seen = {m["id"] for m in upcoming_matches}
+            for m in all_upcoming:
+                if m["id"] not in seen:
+                    upcoming_matches.append(m)
+        # Get recently completed (descending by start_time)
+        completed_matches = await db.matches.find({"status": "completed"}, {"_id": 0}).sort("start_time", -1).limit(5).to_list(5)
+
+        matches = live_matches + upcoming_matches + completed_matches
+        total = await db.matches.count_documents({})
+    else:
+        sort_dir = -1 if match_status == "completed" else 1
+        cursor = db.matches.find(query, {"_id": 0}).sort("start_time", sort_dir).skip(skip).limit(limit)
+        matches = await cursor.to_list(length=limit)
+        total = await db.matches.count_documents(query)
 
     # Add IST formatted time for frontend display
     IST_OFFSET = timedelta(hours=5, minutes=30)

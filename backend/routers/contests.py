@@ -313,6 +313,8 @@ async def get_contest_questions(
     is_locked = False
     if lock_time:
         lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
+        if lt.tzinfo is None:
+            lt = lt.replace(tzinfo=timezone.utc)
         is_locked = datetime.now(timezone.utc) >= lt
 
     return {
@@ -348,6 +350,8 @@ async def submit_predictions(
     lock_time = contest.get("lock_time", "")
     if lock_time:
         lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
+        if lt.tzinfo is None:
+            lt = lt.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) >= lt:
             raise HTTPException(status_code=400, detail="Contest is locked. Predictions cannot be modified")
 

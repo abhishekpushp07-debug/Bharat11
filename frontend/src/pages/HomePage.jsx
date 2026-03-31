@@ -79,7 +79,7 @@ export default function HomePage({ onMatchClick }) {
     if (showRefresh) setRefreshing(true);
     try {
       const [matchRes, contestRes, tickerRes, ptRes] = await Promise.allSettled([
-        apiClient.get('/matches?limit=10'),
+        apiClient.get('/matches?limit=50'),
         apiClient.get('/contests?limit=5'),
         apiClient.get('/cricket/live-ticker'),
         apiClient.get('/cricket/ipl/points-table'),
@@ -642,11 +642,23 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
 
       {/* Bottom action strip */}
       <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: COLORS.background.tertiary, borderTop: `1px solid ${COLORS.border.light}` }}>
-        <div className="flex items-center gap-1.5">
-          <MapPin size={11} color={COLORS.text.tertiary} />
-          <span className="text-[10px] truncate max-w-[150px]" style={{ color: COLORS.text.tertiary }}>{match.venue || ''}</span>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {!isLive && !isCompleted && (
+            <>
+              <Calendar size={11} color={COLORS.warning.main} />
+              <span className="text-[10px] font-semibold truncate" style={{ color: COLORS.warning.main }}>
+                {match.start_time_ist || new Date(match.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+              </span>
+            </>
+          )}
+          {(isLive || isCompleted) && (
+            <>
+              <MapPin size={11} color={COLORS.text.tertiary} />
+              <span className="text-[10px] truncate max-w-[150px]" style={{ color: COLORS.text.tertiary }}>{match.venue || ''}</span>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-1 text-xs font-bold" style={{ color: COLORS.primary.main }}>
+        <div className="flex items-center gap-1 text-xs font-bold shrink-0" style={{ color: COLORS.primary.main }}>
           {isLive ? 'Live Score' : isCompleted ? 'Scorecard' : 'Predict Now'} <ChevronRight size={14} />
         </div>
       </div>
