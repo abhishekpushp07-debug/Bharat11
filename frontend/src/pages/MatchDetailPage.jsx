@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/client';
 import { COLORS } from '../constants/design';
 import { getTeamLogo, getTeamGradient, getTeamCardImage, TEAM_COLORS, normalizeTeam } from '../constants/teams';
@@ -88,7 +88,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
   // ===== LIVE DATA POLLING (45s) =====
   // Fetches: scorecard, AI commentary, and detects events for celebrations
   const fetchLiveData = useCallback(async () => {
-    if (!match?.id || match?.status !== 'live') return;
+    if (!match?.id) return;
 
     try {
       const [scRes, aiRes] = await Promise.allSettled([
@@ -100,55 +100,50 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
       const newAi = aiRes.status === 'fulfilled' ? aiRes.value.data : null;
 
       // Update scorecard
-      if (newScorecard) {
+      if (newScorecard && !newScorecard.error) {
         setScorecardData(newScorecard);
 
         // ===== AUTO-CELEBRATION DETECTION =====
-        // Compare previous score with new to detect 4/6/wicket
+        // Parse all batting data from all innings to get aggregate stats
+        const allInnings = newScorecard?.scorecard || [];
+        let totalFours = 0, totalSixes = 0, totalWickets = 0;
+        for (const inn of allInnings) {
+          const batting = inn?.batting || [];
+          for (const b of batting) {
+            totalSixes += parseInt(b['6s']) || 0;
+            totalFours += parseInt(b['4s']) || 0;
+            if (b.dismissal && b.dismissal !== 'not out') totalWickets++;
+          }
+        }
+
         const prevScore = lastScoreRef.current;
-        const currentInnings = newScorecard?.scorecard?.[0] || newScorecard?.scorecard?.[1];
-        const batting = currentInnings?.batting || [];
-
-        if (prevScore && batting.length > 0) {
-          // Check for new wickets
-          const prevWickets = prevScore.wickets || 0;
-          const newWickets = batting.filter(b => b.dismissal && b.dismissal !== 'not out').length;
-          if (newWickets > prevWickets) {
+        if (prevScore) {
+          // Compare with previous poll to detect new events
+          if (totalWickets > prevScore.wickets) {
             setCelebration('wicket');
-          } else {
-            // Check for sixes and fours by comparing totals
-            const prevSixes = prevScore.sixes || 0;
-            const prevFours = prevScore.fours || 0;
-            const newSixes = batting.reduce((s, b) => s + (parseInt(b['6s']) || 0), 0);
-            const newFours = batting.reduce((s, b) => s + (parseInt(b['4s']) || 0), 0);
-
-            if (newSixes > prevSixes) {
-              setCelebration('six');
-            } else if (newFours > prevFours) {
-              setCelebration('four');
-            }
+          } else if (totalSixes > prevScore.sixes) {
+            setCelebration('six');
+          } else if (totalFours > prevScore.fours) {
+            setCelebration('four');
           }
         }
 
         // Store current stats for next comparison
-        if (batting.length > 0) {
-          lastScoreRef.current = {
-            wickets: batting.filter(b => b.dismissal && b.dismissal !== 'not out').length,
-            sixes: batting.reduce((s, b) => s + (parseInt(b['6s']) || 0), 0),
-            fours: batting.reduce((s, b) => s + (parseInt(b['4s']) || 0), 0),
-          };
-        }
+        lastScoreRef.current = { wickets: totalWickets, sixes: totalSixes, fours: totalFours };
       }
 
-      // Update AI commentary
+      // Update AI commentary — use functional update to avoid stale closure
       if (newAi || newScorecard) {
-        setBbbData({ ai: newAi, scorecard: newScorecard || scorecardData });
+        setBbbData(prev => ({
+          ai: newAi || prev?.ai,
+          scorecard: newScorecard || prev?.scorecard,
+        }));
         setBbbLoading(false);
       }
     } catch (err) {
       console.error('Live data fetch error:', err);
     }
-  }, [match?.id, match?.status, scorecardData]);
+  }, [match?.id]);
 
   useEffect(() => {
     if (match?.id) {
@@ -161,11 +156,13 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     }
   }, [match?.id, fetchContests, fetchMatchInfo]);
 
-  // ===== 45-SECOND POLLING for LIVE matches =====
+  // ===== 45-SECOND POLLING for LIVE/OPEN matches =====
   useEffect(() => {
-    if (!match?.id || match?.status !== 'live') return;
+    if (!match?.id) return;
+    const isMatchRunning = match?.status === 'live' || match?.status === 'open';
+    if (!isMatchRunning) return;
 
-    // Initial fetch
+    // Initial fetch immediately
     fetchLiveData();
 
     // Poll every 45 seconds
