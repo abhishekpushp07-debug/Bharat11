@@ -1572,7 +1572,7 @@ async def bulk_delete_contests(
 
 @router.delete(
     "/contests/{contest_id}",
-    summary="Delete a single contest"
+    summary="Delete a single contest and refund participants"
 )
 async def delete_single_contest(
     contest_id: str,
@@ -1582,9 +1582,28 @@ async def delete_single_contest(
     contest = await db.contests.find_one({"id": contest_id})
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
+
+    # Refund entry fees to all participants before deleting
+    entry_fee = contest.get("entry_fee", 0)
+    entries = await db.contest_entries.find({"contest_id": contest_id}, {"_id": 0, "user_id": 1}).to_list(length=10000)
+
+    if entry_fee > 0 and entries:
+        from models.schemas import utc_now, generate_id
+        now = utc_now().isoformat()
+        for entry in entries:
+            await db.users.update_one(
+                {"id": entry["user_id"]},
+                {"$inc": {"coins_balance": entry_fee}}
+            )
+
     await db.contest_entries.delete_many({"contest_id": contest_id})
     await db.contests.delete_one({"id": contest_id})
-    return {"message": "Contest deleted", "id": contest_id}
+    return {
+        "message": "Contest deleted",
+        "id": contest_id,
+        "entries_removed": len(entries),
+        "refunds_issued": len(entries) if entry_fee > 0 else 0
+    }
 
 
 @router.put(
@@ -1616,6 +1635,7 @@ async def update_contest_status(
         {"$set": {"status": new_status, "manual_override": True, "updated_at": utc_now().isoformat()}}
     )
     return {"message": f"Contest status updated to {new_status}", "id": contest_id, "old_status": old_status, "new_status": new_status}
+
 
 
 # ==================== AI PREVIEW + RESOLVE OVERRIDE ====================

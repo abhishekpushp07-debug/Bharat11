@@ -319,17 +319,10 @@ async def get_contest_questions(
 
     # Check lock status — ONLY live contests allow editing
     # live = accepting predictions, open = participation closed, completed = done
+    # RULE: If admin explicitly set status=live, that OVERRIDES lock_time.
+    # lock_time is a fallback timer, not a hard override over admin's live status.
     contest_status = contest.get("status", "open")
-    lock_time = contest.get("lock_time") or ""
-    is_locked = contest_status != "live"  # locked if not live
-    if not is_locked and lock_time and lock_time != "":
-        try:
-            lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
-            if lt.tzinfo is None:
-                lt = lt.replace(tzinfo=timezone.utc)
-            is_locked = datetime.now(timezone.utc) >= lt
-        except (ValueError, TypeError):
-            pass  # Skip invalid lock_time
+    is_locked = contest_status != "live"  # locked if not live — period
 
     return {
         "contest_id": contest_id,
@@ -339,7 +332,7 @@ async def get_contest_questions(
         "total_points": sum(q.get("points", 10) for q in ordered),
         "is_locked": is_locked,
         "contest_status": contest_status,
-        "lock_time": lock_time,
+        "lock_time": contest.get("lock_time", ""),
         "my_predictions": entry.get("predictions", []) if entry else [],
         "submitted_at": entry.get("submission_time") if entry else None
     }
@@ -375,17 +368,9 @@ async def submit_predictions(
             detail=status_msg
         )
 
-    # 2. Check lock time (basic time check) - skip if lock_time is empty/missing
-    lock_time = contest.get("lock_time") or ""
-    if lock_time and lock_time != "":
-        try:
-            lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
-            if lt.tzinfo is None:
-                lt = lt.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) >= lt:
-                raise HTTPException(status_code=400, detail="Contest is locked. Predictions cannot be modified")
-        except (ValueError, TypeError):
-            pass  # Skip invalid lock_time format
+    # 2. RULE: If admin has explicitly set status to "live", lock_time is IGNORED.
+    # lock_time is a fallback timer for auto-locking, not an override.
+    # Template over-based deadlines (check_can_submit below) still apply.
 
     # 2b. Check template deadline (over-based enforcement — HARD RULE)
     template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
