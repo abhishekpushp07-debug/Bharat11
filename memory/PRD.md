@@ -87,6 +87,8 @@ Bharat 11 is an interactive Fantasy Cricket Prediction PWA where users make ball
 - [x] AI Ball-by-Ball Commentary (GPT-5.2)
 - [x] IPL Points Table
 - [x] Referral System
+- [x] **Contest Status Lock**: Predictions blocked for non-open/non-live contests (bug fix)
+- [x] **Leaderboard Rank Shortcut**: Rank badge on contest cards with tap-to-navigate
 
 ## Backlog
 ### P1
