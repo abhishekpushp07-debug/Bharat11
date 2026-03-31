@@ -196,9 +196,18 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
       await apiClient.post(`/contests/${contestId}/join`, { team_name: `Team_${Date.now().toString(36)}` });
       setJoinedIds(prev => new Set([...prev, contestId]));
       onJoinContest?.(contestId);
+      fetchContests();  // Refresh contest list after successful join
     } catch (e) {
-      const msg = e?.response?.data?.detail || e?.message || 'Join failed';
-      if (msg.includes('Already joined')) {
+      let msg = 'Join failed';
+      if (e?.response?.data?.detail) {
+        msg = typeof e.response.data.detail === 'string' ? e.response.data.detail : JSON.stringify(e.response.data.detail);
+      } else if (e?.response?.data?.message) {
+        msg = e.response.data.message;
+      } else if (e?.message) {
+        msg = e.message;
+      }
+      console.error('Join error:', e?.response?.status, msg);
+      if (msg.includes('Already joined') || msg.includes('409')) {
         setJoinedIds(prev => new Set([...prev, contestId]));
         onOpenPrediction?.(contestId);
       } else { setJoinError(msg); }

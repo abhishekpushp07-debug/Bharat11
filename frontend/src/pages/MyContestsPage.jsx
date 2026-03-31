@@ -22,16 +22,16 @@ export default function MyContestsPage({ onContestClick, onViewLeaderboard }) {
 
   const fetchAll = async () => {
     try {
-      const [myRes, liveRes] = await Promise.all([
+      const [myRes, liveRes] = await Promise.allSettled([
         apiClient.get('/contests/user/my-contests?limit=50'),
         apiClient.get('/contests?status=live&limit=20'),
       ]);
-      const myContests = myRes.data.my_contests || [];
+      const myContests = myRes.status === 'fulfilled' ? (myRes.value.data.my_contests || []) : [];
       setContests(myContests);
 
       // Filter available live contests user hasn't joined
       const joinedIds = new Set(myContests.map(c => c.contest?.id));
-      const allLive = liveRes.data.contests || [];
+      const allLive = liveRes.status === 'fulfilled' ? (liveRes.value.data.contests || []) : [];
       const unjoined = [];
       for (const c of allLive) {
         if (!joinedIds.has(c.id)) {

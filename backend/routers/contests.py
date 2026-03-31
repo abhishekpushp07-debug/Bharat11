@@ -169,17 +169,10 @@ async def join_contest(
         raise HTTPException(status_code=404, detail="Contest not found")
 
     if contest["status"] != "live":
-        raise HTTPException(status_code=400, detail="Sirf live contests mein join kar sakte ho")
+        raise HTTPException(status_code=400, detail=f"Contest is not live (status: {contest.get('status')}). Sirf live contests mein join kar sakte ho")
 
-    # Check lock time
-    lock_time = contest.get("lock_time", "")
-    if lock_time:
-        lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
-        # Ensure timezone-aware comparison
-        if lt.tzinfo is None:
-            lt = lt.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) >= lt:
-            raise HTTPException(status_code=400, detail="Contest is locked. Cannot join after lock time")
+    # Note: Lock time is NOT checked when joining — if admin has set status to "live",
+    # that takes priority. Lock time is only used for prediction submission deadlines.
 
     # Check max participants
     if contest["current_participants"] >= contest["max_participants"]:
@@ -327,13 +320,16 @@ async def get_contest_questions(
     # Check lock status — ONLY live contests allow editing
     # live = accepting predictions, open = participation closed, completed = done
     contest_status = contest.get("status", "open")
-    lock_time = contest.get("lock_time", "")
+    lock_time = contest.get("lock_time") or ""
     is_locked = contest_status != "live"  # locked if not live
-    if not is_locked and lock_time:
-        lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
-        if lt.tzinfo is None:
-            lt = lt.replace(tzinfo=timezone.utc)
-        is_locked = datetime.now(timezone.utc) >= lt
+    if not is_locked and lock_time and lock_time != "":
+        try:
+            lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
+            if lt.tzinfo is None:
+                lt = lt.replace(tzinfo=timezone.utc)
+            is_locked = datetime.now(timezone.utc) >= lt
+        except (ValueError, TypeError):
+            pass  # Skip invalid lock_time
 
     return {
         "contest_id": contest_id,
@@ -379,14 +375,17 @@ async def submit_predictions(
             detail=status_msg
         )
 
-    # 2. Check lock time (basic time check)
-    lock_time = contest.get("lock_time", "")
-    if lock_time:
-        lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
-        if lt.tzinfo is None:
-            lt = lt.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) >= lt:
-            raise HTTPException(status_code=400, detail="Contest is locked. Predictions cannot be modified")
+    # 2. Check lock time (basic time check) - skip if lock_time is empty/missing
+    lock_time = contest.get("lock_time") or ""
+    if lock_time and lock_time != "":
+        try:
+            lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
+            if lt.tzinfo is None:
+                lt = lt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) >= lt:
+                raise HTTPException(status_code=400, detail="Contest is locked. Predictions cannot be modified")
+        except (ValueError, TypeError):
+            pass  # Skip invalid lock_time format
 
     # 2b. Check template deadline (over-based enforcement — HARD RULE)
     template = await db.templates.find_one({"id": contest.get("template_id")}, {"_id": 0})
