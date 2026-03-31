@@ -3,7 +3,7 @@
 ## Product Requirements Document
 
 ### Original Problem Statement
-Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive CricketData.org API integration, AI commentary, real-time updates, admin dashboard, and premium UX.
+Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive CricketData.org API integration, AI commentary, real-time updates, admin dashboard, premium UX with world-class animations.
 
 ### Core Architecture
 - **Frontend**: React.js (PWA) + Tailwind CSS + Shadcn UI + Framer Motion
@@ -17,40 +17,39 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with comprehensive Cri
 
 #### CricketData.org API Integration (COMPLETED)
 - [x] series_info — 70 IPL matches synced, auto-sync on startup
-- [x] match_scorecard — Real batting/bowling data (11 batsmen per team)
-- [x] match_info — Toss, winner, scores, venue
-- [x] series_points — IPL standings table (RCBW->RCB normalized)
-- [x] series_squad — All team squads (25+ players each)
-- [x] cricScore — Live score ticker (IPL-only filtering)
-- [x] match_points — Fantasy points per player
-- [x] match_bbb — Ball-by-ball data
-- [x] player_info — Career stats
-- [x] Auto-sync startup — 70 matches + score fetching for completed
+- [x] match_scorecard, match_info, series_points, series_squad
+- [x] cricScore, match_points, match_bbb, player_info
+- [x] Auto-sync startup + score fetching for completed matches
 - [x] MongoDB indexes — api_cache (compound unique), matches.cricketdata_id (sparse)
 
 #### Data Accuracy System (COMPLETED - March 31, 2026)
-- [x] `_align_team_info()` — Fixes CricketData API bug where teams[] and teamInfo[] arrays are in random different orders. Matches by canonical short name comparison.
-- [x] `_is_strictly_ipl()` — Strict whitelist of 10 IPL team short names. BOTH teams must match. Filters out PSL, Nigeria T20, etc.
-- [x] `_normalize_score()` — Guarantees EVERY score object has BOTH field sets: r/w/o AND runs/wickets/overs. Applied across ALL code paths (fetch_matches, sync_ipl_schedule, _auto_sync, Phase 2 scorecard, sync_live).
-- [x] Score protection — Never overwrites non-zero scores with zeros
-- [x] Duplicate prevention — Checks external_match_id, cricketdata_id, AND team names before creating
-- [x] False live detection fix — `matchStarted=true` + "Match starts at" → treated as "upcoming"
-- [x] match_winner populated — All completed matches have winner text from status/scorecard
-- [x] Series_info cache — Changed from permanent to TTL-based (refreshes periodically)
-- [x] Result: 70 matches total (67 upcoming, 0 live, 3 completed), 100% IPL, 0 duplicates, 0 swaps
+- [x] `_align_team_info()` — Fixes random teamInfo[] swap
+- [x] `_is_strictly_ipl()` — 10-team whitelist, zero non-IPL leakage
+- [x] `_normalize_score()` — Both r/w/o AND runs/wickets/overs in every score
+- [x] Score protection, duplicate prevention, false live detection fix
+- [x] match_winner populated, series_info cache TTL
+- [x] Result: 70 matches, 100% IPL, 0 duplicates, 0 swaps
+
+#### World-Class UI Animations (COMPLETED - March 31, 2026)
+- [x] **SIX Celebration** — Fiery golden explosion, 50 radial particles, 3 shock rings, "MAXIMUM!" text with fire gradient, screen flash, ambient glow
+- [x] **FOUR Celebration** — Neon blue boundary streak, horizontal sweep, "BOUNDARY!" text with skew slide-in
+- [x] **WICKET Celebration** — 3 flying stumps + 2 bails, dark red flash, "WICKET!" slam from top with screen shake
+- [x] **PRIZE/WINNER Celebration** — 60 gold confetti pieces, rotating conic light burst, "WINNER!" bounce-in
+- [x] **Match Card Staggered Entry** — Framer Motion slide-up with delay per card
+- [x] **Winner Text Animation** — Slide-in from left for completed match results
+- [x] **Event Badge Glow Effects** — sixBadgeGlow, wicketBadgePulse, fourBadgeSweep CSS animations
+- [x] **Demo Trigger Strip** — 4 buttons on Match Detail page to test all celebrations
+- [x] **AnimatedScore Component** — Live score number transitions with glow pulse (created but available for future live integration)
 
 #### AI Commentary (COMPLETED)
 - [x] 4-tab system: Match Story, Phase Analysis, Timeline, MVPs
-- [x] Bilingual Hinglish commentary
 
 #### WhatsApp Share Card (COMPLETED)
-- [x] Premium collectible card (Topps Chrome aesthetic)
 
 #### Auth, Matches, Contests, Admin, UX — All complete
 
 ### Credentials
 - Super Admin: Phone `7004186276`, PIN `5524`
-- Database: `crickpredict`
 
 ### Remaining/Backlog Tasks
 1. **P1**: Redis caching layer for hot API responses
