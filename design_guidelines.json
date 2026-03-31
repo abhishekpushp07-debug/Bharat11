@@ -1,0 +1,115 @@
+{
+  "theme": "DARK",
+  "archetype": "2 (Performance Pro)",
+  "colors": {
+    "background": {
+      "primary": "#0D0D0D",
+      "card": "#1E1E1E",
+      "surface": "#141414"
+    },
+    "brand": {
+      "primary": "#FF3B3B",
+      "accent": "#FFD700",
+      "nav_rhombus": "#1E3A8A"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A"
+    },
+    "borders": {
+      "subtle": "rgba(255, 255, 255, 0.08)",
+      "highlight": "rgba(255, 215, 0, 0.3)"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "headings": "'Orbitron', sans-serif",
+      "numbers": "'Rajdhani', sans-serif",
+      "body": "'Poppins', sans-serif"
+    },
+    "scale": {
+      "h1": "text-5xl md:text-6xl tracking-tighter leading-none",
+      "h2": "text-3xl md:text-4xl tracking-tight leading-none",
+      "h3": "text-xl md:text-2xl tracking-tight",
+      "body": "text-base leading-relaxed",
+      "numbers_large": "text-4xl md:text-5xl font-rajdhani font-bold",
+      "labels": "text-xs tracking-[0.2em] uppercase font-poppins text-zinc-400"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Mobile-first, dense data sections mixed with highly airy hero sections. Generous padding in cards (p-6 to p-8).",
+    "grids": {
+      "stats": "grid-cols-2 md:grid-cols-4 gap-4",
+      "records": "flex overflow-x-auto gap-6 snap-x snap-mandatory pb-6 pt-2 px-4",
+      "teams": "grid-cols-5 gap-4 md:grid-cols-10"
+    }
+  },
+  "surface_strategies": {
+    "search_header": "Glassmorphism: bg-[#0D0D0D]/80 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-50",
+    "cards": "Solid: bg-[#1E1E1E] border border-white/5 rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
+    "rhombus_button": "w-16 h-16 bg-[#1e3a8a] rotate-45 flex items-center justify-center shadow-[0_0_25px_rgba(30,58,138,0.7)] border border-white/20 fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] transition-transform hover:scale-105 active:scale-95"
+  },
+  "components": {
+    "search_input": {
+      "style": "bg-white/5 border border-white/10 rounded-full px-6 py-4 text-white font-poppins focus:border-[#FFD700] focus:bg-white/10 focus:ring-1 focus:ring-[#FFD700] transition-all outline-none w-full shadow-inner",
+      "placeholder": "text-zinc-500"
+    },
+    "record_card": {
+      "style": "min-w-[280px] h-[360px] snap-center relative rounded-3xl overflow-hidden group border border-white/10 bg-[#141414]",
+      "inner_glow": "absolute inset-0 bg-gradient-to-br from-[#FF3B3B]/10 to-[#FFD700]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+      "text_placement": "absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/80 to-transparent"
+    },
+    "team_logo_item": {
+      "style": "w-16 h-16 rounded-2xl bg-gradient-to-b from-[#1E1E1E] to-[#141414] border border-white/10 flex items-center justify-center shadow-lg hover:border-[#FFD700] hover:-translate-y-1 transition-all duration-300"
+    },
+    "player_avatar": {
+      "style": "w-20 h-20 rounded-full border-2 border-[#1E1E1E] p-1 bg-gradient-to-b from-[#FF3B3B] to-[#141414] object-cover hover:border-[#FFD700] transition-colors"
+    },
+    "stats_bento_item": {
+      "style": "bg-[#1E1E1E] border border-white/5 p-4 rounded-2xl flex flex-col justify-between h-full hover:bg-[#1A1A1A]"
+    }
+  },
+  "pages": {
+    "search_page": {
+      "layout": [
+        "1. Sticky Search Header (Glassmorphism, massive input, back button)",
+        "2. IPL Records Section (Horizontal Scroll of Bento Cards: Most Runs, Fastest 100, etc.)",
+        "3. Teams Section (Grid of 10 team logos)",
+        "4. Star Players (Horizontal Scroll or Grid of Circular Avatars)",
+        "5. Search Results Overlay (Categorized: Matches, Players, Teams - appears when typing)"
+      ]
+    },
+    "player_profile": {
+      "layout": [
+        "1. Hero Section: Full width, using stadium image with dark gradient overlay. Player name in huge Orbitron text (text-5xl or 6xl).",
+        "2. Quick Stats Header: Matches, Runs, Average, Strike Rate (Bento grid)",
+        "3. Career Timeline: List of teams played for by year",
+        "4. Achievements Section: Special highlighted cards for Orange Cap / Purple Cap / MVPs"
+      ]
+    }
+  },
+  "media": {
+    "images": [
+      {
+        "category": "hero_stadium_background",
+        "url": "https://images.unsplash.com/photo-1750716413444-c8a957fcf35c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwzfHxjcmlja2V0JTIwc3RhZGl1bSUyMG5pZ2h0fGVufDB8fHx8MTc3NDg2ODE2Nnww&ixlib=rb-4.1.0&q=85",
+        "description": "Cricket match stadium night. Use as the absolute background for the Player Profile Hero. MUST have a gradient overlay: bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/80 to-transparent."
+      },
+      {
+        "category": "search_page_texture",
+        "url": "https://images.unsplash.com/photo-1750716413756-b66624b64ce4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHw0fHxjcmlja2V0JTIwc3RhZGl1bSUyMG5pZ2h0fGVufDB8fHx8MTc3NDg2ODE2Nnww&ixlib=rb-4.1.0&q=85",
+        "description": "Cricket stadium spectators. Use as a very subtle background texture in the top section of the search page (opacity-10 or 20, blend-luminosity)."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install and configure fonts in Tailwind: Orbitron (headings), Rajdhani (numbers/stats), Poppins (body text).",
+    "Install lucide-react for all iconography.",
+    "Implement the fixed Bottom Navigation Bar. The center button MUST be the Rhombus: rotated 45 degrees, colored #1e3a8a, with the text 'IPL' rotated back -45 degrees inside it so it reads straight.",
+    "Do NOT use pure #000000. Use #0D0D0D for all page backgrounds.",
+    "In the Player Profile hero, place the player name text (Orbitron) partially overlapping the background. Use generous line height. The background image must be strictly layered behind the dark gradient overlay so text remains perfectly legible (WCAG AA).",
+    "Use Framer Motion to animate the search results staggered entry and the expansion of the record cards on hover/tap.",
+    "Ensure ALL interactive elements (buttons, inputs, cards, nav items) have 'data-testid' attributes in kebab-case format (e.g., data-testid='search-input-field', data-testid='nav-rhombus-btn', data-testid='player-profile-virat-kohli')."
+  ]
+}
