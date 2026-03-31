@@ -113,7 +113,7 @@ class CachedCricketService:
             return cached
         data = await self.api.get_series_info(series_id)
         if data:
-            await set_cache(db, "series_info", series_id, data, permanent=True)
+            await set_cache(db, "series_info", series_id, data, permanent=False)
         return data
 
     async def get_series_points(self, db: AsyncIOMotorDatabase, series_id: str) -> Optional[list]:

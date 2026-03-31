@@ -575,7 +575,7 @@ async def sync_live_matches(
     db: AsyncIOMotorDatabase = Depends(get_db),
     ipl_only: bool = Query(default=True)
 ):
-    from services.cricket_data import cricket_service
+    from services.cricket_data import cricket_service, _normalize_score
 
     data = await cricket_service.get_live_matches(ipl_only=ipl_only)
     live_matches = data.get("matches", [])
@@ -617,9 +617,14 @@ async def sync_live_matches(
                 if new_status in VALID.get(old_status, []):
                     updates["status"] = new_status
 
-            # Update scores if available
+            # Update scores if available — normalize and protect existing real scores
             if lm.get("scores"):
-                updates["live_score"] = {"scores": lm["scores"], "updated_at": now}
+                normalized_scores = [_normalize_score(s) for s in lm["scores"]]
+                existing_scores = existing.get("live_score", {}).get("scores", [])
+                existing_has_real = any(s.get("r", 0) > 0 or s.get("runs", 0) > 0 for s in existing_scores)
+                new_has_real = any(s.get("r", 0) > 0 or s.get("runs", 0) > 0 for s in normalized_scores)
+                if new_has_real or not existing_has_real:
+                    updates["live_score"] = {"scores": normalized_scores, "updated_at": now}
 
             await db.matches.update_one(
                 {"external_match_id": source_id}, {"$set": updates}
@@ -710,7 +715,7 @@ async def sync_ipl_schedule(
     Uses 1 API call only.
     """
     from services.api_cache import cached_cricket
-    from services.cricket_data import cricket_service, _get_short_name, _align_team_info, IPL_SHORT_NAMES
+    from services.cricket_data import cricket_service, _get_short_name, _align_team_info, IPL_SHORT_NAMES, _normalize_score
 
     IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 
@@ -738,8 +743,12 @@ async def sync_ipl_schedule(
         team_info = api_match.get("teamInfo", [])
         match_started = api_match.get("matchStarted", False)
         match_ended = api_match.get("matchEnded", False)
+        status_text = api_match.get("status", "")
 
-        if match_ended:
+        # Fix false "live" detection — API sometimes sets matchStarted=true for upcoming
+        if match_started and not match_ended and "match starts at" in status_text.lower():
+            m_status = "upcoming"
+        elif match_ended:
             m_status = "completed"
         elif match_started:
             m_status = "live"
@@ -763,18 +772,15 @@ async def sync_ipl_schedule(
             t1_img = ""
             t2_img = ""
 
-        # Scores from API
+        # Scores from API (normalized to have both r/w/o AND runs/wickets/overs)
         scores = []
         for s in api_match.get("score", []):
-            scores.append({
+            scores.append(_normalize_score({
                 "inning": s.get("inning", ""),
                 "r": s.get("r", 0),
                 "w": s.get("w", 0),
                 "o": s.get("o", 0),
-                "runs": s.get("r", 0),
-                "wickets": s.get("w", 0),
-                "overs": s.get("o", 0),
-            })
+            }))
 
         # Check if already exists by cricketdata_id
         existing = await db.matches.find_one(

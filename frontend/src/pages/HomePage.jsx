@@ -506,8 +506,8 @@ function MatchCard({ match, isLive, isCompleted, onClick }) {
     if (found && (found.r > 0 || found.runs > 0 || found.w > 0 || found.wickets > 0)) return found;
     return null;
   };
-  const scoreA = getTeamScore(teamA.name, teamA.short_name) || (scores[0]?.r > 0 ? scores[0] : null);
-  const scoreB = getTeamScore(teamB.name, teamB.short_name) || (scores[1]?.r > 0 ? scores[1] : null);
+  const scoreA = getTeamScore(teamA.name, teamA.short_name) || ((scores[0]?.r > 0 || scores[0]?.runs > 0) ? scores[0] : null);
+  const scoreB = getTeamScore(teamB.name, teamB.short_name) || ((scores[1]?.r > 0 || scores[1]?.runs > 0) ? scores[1] : null);
 
   return (
     <div data-testid={`match-card-${match.id}`}
@@ -798,7 +798,7 @@ function MatchFullDataView({ match, onBack, onClose, teamColor }) {
             {info.score && info.score.length > 0 && (
               <div className="flex items-center justify-center gap-4 text-xs font-bold" style={{ color: teamColor }}>
                 {info.score.map((s, i) => (
-                  <span key={i}>{s.r}/{s.w} ({s.o} ov)</span>
+                  <span key={i}>{s.r || s.runs || 0}/{s.w || s.wickets || 0} ({s.o || s.overs || 0} ov)</span>
                 ))}
               </div>
             )}

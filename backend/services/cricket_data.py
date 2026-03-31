@@ -113,6 +113,23 @@ def _is_strictly_ipl(teams: list, team_info: list) -> bool:
     return len(shorts) >= 2 and shorts.issubset(IPL_SHORT_NAMES)
 
 
+def _normalize_score(score_entry: dict) -> dict:
+    """
+    Normalize a score dict to ALWAYS have both field sets:
+    - r/w/o (short form used by CricketData API & frontend scorecard)
+    - runs/wickets/overs (long form used by some frontend components)
+    Guarantees every score object is consistent regardless of source.
+    """
+    r = score_entry.get("r") or score_entry.get("runs") or 0
+    w = score_entry.get("w") or score_entry.get("wickets") or 0
+    o = score_entry.get("o") or score_entry.get("overs") or 0
+    return {
+        "inning": score_entry.get("inning", ""),
+        "r": r, "w": w, "o": o,
+        "runs": r, "wickets": w, "overs": o,
+    }
+
+
 def _parse_match_status(status_text: str) -> str:
     """Convert status text to our status enum."""
     s = status_text.lower().strip()
@@ -300,16 +317,21 @@ class CricketDataAPI:
 
             match_ended = m.get("matchEnded", False)
             match_started = m.get("matchStarted", False)
-            match_status = "completed" if match_ended else ("live" if match_started else "upcoming")
+            status_text_raw = m.get("status", "")
+            # Fix false "live" — API sometimes sets matchStarted=true for upcoming
+            if match_started and not match_ended and "match starts at" in status_text_raw.lower():
+                match_status = "upcoming"
+            else:
+                match_status = "completed" if match_ended else ("live" if match_started else "upcoming")
 
             scores = []
             for s in m.get("score", []):
-                scores.append({
+                scores.append(_normalize_score({
                     "inning": s.get("inning", ""),
-                    "runs": s.get("r", 0),
-                    "wickets": s.get("w", 0),
-                    "overs": s.get("o", 0)
-                })
+                    "r": s.get("r", 0),
+                    "w": s.get("w", 0),
+                    "o": s.get("o", 0),
+                }))
 
             matches.append({
                 'source': 'cricketdata',

@@ -247,7 +247,7 @@ async def create_indexes():
 async def _auto_sync_ipl_schedule(db):
     """Auto-sync IPL 2026 schedule on startup using series_info API."""
     from services.api_cache import cached_cricket
-    from services.cricket_data import _get_short_name, _align_team_info
+    from services.cricket_data import _get_short_name, _align_team_info, _normalize_score
     from models.schemas import generate_id, utc_now
 
     IPL_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
@@ -271,7 +271,12 @@ async def _auto_sync_ipl_schedule(db):
         team_info = api_match.get("teamInfo", [])
         match_ended = api_match.get("matchEnded", False)
         match_started = api_match.get("matchStarted", False)
-        m_status = "completed" if match_ended else ("live" if match_started else "upcoming")
+        status_text = api_match.get("status", "")
+        # Fix false "live" detection — API sometimes returns matchStarted=true for upcoming matches
+        if match_started and not match_ended and "match starts at" in status_text.lower():
+            m_status = "upcoming"
+        else:
+            m_status = "completed" if match_ended else ("live" if match_started else "upcoming")
 
         # ALIGN teamInfo to teams[] order (fixes random API swap bug)
         if len(team_info) >= 2 and len(teams) >= 2:
@@ -292,10 +297,10 @@ async def _auto_sync_ipl_schedule(db):
 
         scores = []
         for s in api_match.get("score", []):
-            scores.append({
-                "inning": s.get("inning", ""), "r": s.get("r", 0), "w": s.get("w", 0),
-                "o": s.get("o", 0), "runs": s.get("r", 0), "wickets": s.get("w", 0), "overs": s.get("o", 0),
-            })
+            scores.append(_normalize_score({
+                "inning": s.get("inning", ""),
+                "r": s.get("r", 0), "w": s.get("w", 0), "o": s.get("o", 0),
+            }))
 
         # Check if exists
         existing = await db.matches.find_one(
@@ -350,14 +355,20 @@ async def _auto_sync_ipl_schedule(db):
 
     logger.info(f"Auto-sync IPL schedule: {created} created, {updated} updated (total {len(match_list)} matches)")
 
-    # Phase 2: For completed matches WITHOUT scores, fetch from match_scorecard API
+    # Phase 2: For completed matches WITHOUT real scores, fetch from match_scorecard API
+    # This catches: no live_score, empty scores array, or scores where both r AND runs are 0/missing
     completed_no_score = db.matches.find({
         "status": "completed",
         "cricketdata_id": {"$nin": [None, ""]},
         "$or": [
             {"live_score": None},
             {"live_score.scores": {"$size": 0}},
-            {"live_score.scores.0.r": 0, "live_score.scores.1.r": 0},
+            {"live_score.scores": {"$exists": False}},
+            # r field missing or 0 for both innings
+            {"$and": [
+                {"$or": [{"live_score.scores.0.r": 0}, {"live_score.scores.0.r": {"$exists": False}}]},
+                {"$or": [{"live_score.scores.0.runs": 0}, {"live_score.scores.0.runs": {"$exists": False}}]},
+            ]},
         ]
     }, {"_id": 0, "id": 1, "cricketdata_id": 1, "team_a.short_name": 1, "team_b.short_name": 1})
 
@@ -377,18 +388,14 @@ async def _auto_sync_ipl_schedule(db):
                     total_runs = sum(int(b.get("r", 0)) for b in batting)
                     total_wickets = len([b for b in batting if b.get("dismissal") and b["dismissal"] != "not out"])
                     total_overs = inn.get("totals", {}).get("O", "0")
-                    # Also try extras
                     extras = inn.get("extras", {}).get("t", 0) if isinstance(inn.get("extras"), dict) else 0
-                    real_scores.append({
+                    real_scores.append(_normalize_score({
                         "inning": inning_name,
                         "r": total_runs + extras,
                         "w": total_wickets,
                         "o": total_overs,
-                        "runs": total_runs + extras,
-                        "wickets": total_wickets,
-                        "overs": total_overs,
-                    })
-                if real_scores:
+                    }))
+                if real_scores and any(s["r"] > 0 for s in real_scores):
                     await db.matches.update_one(
                         {"id": match["id"]},
                         {"$set": {
@@ -398,7 +405,7 @@ async def _auto_sync_ipl_schedule(db):
                     )
                     ta = match.get("team_a", {}).get("short_name", "?")
                     tb = match.get("team_b", {}).get("short_name", "?")
-                    score_strs = [str(s.get("r", 0)) + "/" + str(s.get("w", 0)) for s in real_scores]
+                    score_strs = [f'{s["r"]}/{s["w"]}' for s in real_scores]
                     logger.info(f"Fetched scores for {ta} vs {tb}: {score_strs}")
                     scores_fetched += 1
         except Exception as e:
