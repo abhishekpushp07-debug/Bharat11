@@ -443,9 +443,9 @@ async def update_match_status(
     # Validate status transitions
     VALID_TRANSITIONS = {
         "upcoming": ["live", "cancelled", "abandoned"],
-        "live": ["completed", "abandoned"],
+        "live": ["upcoming", "completed", "abandoned"],
         "completed": [],  # Terminal state
-        "cancelled": [],  # Terminal state
+        "cancelled": ["upcoming"],  # Allow reactivation
         "abandoned": [],  # Terminal state
     }
     current_status = existing.get("status", "upcoming")

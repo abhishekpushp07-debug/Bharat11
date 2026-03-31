@@ -29,6 +29,12 @@ export default function AdminApp() {
 
   const handleLogout = useCallback(() => { logout(); }, [logout]);
 
+  // Navigation bridge for cross-tab navigation (e.g., Contest → Resolve)
+  window.__adminNavigate = (tab, context) => {
+    if (context) window.__adminContext = context;
+    setActiveTab(tab);
+  };
+
   // "View as Player" mode
   if (viewAsPlayer) {
     return <PlayerView onBackToAdmin={() => setViewAsPlayer(false)} />;
