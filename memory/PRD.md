@@ -96,15 +96,20 @@ Bharat 11 is an interactive Fantasy Cricket Prediction PWA where users make ball
 - **Open**: Participation closed, match ongoing, results pending — leaderboard + user answers only
 - **Done/Completed**: Match over, 100% results settled
 
+## Implemented (April 1, 2026)
+- [x] **45-Second Auto-Polling**: Scorecard & AI Commentary auto-refresh every 45s for live/open matches
+- [x] **Auto-Celebration Detection**: Compares previous vs current scorecard to detect new fours/sixes/wickets
+- [x] **CelebrationOverlay Animations**: Canvas particle engine with fire embers (SIX), blue beams (FOUR), stump debris (WICKET), gold confetti (PRIZE)
+- [x] **AI Commentary Live Tab**: Match Pulse, Phase Analysis, Timeline, MVPs, Turning Point, Verdict — all auto-updating
+
 ## Backlog
 ### P1
-- Socket.IO real-time integration for live scores
+- Socket.IO real-time integration for live scores (replace 45s polling)
 - Push notifications for match events
 
 ### P2
 - Live Prediction Accuracy Leaderboard (Redis sorted sets)
-- 45-second auto-polling for ball-by-ball commentary
-- Heavy UI animations (six boundaries, wickets, prize winners)
+- Additional heavy UI animations (prize winners, rank ups)
 
 ### P3
 - User Management tab improvements
