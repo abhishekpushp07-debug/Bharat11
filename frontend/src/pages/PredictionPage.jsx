@@ -38,7 +38,7 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
 
   const selectAnswer = (qid, option) => {
-    if (data?.is_locked) return;
+    if (!canEdit) return;
     setAnswers(prev => ({ ...prev, [qid]: option }));
     setSubmitted(false);
   };
@@ -65,6 +65,9 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
   const answeredCount = Object.keys(answers).length;
   const totalQ = data?.questions?.length || 0;
   const isLocked = data?.is_locked;
+  const contestStatus = data?.contest_status || '';
+  const isStatusLocked = contestStatus && !['open', 'live'].includes(contestStatus);
+  const canEdit = !isLocked && !isStatusLocked;
 
   if (!data) {
     return (
@@ -94,9 +97,9 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
           <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-3">
-          {isLocked && <Lock size={14} color={COLORS.warning.main} />}
-          <span className="text-xs font-semibold" style={{ color: isLocked ? COLORS.warning.main : COLORS.text.secondary }}>
-            {isLocked ? 'Locked' : `${answeredCount}/${totalQ} Answered`}
+          {!canEdit && <Lock size={14} color={COLORS.warning.main} />}
+          <span className="text-xs font-semibold" style={{ color: !canEdit ? COLORS.warning.main : COLORS.text.secondary }}>
+            {isStatusLocked ? `Contest ${contestStatus}` : isLocked ? 'Locked' : `${answeredCount}/${totalQ} Answered`}
           </span>
           <button
             data-testid="view-leaderboard-btn"
@@ -180,7 +183,7 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
                   key={opt.key}
                   data-testid={`option-${opt.key}`}
                   onClick={() => selectAnswer(question.id, opt.key)}
-                  disabled={isLocked || isResolved}
+                  disabled={!canEdit || isResolved}
                   className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all text-left disabled:opacity-70"
                   style={{ background: bgColor, border: `2px solid ${borderColor}` }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0"
@@ -222,10 +225,10 @@ export default function PredictionPage({ contestId, onBack, onViewLeaderboard })
           <button
             data-testid="submit-predictions-btn"
             onClick={submitPredictions}
-            disabled={submitting || isLocked || answeredCount === 0}
+            disabled={submitting || !canEdit || answeredCount === 0}
             className="flex-1 py-3 rounded-xl text-sm font-bold disabled:opacity-50"
-            style={{ background: submitted ? COLORS.success.bg : COLORS.primary.gradient, color: submitted ? COLORS.success.main : '#fff' }}>
-            {submitting ? 'Submitting...' : submitted ? 'Submitted!' : `Submit (${answeredCount}/${totalQ})`}
+            style={{ background: submitted ? COLORS.success.bg : !canEdit ? COLORS.background.tertiary : COLORS.primary.gradient, color: submitted ? COLORS.success.main : '#fff' }}>
+            {submitting ? 'Submitting...' : !canEdit ? 'Locked' : submitted ? 'Submitted!' : `Submit (${answeredCount}/${totalQ})`}
           </button>
         )}
       </div>

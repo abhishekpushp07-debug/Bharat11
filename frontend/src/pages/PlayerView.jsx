@@ -41,7 +41,7 @@ export default function PlayerView({ onBackToAdmin }) {
     switch (activeTab) {
       case 'home': return <HomePage onMatchClick={handleMatchClick} />;
       case 'matchDetail': return <MatchDetailPage match={selectedMatch} onBack={handleBackFromMatch} onJoinContest={handleAfterJoin} onOpenPrediction={handleOpenPrediction} onOpenLeaderboard={handleOpenLeaderboard} />;
-      case 'contests': return <MyContestsPage onContestClick={handleContestClick} />;
+      case 'contests': return <MyContestsPage onContestClick={handleContestClick} onViewLeaderboard={handleOpenLeaderboard} />;
       case 'prediction': return <PredictionPage contestId={selectedContestId} onBack={handleBackFromPrediction} onViewLeaderboard={handleOpenLeaderboard} />;
       case 'leaderboard': return <LeaderboardPage contestId={selectedContestId} match={selectedMatch} onBack={handleBackFromLeaderboard} />;
       case 'wallet': return <WalletPage />;

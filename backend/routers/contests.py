@@ -325,9 +325,10 @@ async def get_contest_questions(
     )
 
     # Check lock status
+    contest_status = contest.get("status", "open")
     lock_time = contest.get("lock_time", "")
-    is_locked = False
-    if lock_time:
+    is_locked = contest_status not in ("open", "live")  # locked if not open/live
+    if not is_locked and lock_time:
         lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
         if lt.tzinfo is None:
             lt = lt.replace(tzinfo=timezone.utc)
@@ -340,6 +341,7 @@ async def get_contest_questions(
         "total_questions": len(ordered),
         "total_points": sum(q.get("points", 10) for q in ordered),
         "is_locked": is_locked,
+        "contest_status": contest_status,
         "lock_time": lock_time,
         "my_predictions": entry.get("predictions", []) if entry else [],
         "submitted_at": entry.get("submission_time") if entry else None
@@ -361,6 +363,14 @@ async def submit_predictions(
     contest = await db.contests.find_one({"id": contest_id})
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
+
+    # 1b. CRITICAL: Check contest status - only open/live contests accept predictions
+    contest_status = contest.get("status", "")
+    if contest_status not in ("open", "live"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Contest is {contest_status}. Predictions can only be submitted for open or live contests."
+        )
 
     # 2. Check lock time (basic time check)
     lock_time = contest.get("lock_time", "")
@@ -511,8 +521,24 @@ async def my_contests(
 
         match = match_map.get(contest.get("match_id", ""))
 
+        # Calculate current rank for non-completed contests
+        current_rank = entry.get("final_rank")
+        if not current_rank and contest.get("status") in ("open", "live"):
+            user_points = entry.get("total_points", 0)
+            if user_points > 0:
+                higher_count = await db.contest_entries.count_documents({
+                    "contest_id": entry["contest_id"],
+                    "total_points": {"$gt": user_points}
+                })
+                current_rank = higher_count + 1
+            else:
+                current_rank = None
+        entry_data = {k: v for k, v in entry.items() if k != "_id"}
+        if current_rank:
+            entry_data["current_rank"] = current_rank
+
         result.append({
-            "entry": entry,
+            "entry": entry_data,
             "contest": contest,
             "match": match
         })

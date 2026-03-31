@@ -12,7 +12,7 @@ const STATUS_CONFIG = {
   completed: { label: 'COMPLETED', color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.15)' },
 };
 
-export default function MyContestsPage({ onContestClick }) {
+export default function MyContestsPage({ onContestClick, onViewLeaderboard }) {
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -127,6 +127,7 @@ export default function MyContestsPage({ onContestClick }) {
               match={match}
               index={idx}
               onClick={() => onContestClick?.({ entry, contest, match })}
+              onViewLeaderboard={() => onViewLeaderboard?.(contest?.id)}
             />
           ))}
         </div>
@@ -135,7 +136,7 @@ export default function MyContestsPage({ onContestClick }) {
   );
 }
 
-function ContestCard({ entry, contest, match, index, onClick }) {
+function ContestCard({ entry, contest, match, index, onClick, onViewLeaderboard }) {
   const teamA = match?.team_a || {};
   const teamB = match?.team_b || {};
   const tA = normalizeTeam(teamA.short_name);
@@ -150,6 +151,7 @@ function ContestCard({ entry, contest, match, index, onClick }) {
   const answered = predictions.length;
   const correct = predictions.filter(p => p.is_correct).length;
   const totalQ = contest?.question_count || contest?.total_questions || 16;
+  const currentRank = entry?.current_rank || entry?.final_rank;
 
   return (
     <motion.div
@@ -224,9 +226,24 @@ function ContestCard({ entry, contest, match, index, onClick }) {
           </div>
         </div>
 
-        {/* Points + Action */}
-        <div className="text-right flex items-center gap-3">
-          <div>
+        {/* Rank Shortcut + Points */}
+        <div className="flex items-center gap-2.5">
+          {currentRank && (
+            <button
+              data-testid={`rank-shortcut-${entry?.id}`}
+              onClick={(e) => { e.stopPropagation(); onViewLeaderboard?.(); }}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all active:scale-95"
+              style={{
+                background: isLive ? 'rgba(255,59,59,0.12)' : 'rgba(255,215,0,0.1)',
+                border: `1px solid ${isLive ? 'rgba(255,59,59,0.25)' : 'rgba(255,215,0,0.2)'}`,
+              }}>
+              <TrendingUp size={10} color={isLive ? '#FF3B3B' : COLORS.accent.gold} />
+              <span className="text-[10px] font-black" style={{ color: isLive ? '#FF3B3B' : COLORS.accent.gold }}>
+                #{currentRank}
+              </span>
+            </button>
+          )}
+          <div className="text-right">
             <div className="text-xl font-black" style={{ color: COLORS.primary.main, fontFamily: "'Rajdhani', sans-serif" }}>
               {entry?.total_points || 0}
             </div>
