@@ -9,7 +9,8 @@ const PinScreen = ({
   onSubmit, 
   onBack,
   isLoading = false,
-  error = ''
+  error = '',
+  onForgotPin = null
 }) => {
   const [pin, setPin] = useState(['', '', '', '']);
   const [localError, setLocalError] = useState('');
@@ -168,10 +169,14 @@ const PinScreen = ({
         </div>
       </div>
 
-      {/* Forgot PIN (only for login) */}
-      {mode === 'login' && (
-        <div className="py-6 text-center">
-          <button className="text-primary text-sm font-medium">
+      {/* Forgot PIN (only for login) - positioned above the Create Account link */}
+      {mode === 'login' && onForgotPin && (
+        <div className="py-4 text-center pb-16">
+          <button
+            data-testid="forgot-pin-btn"
+            onClick={() => onForgotPin()}
+            className="text-primary text-sm font-medium z-10 relative"
+            style={{ color: '#f59e0b' }}>
             Forgot PIN?
           </button>
         </div>

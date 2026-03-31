@@ -88,6 +88,8 @@ export const api = {
     me: () => apiClient.get('/auth/me'),
     changePin: (data) => apiClient.put('/auth/change-pin', data),
     checkPhone: (phone) => apiClient.post('/auth/check-phone', { phone }),
+    forgotPin: (data) => apiClient.post('/auth/forgot-pin', data),
+    changeName: (data) => apiClient.put('/auth/change-name', data),
   },
 
   // User

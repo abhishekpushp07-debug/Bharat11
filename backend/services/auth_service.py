@@ -344,3 +344,37 @@ class AuthService:
             "access_token": tokens.access_token,
             "refresh_token": tokens.refresh_token
         }
+
+    async def forgot_pin(self, phone: str, new_pin: str) -> dict:
+        """
+        Reset PIN using phone number verification.
+        Simple flow: validates phone exists, sets new PIN.
+        """
+        cleaned_phone = self._validate_phone(phone)
+        self._validate_pin(new_pin)
+
+        user = await self.user_repo.find_by_phone(cleaned_phone)
+        if not user:
+            raise UserNotFoundError()
+
+        if user.is_banned:
+            raise InvalidCredentialsError("Account has been suspended")
+
+        new_hash = password_hasher.hash(new_pin)
+        now = datetime.now(timezone.utc).isoformat()
+        await self.user_repo.update_by_id(
+            user.id,
+            {"$set": {"pin_hash": new_hash, "pin_changed_at": now, "updated_at": now,
+                       "failed_login_attempts": 0, "locked_until": None}}
+        )
+
+        tokens = self._create_tokens(user)
+        return {
+            "success": True,
+            "message": "PIN reset successfully",
+            "token": {
+                "access_token": tokens.access_token,
+                "refresh_token": tokens.refresh_token,
+                "token_type": "bearer"
+            }
+        }

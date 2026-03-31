@@ -222,7 +222,7 @@ export default function HomePage({ onMatchClick }) {
           <div className="relative">
             <div className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#ffffffcc' }}>Fantasy Points</div>
             <div className="text-2xl font-black text-white mt-0.5 animate-count" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-              {(user?.total_fantasy_points || 0).toLocaleString()}
+              {(user?.total_points || 0).toLocaleString()}
             </div>
             <div className="text-[9px] mt-0.5" style={{ color: '#ffffff88' }}>From correct predictions</div>
           </div>

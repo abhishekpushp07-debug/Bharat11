@@ -32,6 +32,17 @@ class ChangePinBody(BaseModel):
     new_pin: str
 
 
+class ForgotPinBody(BaseModel):
+    """Request body for forgot PIN."""
+    phone: str
+    new_pin: str
+
+
+class ChangeNameBody(BaseModel):
+    """Request body for name change."""
+    username: str
+
+
 class CheckPhoneBody(BaseModel):
     """Request body for phone check."""
     phone: str
@@ -110,6 +121,45 @@ async def login(
         )
     except CrickPredictException as e:
         raise e.to_http_exception()
+
+
+@router.post(
+    "/forgot-pin",
+    summary="Reset PIN via phone verification",
+    description="Allows resetting PIN if phone number is verified.",
+    dependencies=[Depends(rate_limit_dependency)]
+)
+async def forgot_pin(
+    data: ForgotPinBody,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+) -> dict:
+    """Reset PIN using phone number."""
+    try:
+        return await auth_service.forgot_pin(phone=data.phone, new_pin=data.new_pin)
+    except CrickPredictException as e:
+        raise e.to_http_exception()
+
+
+@router.put(
+    "/change-name",
+    summary="Change username",
+    description="Change the current user's display name."
+)
+async def change_name(
+    data: ChangeNameBody,
+    current_user: CurrentUser,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+) -> dict:
+    """Change the user's display name."""
+    username = data.username.strip()
+    if len(username) < 2 or len(username) > 30:
+        raise HTTPException(status_code=400, detail="Username must be 2-30 characters")
+    from datetime import datetime, timezone
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"username": username, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "username": username, "message": "Name updated successfully"}
 
 
 @router.post(

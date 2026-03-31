@@ -1341,6 +1341,40 @@ async def admin_adjust_coins(
     }
 
 
+class AdminResetPinBody(BaseModel):
+    new_pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$")
+
+
+@router.post(
+    "/users/{user_id}/reset-pin",
+    summary="Reset user PIN (Admin)",
+)
+async def admin_reset_pin(
+    user_id: str,
+    data: AdminResetPinBody,
+    admin: AdminUser,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Admin resets a user's PIN to a new 4-digit value."""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1, "is_admin": 1, "username": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    from core.security import password_hasher
+    new_hash = password_hasher.hash(data.new_pin)
+    now = utc_now().isoformat()
+
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"pin_hash": new_hash, "pin_changed_at": now, "updated_at": now}}
+    )
+    return {
+        "user_id": user_id,
+        "username": user.get("username", ""),
+        "message": "PIN reset successfully by admin",
+    }
+
+
 # ==================== QUICK RESOLVE ALL ====================
 
 @router.post(
@@ -2306,68 +2340,5 @@ async def _create_5_templates(match_id: str, db: AsyncIOMotorDatabase):
 
 
 
-# ==================== USER MANAGEMENT ====================
-
-@router.get("/users")
-async def list_users(
-    q: str = Query(default=""),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-    sort_by: str = Query(default="created_at"),
-    admin: User = Depends(AdminUser),
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """List all users with search and pagination. Admin only."""
-    query = {}
-    if q:
-        import re
-        pattern = re.compile(re.escape(q), re.IGNORECASE)
-        query["$or"] = [
-            {"name": pattern},
-            {"phone": pattern},
-        ]
-
-    total = await db.users.count_documents(query)
-    sort_dir = -1
-    if sort_by == "name":
-        sort_dir = 1
-    cursor = db.users.find(query, {"_id": 0}).sort(sort_by, sort_dir).skip(skip).limit(limit)
-    users = await cursor.to_list(length=limit)
-
-    # Enrich with prediction stats
-    for u in users:
-        uid = u.get("id")
-        u["total_entries"] = await db.contest_entries.count_documents({"user_id": uid})
-        u["total_predictions"] = await db.predictions.count_documents({"user_id": uid})
-
-    return {"users": users, "total": total, "skip": skip, "limit": limit}
-
-
-@router.get("/users/{user_id}")
-async def get_user_detail(
-    user_id: str,
-    admin: User = Depends(AdminUser),
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """Get detailed user info with contest history."""
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    entries = await db.contest_entries.find(
-        {"user_id": user_id}, {"_id": 0}
-    ).sort("created_at", -1).to_list(length=50)
-
-    predictions = await db.predictions.count_documents({"user_id": user_id})
-    correct = await db.predictions.count_documents({"user_id": user_id, "is_correct": True})
-
-    return {
-        "user": user,
-        "entries": entries,
-        "stats": {
-            "total_predictions": predictions,
-            "correct_predictions": correct,
-            "accuracy": round((correct / predictions * 100), 1) if predictions > 0 else 0,
-            "total_entries": len(entries),
-        }
-    }
+# ==================== USER MANAGEMENT (Legacy, moved to /users above) ====================
+# Removed duplicate endpoints - consolidated in the main user management section above.
