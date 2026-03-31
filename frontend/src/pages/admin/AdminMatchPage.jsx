@@ -244,6 +244,7 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
   const [expanded, setExpanded] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [autoGenning, setAutoGenning] = useState(false);
   const [form, setForm] = useState({ template_id: '', name: '' });
 
   const tA = m.team_a?.short_name || '?';
@@ -277,6 +278,16 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
     finally { setCreating(false); }
   };
 
+  const handleAutoGenTemplates = async () => {
+    setAutoGenning(true);
+    try {
+      const res = await apiClient.post(`/admin/matches/${m.id}/auto-templates`);
+      showMsg(`${res.data.templates_created || 0} templates auto-generated for ${tA} vs ${tB}!`, 'success');
+      onRefresh();
+    } catch (e) { showMsg(e?.response?.data?.detail || e.message, 'error'); }
+    finally { setAutoGenning(false); }
+  };
+
   return (
     <div data-testid={`match-card-${m.id}`} className="rounded-xl overflow-hidden"
       style={{ background: COLORS.background.card, border: `1px solid ${COLORS.border.light}` }}>
@@ -303,7 +314,7 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
             <div className="text-[10px] font-semibold" style={{ color: '#f59e0b' }}>{m.status_text}</div>
           )}
 
-          {/* 3 MATCH ACTIONS */}
+          {/* 3 MATCH ACTIONS + AUTO TEMPLATES */}
           <div className="flex gap-1.5 flex-wrap">
             {m.status === 'upcoming' && (
               <ActionBtn testId={`match-live-${m.id}`} onClick={() => handleMatchStatus('live')}
@@ -321,6 +332,13 @@ function MatchCard({ m, templates, allContests, showMsg, onRefresh }) {
                 }}
                 icon={<Plus size={10} />} label={`Add Contest (${contests.length}/${MAX_CONTESTS})`}
                 bg={COLORS.accent.gold + '22'} color={COLORS.accent.gold} />
+            )}
+            {m.status !== 'completed' && (
+              <ActionBtn testId={`match-auto-templates-${m.id}`}
+                onClick={handleAutoGenTemplates}
+                icon={autoGenning ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+                label={autoGenning ? 'Generating...' : 'Auto 5 Templates'}
+                bg="#8b5cf622" color="#a78bfa" />
             )}
           </div>
 
