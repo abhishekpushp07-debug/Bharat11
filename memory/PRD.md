@@ -5,9 +5,10 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with CricketData.org A
 
 ## Core Architecture
 - **Frontend**: React.js (PWA) + Canvas Particle Engine + Web Audio API + Framer Motion
-- **Backend**: FastAPI + MongoDB (Motor async)
+- **Backend**: FastAPI + MongoDB (Motor async) + Redis (aioredis)
 - **Auth**: Phone + PIN JWT
 - **API**: CricketData.org Premium (IPL only)
+- **Performance**: Redis response caching + MongoDB compound indexes
 
 ## What's Implemented
 
@@ -21,41 +22,50 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with CricketData.org A
 
 ### Phase 3 - Prediction Questions (DONE)
 - 16 questions (user's EXACT Hindi text) in 1 full_match template
-- Points: Easy=55 (2 Qs), Medium=70 (5 Qs), Hard=90 (9 Qs) = 1270 total
+- Points: Easy=55 (2), Medium=70 (5), Hard=90 (9) = 1270 total
 
-### Phase 4 - Admin Matches Section REBUILD (DONE)
+### Phase 4 - Admin Matches Section (DONE)
 - 2 Sub-Tabs: Matches | Contests
-- 3 Sections each: LIVE | UPCOMING/OPEN | COMPLETED/LOCKED
-- Match Card 3 Actions + Contest Card 5 Actions
+- 3 Sections each with actions
 - Max 5 contests/match enforced
 
-### Phase 5 - Critical Bug Fixes (DONE - 31 Mar 2026)
-- Autopilot Manual Override: manual_override flag
-- Join Contest Fix: open OR live status accepted
-- IST Date Fix: start_time_ist field added
-- Match Sorting Fix: Smart sorting
+### Phase 5 - Bug Fixes (DONE - 31 Mar 2026)
+- Autopilot Manual Override, Join Contest Fix, IST Date Fix, Match Sorting
 
-### Phase 6 - Major UX Overhaul (DONE - 31 Mar 2026)
-- **IPL LIVE Ticker REMOVED**: Replaced with 2 sub-tabs "Upcoming (50) | Completed (3)"
-- **Match Card Date/Time**: Shows IST date/time on every card with Calendar icon
-- **Smart Match Sorting**: Live first → Upcoming nearest → Completed recent
-- **Contest Page Redesigned**: Stats strip (Joined/Correct/Points), filter pills (All/Live/Open/Done), team logos, progress bars
-- **Prediction Submit Fix**: max_length changed from 15 to 50 (was causing 422 error for 16 questions)
-- **Timezone Fix**: 3 locations in contests.py fixed for naive/aware datetime comparison
-- **Admin Matches Fix**: Separate API calls for live/upcoming/completed (was missing completed matches)
-- **Live Ticker IST**: GMT times converted to IST in cricket.py backend
+### Phase 6 - UX Overhaul (DONE - 31 Mar 2026)
+- IPL LIVE Ticker replaced with Upcoming/Completed tabs
+- Contest Page redesigned with stats strip and filters
+- Prediction submit fix (max_length 15→50)
+- Homepage rearranged: Live Now at top, IPL Table below Fantasy Points
+
+### Phase 7 - Performance Stack (DONE - 31 Mar 2026)
+- **Redis Server**: Installed and connected via redis_cache.py
+- **API Response Caching**: Live ticker (30s), Points table (5min), Matches list (60s), IPL data (10min)
+- **Cache Invalidation**: Auto-invalidate on match/contest status changes
+- **Performance Gain**: Live ticker 1.29s → 0.12s (10x faster!)
+- **MongoDB Compound Indexes**: matches{status,start_time,manual_override}, contests{match_id,status,manual_override}, contest_entries{contest_id,total_points}
+- **Smart Pagination**: has_more field, cursor-based with limit/page
+
+### Phase 8 - Mobile-First Frontend (DONE - 31 Mar 2026)
+- **Global CSS**: -webkit-tap-highlight-color: transparent, touch-action: manipulation, safe-area-inset support
+- **Min Touch Targets**: All buttons 44px+ height (bottom nav 62px)
+- **iOS Input Zoom Fix**: font-size: 16px on inputs
+- **Safe Area**: paddingBottom: calc(70px + env(safe-area-inset-bottom))
+- **PredictionPage**: Scrollable question dots, sticky bottom navigation
+- **BottomNav**: py-3 with 48px minHeight per button
 
 ## Key Endpoints
 - POST /api/auth/check-phone, POST /api/auth/login
-- GET /api/matches (smart sorted), PUT /api/matches/{id}/status
-- GET /api/matches/{id}/contests, GET /api/matches/{id}/match-info
+- GET /api/matches (smart sorted, Redis cached), PUT /api/matches/{id}/status
+- GET /api/matches/{id}/contests, /match-info
 - GET /api/contests/{id}/questions (16 Hindi questions)
-- POST /api/contests/{id}/join, POST /api/contests/{id}/predict
+- POST /api/contests/{id}/join, /predict (max 50 predictions)
 - GET /api/contests/user/my-contests
-- GET /api/cricket/live-ticker (IST converted)
-- GET /api/cricket/ipl/points-table
+- GET /api/cricket/live-ticker (IST, Redis 30s)
+- GET /api/cricket/ipl/points-table (Redis 5min)
+- GET /api/wallet/balance, POST /api/wallet/claim-daily
 
 ## Pending Tasks
-### P1: Redis caching, MongoDB indexes, Socket.IO real-time push
+### P1: Socket.IO real-time push for live scores
 ### P2: WhatsApp Share, AI Commentary, Dual points banner
 ### P3: User Management tab improvements
