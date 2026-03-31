@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 _redis: Optional[aioredis.Redis] = None
 
 
-async def init_redis(url: str = "redis://localhost:6379/0") -> Optional[aioredis.Redis]:
-    """Initialize Redis connection. Returns None if Redis unavailable."""
+async def init_redis(url: str = "") -> Optional[aioredis.Redis]:
+    """Initialize Redis connection. Returns None if Redis unavailable or URL is empty."""
     global _redis
+    if not url:
+        logger.info("Redis disabled (no URL configured)")
+        _redis = None
+        return None
     try:
         _redis = aioredis.from_url(url, decode_responses=True, socket_connect_timeout=2)
         await _redis.ping()

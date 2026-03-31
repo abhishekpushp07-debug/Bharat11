@@ -144,7 +144,7 @@ async def lifespan(app: FastAPI):
         
         # Connect to Redis (non-critical — falls back gracefully)
         from services.redis_cache import init_redis, close_redis
-        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        redis_url = os.environ.get("REDIS_URL", "")
         await init_redis(redis_url)
         
         # Create indexes (idempotent)

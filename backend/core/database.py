@@ -79,7 +79,13 @@ class DatabaseManager:
         """
         Establish Redis connection with connection pooling.
         Uses async Redis for non-blocking operations.
+        Redis is OPTIONAL — skipped entirely if REDIS_URL is empty.
         """
+        if not settings.REDIS_URL:
+            logger.info("Redis disabled (no REDIS_URL configured)")
+            self._redis_client = None
+            return
+
         try:
             self._redis_pool = ConnectionPool.from_url(
                 settings.REDIS_URL,

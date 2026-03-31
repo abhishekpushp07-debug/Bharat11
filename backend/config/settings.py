@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     MONGO_MAX_POOL_SIZE: int = Field(default=100)
     
     # Redis Configuration
-    REDIS_URL: str = Field(default="redis://localhost:6379/0")
+    REDIS_URL: str = Field(default="")
     REDIS_MAX_CONNECTIONS: int = Field(default=50)
     REDIS_DECODE_RESPONSES: bool = Field(default=True)
     
