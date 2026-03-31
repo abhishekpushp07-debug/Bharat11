@@ -14,15 +14,37 @@ const STATUS_CONFIG = {
 
 export default function MyContestsPage({ onContestClick, onViewLeaderboard }) {
   const [contests, setContests] = useState([]);
+  const [availableContests, setAvailableContests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => { fetchMyContests(); }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  const fetchMyContests = async () => {
+  const fetchAll = async () => {
     try {
-      const res = await apiClient.get('/contests/user/my-contests?limit=50');
-      setContests(res.data.my_contests || []);
+      const [myRes, liveRes] = await Promise.all([
+        apiClient.get('/contests/user/my-contests?limit=50'),
+        apiClient.get('/contests?status=live&limit=20'),
+      ]);
+      const myContests = myRes.data.my_contests || [];
+      setContests(myContests);
+
+      // Filter available live contests user hasn't joined
+      const joinedIds = new Set(myContests.map(c => c.contest?.id));
+      const allLive = liveRes.data.contests || [];
+      const unjoined = [];
+      for (const c of allLive) {
+        if (!joinedIds.has(c.id)) {
+          // Fetch match info for each unjoined contest
+          try {
+            const matchRes = await apiClient.get(`/matches/${c.match_id}`);
+            unjoined.push({ contest: c, match: matchRes.data });
+          } catch (_) {
+            unjoined.push({ contest: c, match: null });
+          }
+        }
+      }
+      setAvailableContests(unjoined);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -96,7 +118,74 @@ export default function MyContestsPage({ onContestClick, onViewLeaderboard }) {
         ))}
       </div>
 
-      {/* Content */}
+      {/* Available Live Contests — not yet joined */}
+      {availableContests.length > 0 && (
+        <div data-testid="available-contests" className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#FF3B3B' }} />
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#FF3B3B' }}>Join Now</span>
+            <span className="text-[10px]" style={{ color: COLORS.text.tertiary }}>({availableContests.length} live)</span>
+          </div>
+          {availableContests.map(({ contest: ac, match: am }) => {
+            const tA = am?.team_a || {};
+            const tB = am?.team_b || {};
+            const nA = normalizeTeam(tA.short_name);
+            const nB = normalizeTeam(tB.short_name);
+            const cA = TEAM_COLORS[nA] || { primary: '#555' };
+            const cB = TEAM_COLORS[nB] || { primary: '#555' };
+            return (
+              <motion.div
+                key={ac.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                data-testid={`available-contest-${ac.id}`}
+                onClick={() => onContestClick?.({ entry: {}, contest: ac, match: am })}
+                className="rounded-2xl overflow-hidden cursor-pointer transition-transform active:scale-[0.98]"
+                style={{ background: COLORS.background.card, border: '1px solid rgba(255,59,59,0.25)' }}>
+                {/* Match Header */}
+                <div className="px-4 py-2 flex items-center justify-between"
+                  style={{ background: `linear-gradient(135deg, ${cA.primary}18, ${cB.primary}18)` }}>
+                  <div className="flex items-center gap-2">
+                    {getTeamLogo(tA.short_name) ?
+                      <img src={getTeamLogo(tA.short_name)} alt="" className="w-5 h-5 rounded object-contain" /> :
+                      <span className="text-[9px] font-black" style={{ color: cA.primary }}>{tA.short_name}</span>}
+                    <span className="text-[10px] font-bold" style={{ color: COLORS.text.secondary }}>vs</span>
+                    {getTeamLogo(tB.short_name) ?
+                      <img src={getTeamLogo(tB.short_name)} alt="" className="w-5 h-5 rounded object-contain" /> :
+                      <span className="text-[9px] font-black" style={{ color: cB.primary }}>{tB.short_name}</span>}
+                  </div>
+                  <span className="text-[8px] font-bold px-2 py-0.5 rounded-full animate-pulse"
+                    style={{ background: 'rgba(255,59,59,0.15)', color: '#FF3B3B' }}>
+                    LIVE
+                  </span>
+                </div>
+                {/* Body */}
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">{ac.name?.replace(/- Mega Contest/i, '').trim()}</div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: COLORS.accent.gold }}>
+                        <Coins size={11} color="#FFD700" /> {ac.entry_fee || 0}
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px]" style={{ color: COLORS.text.secondary }}>
+                        <Users size={10} /> {ac.current_participants || 0}/{ac.max_participants || 0}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    data-testid={`join-available-${ac.id}`}
+                    className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1"
+                    style={{ background: COLORS.primary.gradient, color: '#fff', boxShadow: '0 4px 12px rgba(255,59,59,0.25)' }}>
+                    Join <ChevronRight size={12} />
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* My Contests Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="w-10 h-10 border-2 rounded-full animate-spin" style={{ borderColor: `${COLORS.primary.main}20`, borderTopColor: COLORS.primary.main }} />
@@ -113,7 +202,7 @@ export default function MyContestsPage({ onContestClick, onViewLeaderboard }) {
           <p className="text-sm font-bold text-white mb-1">No Contests Yet</p>
           <p className="text-xs px-8" style={{ color: COLORS.text.secondary }}>
             {filter === 'all'
-              ? 'Join a contest from any match to start predicting!'
+              ? (availableContests.length > 0 ? 'Join a live contest above to start!' : 'Join a contest from any match to start predicting!')
               : `No ${filter} contests right now`}
           </p>
         </motion.div>
