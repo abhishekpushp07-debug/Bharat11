@@ -38,6 +38,7 @@ from routers.admin import router as admin_router
 from routers.matches import router as matches_router
 from routers.contests import router as contests_router
 from routers.cricket import router as cricket_router
+from routers.ipl_router import router as ipl_router
 
 # Setup logging
 setup_logging()
@@ -134,6 +135,14 @@ async def lifespan(app: FastAPI):
         
         # Seed super admin (idempotent)
         await seed_super_admin()
+        
+        # Seed IPL encyclopedia data (idempotent)
+        try:
+            from services.ipl_data_seeder import seed_ipl_data
+            ipl_result = await seed_ipl_data(db)
+            logger.info(f"IPL data seeded: {ipl_result}")
+        except Exception as e:
+            logger.warning(f"IPL data seeding failed (non-critical): {e}")
         
         logger.info("Application startup complete")
         
@@ -350,6 +359,7 @@ app.include_router(admin_router, prefix="/api")
 app.include_router(matches_router, prefix="/api")
 app.include_router(contests_router, prefix="/api")
 app.include_router(cricket_router, prefix="/api")
+app.include_router(ipl_router, prefix="/api")
 
 from routers.notifications import router as notifications_router
 app.include_router(notifications_router, prefix="/api")

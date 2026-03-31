@@ -1,10 +1,10 @@
 import { COLORS } from '../constants/design';
-import { Home, Trophy, Scale, User, Search } from 'lucide-react';
+import { Home, Trophy, Scale, User } from 'lucide-react';
 
 const tabs = [
   { id: 'home', label: 'Home', Icon: Home },
   { id: 'contests', label: 'Contest', Icon: Trophy },
-  { id: 'search', label: '', Icon: Search, isCenter: true },
+  { id: 'search', label: 'IPL', isCenter: true },
   { id: 'wallet', label: 'Legal', Icon: Scale },
   { id: 'profile', label: 'Profile', Icon: User },
 ];
@@ -17,29 +17,55 @@ export default function BottomNav({ active, onChange }) {
           const isActive = active === id;
 
           if (isCenter) {
-            // Protruding center search button
             return (
               <button
-                data-testid="nav-search"
+                data-testid="nav-ipl"
                 key={id}
                 onClick={() => onChange(id)}
-                className="relative -mt-7 flex items-center justify-center transition-all active:scale-90"
-                style={{ width: '52px', height: '52px' }}
+                className="relative -mt-8 flex items-center justify-center transition-all active:scale-90"
+                style={{ width: '56px', height: '56px' }}
               >
-                {/* Glow effect */}
-                <div className="absolute inset-0 rounded-full opacity-60" style={{
-                  background: COLORS.primary.main,
-                  filter: 'blur(10px)',
-                  transform: 'scale(0.8)'
+                {/* Outer glow */}
+                <div className="absolute inset-0" style={{
+                  transform: 'rotate(45deg)',
+                  borderRadius: '12px',
+                  background: '#1e3a8a',
+                  filter: 'blur(12px)',
+                  opacity: 0.5,
                 }} />
-                {/* Button */}
-                <div className="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+                {/* Shadow ring */}
+                <div className="absolute" style={{
+                  width: '50px', height: '50px',
+                  transform: 'rotate(45deg)',
+                  borderRadius: '13px',
+                  background: 'transparent',
+                  boxShadow: `0 0 20px #3b82f644, 0 0 40px #1e3a8a33`,
+                }} />
+                {/* Rhombus shape */}
+                <div className="relative flex items-center justify-center shadow-xl"
                   style={{
-                    background: `linear-gradient(135deg, ${COLORS.primary.main}, #ff2020)`,
-                    boxShadow: `0 4px 20px ${COLORS.primary.main}55`,
-                    border: `3px solid ${COLORS.background.primary}`
+                    width: '46px', height: '46px',
+                    transform: 'rotate(45deg)',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #1e3a8a, #1e40af, #2563eb)',
+                    border: `2.5px solid ${COLORS.background.primary}`,
+                    boxShadow: '0 4px 16px rgba(30,58,138,0.6), inset 0 1px 0 rgba(255,255,255,0.15)',
                   }}>
-                  <Search size={20} color="#fff" strokeWidth={2.5} />
+                  {/* Inner highlight */}
+                  <div className="absolute inset-[3px] rounded-[9px] opacity-20" style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.3), transparent 60%)'
+                  }} />
+                  {/* IPL text - counter-rotate */}
+                  <span className="relative font-black text-[13px] tracking-[1px] select-none"
+                    style={{
+                      transform: 'rotate(-45deg)',
+                      color: '#ffffff',
+                      textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                      fontFamily: "'Orbitron', sans-serif",
+                      letterSpacing: '2px',
+                    }}>
+                    IPL
+                  </span>
                 </div>
               </button>
             );
