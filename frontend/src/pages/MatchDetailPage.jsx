@@ -312,24 +312,28 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
       {/* Celebration Demo Strip — Test all animations */}
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         {[
-          { type: 'six', label: 'SIX', color: '#FFD700', icon: '6' },
-          { type: 'four', label: 'FOUR', color: '#007AFF', icon: '4' },
-          { type: 'wicket', label: 'WICKET', color: '#DC2626', icon: 'W' },
-          { type: 'prize', label: 'WINNER', color: '#FFD700', icon: '1st' },
+          { type: 'six', label: 'SIX', color: '#FFD700', icon: '6', glow: true },
+          { type: 'four', label: 'FOUR', color: '#007AFF', icon: '4', glow: false },
+          { type: 'wicket', label: 'WICKET', color: '#DC2626', icon: 'W', glow: true },
+          { type: 'prize', label: 'WINNER', color: '#FFD700', icon: '1st', glow: true },
         ].map(c => (
           <button
             key={c.type}
             data-testid={`demo-${c.type}`}
             onClick={() => setCelebration(c.type)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider whitespace-nowrap transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black tracking-wider whitespace-nowrap transition-all active:scale-90 hover:scale-105"
             style={{
-              background: `${c.color}15`,
-              border: `1px solid ${c.color}33`,
+              background: `linear-gradient(135deg, ${c.color}08, ${c.color}18)`,
+              border: `1.5px solid ${c.color}40`,
               color: c.color,
               fontFamily: "'Orbitron', sans-serif",
+              boxShadow: c.glow ? `0 0 15px ${c.color}15, inset 0 0 10px ${c.color}08` : 'none',
             }}>
-            <span className="w-5 h-5 rounded flex items-center justify-center text-[10px]"
-              style={{ background: `${c.color}22` }}>
+            <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black"
+              style={{
+                background: `${c.color}20`,
+                boxShadow: `0 0 8px ${c.color}22`,
+              }}>
               {c.icon}
             </span>
             {c.label}
