@@ -100,6 +100,11 @@ Bharat 11 is an interactive Fantasy Cricket Prediction PWA where users make ball
 - [x] **Contest Lock Fix**: When contest status is 'live', lock_time is IGNORED. Admin's explicit status takes priority over expired timers
 - [x] **Prediction Submission Fix**: Users can now submit predictions on live contests without lock_time blocking
 - [x] **Admin Delete Contest**: Enhanced with auto-refund of entry fees to all participants before deletion
+- [x] **AI Commentary 3-Min Cache TTL**: Commentary regenerates every 3 minutes for live matches (was cached forever)
+- [x] **Scorecard Cache 45s**: Reduced from 60s to match polling interval
+- [x] **30s Polling**: Reduced from 45s for more responsive live experience
+- [x] **Live Update Indicator**: Shows "Updated Xs ago | Poll #N | Refresh" for user confidence
+- [x] **Manual Force Refresh**: Button bypasses all caches and regenerates fresh AI commentary
 
 ## Implemented (April 1, 2026 - Session 1)
 - [x] **45-Second Auto-Polling**: Scorecard & AI Commentary auto-refresh every 45s for live/open matches
