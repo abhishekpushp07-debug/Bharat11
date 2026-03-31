@@ -1,0 +1,86 @@
+{
+  "summary": "Iteration 50 - All 5 Bug Fixes VERIFIED. Backend: 11/12 tests passed (1 skipped - no locked contests). Frontend: UI verified - IST time format visible, matches displayed, contests loading correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration50_bug_fixes.py",
+    "/app/test_reports/pytest/pytest_iteration50.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Bug Fix 1: manual_override flag correctly set in matches.py (line 461-464) and admin.py (line 1580-1583)",
+    "Bug Fix 2: contests.py join endpoint now accepts 'open' OR 'live' status (line 171)",
+    "Bug Fix 3: GET /api/matches/{match_id}/contests returns contests regardless of match status",
+    "Bug Fix 4: start_time_ist field added with proper IST formatting (e.g., '17 May 2026, 03:30 PM IST')",
+    "Bug Fix 5: Matches sorted by start_time descending (-1) in backend, frontend re-sorts for display",
+    "Autopilot service correctly filters manual_override != true in all queries (lines 186-240)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration50_bug_fixes.py"
+  ],
+  "success_rate": {
+    "backend": "92% (11/12 tests passed, 1 skipped)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Phone: 7004186276, PIN: 5524",
+  "seed_data_creation": "None - used existing seeded data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 50 verified all 5 bug fixes: (1) Manual override flag prevents autopilot from overriding admin status changes, (2) Join contest works for both 'open' and 'live' status, (3) Contests show for matches regardless of status, (4) IST time format displays correctly (e.g., '17 May 2026, 03:30 PM IST'), (5) Matches sorted by start_time descending. Key test data: KKR vs DC contest ID: 2db7cefe-e107-4a93-80a6-6a30104b2ccc (status: open, has manual_override=true). LSG vs DC contest ID: 53fe3a89-428c-4465-a613-ac8ca2661c0c (joined during testing). Admin has 98,500 coins after joining LSG vs DC contest.",
+  "bugs_verified": {
+    "bug_1_autopilot_override": {
+      "status": "FIXED",
+      "test": "test_match_status_update_sets_manual_override",
+      "verification": "PUT /api/matches/{id}/status sets manual_override=true, autopilot queries filter manual_override != true"
+    },
+    "bug_2_join_button_disabled": {
+      "status": "FIXED",
+      "test": "test_join_open_contest, test_join_live_contest",
+      "verification": "POST /api/contests/{id}/join works for both 'open' and 'live' status contests"
+    },
+    "bug_3_contests_not_showing": {
+      "status": "FIXED",
+      "test": "test_get_contests_for_any_match_status",
+      "verification": "GET /api/matches/{match_id}/contests returns contests regardless of match status"
+    },
+    "bug_4_wrong_ist_time": {
+      "status": "FIXED",
+      "test": "test_matches_have_ist_time_field, test_ist_time_is_correct_offset",
+      "verification": "start_time_ist field shows correct IST format (e.g., '17 May 2026, 03:30 PM IST')"
+    },
+    "bug_5_matches_not_sorted": {
+      "status": "FIXED",
+      "test": "test_matches_sorted_descending",
+      "verification": "GET /api/matches returns matches sorted by start_time descending"
+    }
+  },
+  "backend_tests": {
+    "test_match_status_update_sets_manual_override": "PASSED",
+    "test_contest_status_update_sets_manual_override": "PASSED",
+    "test_join_open_contest": "PASSED",
+    "test_join_live_contest": "PASSED",
+    "test_get_contests_for_any_match_status": "PASSED",
+    "test_matches_have_ist_time_field": "PASSED",
+    "test_ist_time_is_correct_offset": "PASSED",
+    "test_matches_sorted_descending": "PASSED",
+    "test_upcoming_matches_sorted_ascending_in_frontend": "PASSED",
+    "test_join_contest_returns_proper_response": "PASSED",
+    "test_join_locked_contest_fails": "SKIPPED (no locked contests)",
+    "test_autopilot_status_endpoint": "PASSED"
+  },
+  "ui_verification": {
+    "login_flow": "PASSED - Get Started → Phone → PIN → Admin Dashboard",
+    "player_view": "PASSED - Shows home page with matches, IPL standings, live ticker",
+    "match_cards": "PASSED - 10 match cards displayed on home page",
+    "ist_time_display": "PASSED - '17 May 2026, 03:30 PM IST' visible on match detail",
+    "contests_tab": "PASSED - Contests tab loads correctly",
+    "ipl_standings": "PASSED - IPL 2026 Standings table visible"
+  }
+}

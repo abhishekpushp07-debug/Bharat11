@@ -168,13 +168,16 @@ async def join_contest(
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
 
-    if contest["status"] != "open":
+    if contest["status"] not in ("open", "live"):
         raise HTTPException(status_code=400, detail="Contest is not open for joining")
 
     # Check lock time
     lock_time = contest.get("lock_time", "")
     if lock_time:
         lt = datetime.fromisoformat(lock_time.replace('Z', '+00:00')) if isinstance(lock_time, str) else lock_time
+        # Ensure timezone-aware comparison
+        if lt.tzinfo is None:
+            lt = lt.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) >= lt:
             raise HTTPException(status_code=400, detail="Contest is locked. Cannot join after lock time")
 

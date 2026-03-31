@@ -160,9 +160,25 @@ async def list_matches(
         query["status"] = match_status
 
     skip = (page - 1) * limit
-    cursor = db.matches.find(query, {"_id": 0}).sort("start_time", 1).skip(skip).limit(limit)
+    cursor = db.matches.find(query, {"_id": 0}).sort("start_time", -1).skip(skip).limit(limit)
     matches = await cursor.to_list(length=limit)
     total = await db.matches.count_documents(query)
+
+    # Add IST formatted time for frontend display
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+    for m in matches:
+        st = m.get("start_time", "")
+        if st:
+            try:
+                from dateutil.parser import parse as dt_parse
+                dt_obj = dt_parse(str(st)) if isinstance(st, str) else st
+                if dt_obj.tzinfo is None:
+                    from datetime import timezone as tz
+                    dt_obj = dt_obj.replace(tzinfo=tz.utc)
+                ist_dt = dt_obj + IST_OFFSET
+                m["start_time_ist"] = ist_dt.strftime("%d %b %Y, %I:%M %p") + " IST"
+            except Exception:
+                m["start_time_ist"] = str(st)
 
     return {
         "matches": matches,
@@ -459,7 +475,11 @@ async def update_match_status(
 
     await db.matches.update_one(
         {"id": match_id},
-        {"$set": {"status": new_status, "updated_at": utc_now().isoformat()}}
+        {"$set": {
+            "status": new_status,
+            "manual_override": True,
+            "updated_at": utc_now().isoformat()
+        }}
     )
 
     # AUTO-CONTEST: When match goes live, ensure it has a contest
@@ -607,12 +627,13 @@ async def sync_live_matches(
         )
 
         if existing:
-            # Update status if changed
+            # Update status if changed — BUT SKIP if admin manually overrode
             new_status = lm.get("status", "upcoming")
             old_status = existing.get("status", "upcoming")
             updates = {"updated_at": now, "status_text": lm.get("status_text", "")}
 
-            if new_status != old_status:
+            is_manual = existing.get("manual_override", False)
+            if new_status != old_status and not is_manual:
                 VALID = {"upcoming": ["live", "completed"], "live": ["completed"]}
                 if new_status in VALID.get(old_status, []):
                     updates["status"] = new_status
@@ -839,9 +860,10 @@ async def sync_ipl_schedule(
             if schedule_time:
                 updates["start_time"] = schedule_time
 
-            # Update status — schedule API is authoritative
+            # Update status — schedule API is authoritative (SKIP if admin overrode manually)
             old_status = existing.get("status", "upcoming")
-            if m_status != old_status:
+            is_manual = existing.get("manual_override", False)
+            if m_status != old_status and not is_manual:
                 # Allow both forward AND correction transitions from schedule
                 updates["status"] = m_status
 

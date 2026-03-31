@@ -1579,7 +1579,7 @@ async def update_contest_status(
     from models.schemas import utc_now
     await db.contests.update_one(
         {"id": contest_id},
-        {"$set": {"status": new_status, "updated_at": utc_now().isoformat()}}
+        {"$set": {"status": new_status, "manual_override": True, "updated_at": utc_now().isoformat()}}
     )
     return {"message": f"Contest status updated to {new_status}", "id": contest_id, "old_status": old_status, "new_status": new_status}
 

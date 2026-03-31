@@ -139,8 +139,10 @@ export default function HomePage({ onMatchClick }) {
   }, [on, off, fetchAll]);
 
   const liveMatches = matches.filter(m => m.status === 'live');
-  const upcomingMatches = matches.filter(m => m.status === 'upcoming');
-  const completedMatches = matches.filter(m => m.status === 'completed');
+  const upcomingMatches = matches.filter(m => m.status === 'upcoming')
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  const completedMatches = matches.filter(m => m.status === 'completed')
+    .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 
   // Sort points table by wins desc
   const sortedTable = [...pointsTable].sort((a, b) => b.wins - a.wins || a.loss - b.loss);

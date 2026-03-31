@@ -299,7 +299,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
             <div className="flex items-center gap-1.5">
               <Clock size={12} color={COLORS.warning.main} />
               <span className="text-[10px]" style={{ color: COLORS.warning.main }}>
-                {isLive ? 'In Progress' : isCompleted ? matchInfo?.status || 'Completed' : new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {isLive ? 'In Progress' : isCompleted ? matchInfo?.status || 'Completed' : (match?.start_time_ist || new Date(match?.start_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }))}
               </span>
             </div>
           </div>
@@ -458,7 +458,7 @@ function ContestsTab({ contests, loading, joinedIds, joiningId, onJoin, onOpenPr
                     </button>
                   ) : (
                     <button data-testid={`join-btn-${c.id}`} onClick={() => onJoin(c.id)}
-                      disabled={isJoining || c.status !== 'open'}
+                      disabled={isJoining || !['open', 'live'].includes(c.status)}
                       className="px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 transition-transform active:scale-95"
                       style={{ background: COLORS.primary.gradient, color: '#fff', boxShadow: '0 4px 12px rgba(255,59,59,0.25)' }}>
                       {isJoining ? <Loader2 size={13} className="animate-spin" /> : null}

@@ -177,6 +177,7 @@ class AutoPilot:
         1. Auto-Live: 24 hrs before match start → contest status "open" → "live"
         2. Auto-Lock (full_match): After 1st innings 6th over → "locked"
         3. Auto-Lock (in_match): Before innings interval → "locked"
+        IMPORTANT: Skips matches/contests with manual_override=True
         """
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
@@ -184,13 +185,17 @@ class AutoPilot:
 
         # 1. AUTO-LIVE: Find matches starting within 24 hours, set their "open" contests to "live"
         upcoming_matches = await db.matches.find(
-            {"status": {"$in": ["upcoming", "live"]}, "start_time": {"$lte": cutoff_24h}},
+            {
+                "status": {"$in": ["upcoming", "live"]},
+                "start_time": {"$lte": cutoff_24h},
+                "manual_override": {"$ne": True},
+            },
             {"_id": 0, "id": 1, "start_time": 1}
         ).to_list(None)
 
         for m in upcoming_matches:
             result = await db.contests.update_many(
-                {"match_id": m["id"], "status": "open"},
+                {"match_id": m["id"], "status": "open", "manual_override": {"$ne": True}},
                 {"$set": {"status": "live", "updated_at": now_iso}}
             )
             if result.modified_count > 0:
@@ -198,7 +203,7 @@ class AutoPilot:
 
         # 2. AUTO-LOCK (full_match): After 1st innings 6th over → lock full_match contests
         live_matches = await db.matches.find(
-            {"status": "live"},
+            {"status": "live", "manual_override": {"$ne": True}},
             {"_id": 0, "id": 1, "live_score": 1, "team_a": 1, "team_b": 1}
         ).to_list(None)
 
@@ -217,9 +222,9 @@ class AutoPilot:
                 overs_float = 0
 
             if overs_float >= 6.0:
-                # Lock all full_match contests for this match
+                # Lock all full_match contests for this match (skip manual overrides)
                 full_match_contests = await db.contests.find(
-                    {"match_id": m["id"], "status": "live"},
+                    {"match_id": m["id"], "status": "live", "manual_override": {"$ne": True}},
                     {"_id": 0, "id": 1, "template_id": 1}
                 ).to_list(None)
 
@@ -240,9 +245,9 @@ class AutoPilot:
 
             # 3. AUTO-LOCK (in_match): Check if innings interval (2nd innings started or break)
             if len(scores) >= 2:
-                # 2nd innings exists — lock in_match contests
+                # 2nd innings exists — lock in_match contests (skip manual overrides)
                 in_match_contests = await db.contests.find(
-                    {"match_id": m["id"], "status": "live"},
+                    {"match_id": m["id"], "status": "live", "manual_override": {"$ne": True}},
                     {"_id": 0, "id": 1, "template_id": 1}
                 ).to_list(None)
 
