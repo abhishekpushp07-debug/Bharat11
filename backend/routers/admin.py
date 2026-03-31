@@ -79,7 +79,7 @@ class TemplateCreate(BaseModel):
     description: str = ""
     match_type: str = "T20"
     template_type: str = "full_match"
-    question_ids: list[str] = Field(default_factory=list, max_length=11)
+    question_ids: list[str] = Field(default_factory=list, max_length=50)
     is_active: bool = True
     is_default: bool = False
     innings_range: list[int] = Field(default_factory=list)
