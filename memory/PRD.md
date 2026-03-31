@@ -24,25 +24,26 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with CricketData.org A
 - Points: Easy=55 (2 Qs), Medium=70 (5 Qs), Hard=90 (9 Qs) = 1270 total
 
 ### Phase 4 - Admin Matches Section REBUILD (DONE)
-- **2 Sub-Tabs**: Matches | Contests
-- **3 Sections each**: LIVE | UPCOMING/OPEN | COMPLETED/LOCKED
-- **Match Card 3 Actions**: Make Live | Add Contest | Make Unlive
-- **Contest Card 5 Actions**: Make Live | Make Unlive | AI Resolve | AI Answers | Manual Resolve + Delete
-- **Max 5 contests/match**: Enforced backend + frontend
+- 2 Sub-Tabs: Matches | Contests
+- 3 Sections each: LIVE | UPCOMING/OPEN | COMPLETED/LOCKED
+- Match Card 3 Actions + Contest Card 5 Actions
+- Max 5 contests/match enforced
 
 ### Phase 5 - Critical Bug Fixes (DONE - 31 Mar 2026)
-- **Autopilot Manual Override**: Added `manual_override` flag
-- **Join Contest Fix**: Backend accepts `open` OR `live`
-- **IST Date Fix**: Backend returns `start_time_ist` field
-- **Match Sorting Fix**: Smart sorting — live first, upcoming nearest, completed recent
+- Autopilot Manual Override: manual_override flag
+- Join Contest Fix: open OR live status accepted
+- IST Date Fix: start_time_ist field added
+- Match Sorting Fix: Smart sorting
 
-### Phase 6 - User Experience Fixes (DONE - 31 Mar 2026)
-- **IPL LIVE Ticker IST**: Converts GMT times to IST in backend cricket.py
-- **Match Card Date/Time**: Shows IST date/time on every card (was missing with card images)
-- **Smart Match Sorting**: API returns live + nearest upcoming (ascending) + recently completed (descending)
-- **Contest Page Redesign**: MyContestsPage completely rebuilt with stats strip, filter pills, team logos, status badges
-- **Prediction Flow Fix**: Fixed timezone naive/aware crash in contests.py for lock_time comparison (3 locations)
-- **Questions Loading**: 16 Hindi questions with 1270 pts now load correctly
+### Phase 6 - Major UX Overhaul (DONE - 31 Mar 2026)
+- **IPL LIVE Ticker REMOVED**: Replaced with 2 sub-tabs "Upcoming (50) | Completed (3)"
+- **Match Card Date/Time**: Shows IST date/time on every card with Calendar icon
+- **Smart Match Sorting**: Live first → Upcoming nearest → Completed recent
+- **Contest Page Redesigned**: Stats strip (Joined/Correct/Points), filter pills (All/Live/Open/Done), team logos, progress bars
+- **Prediction Submit Fix**: max_length changed from 15 to 50 (was causing 422 error for 16 questions)
+- **Timezone Fix**: 3 locations in contests.py fixed for naive/aware datetime comparison
+- **Admin Matches Fix**: Separate API calls for live/upcoming/completed (was missing completed matches)
+- **Live Ticker IST**: GMT times converted to IST in cricket.py backend
 
 ## Key Endpoints
 - POST /api/auth/check-phone, POST /api/auth/login
@@ -50,6 +51,7 @@ Build a Fantasy Cricket Prediction PWA called "Bharat 11" with CricketData.org A
 - GET /api/matches/{id}/contests, GET /api/matches/{id}/match-info
 - GET /api/contests/{id}/questions (16 Hindi questions)
 - POST /api/contests/{id}/join, POST /api/contests/{id}/predict
+- GET /api/contests/user/my-contests
 - GET /api/cricket/live-ticker (IST converted)
 - GET /api/cricket/ipl/points-table
 
