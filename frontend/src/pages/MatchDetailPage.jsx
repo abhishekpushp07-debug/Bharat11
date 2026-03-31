@@ -85,7 +85,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     } catch (_) {}
   }, [match?.id]);
 
-  // ===== LIVE DATA POLLING (45s) =====
+  // ===== LIVE DATA POLLING (15s) =====
   // Fetches: scorecard, AI commentary, and detects events for celebrations
   const fetchLiveData = useCallback(async (forceAi = false) => {
     if (!match?.id) return;
@@ -95,8 +95,12 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
         ? `/matches/${match.id}/ai-commentary?force=true`
         : `/matches/${match.id}/ai-commentary`;
 
+      const scUrl = forceAi
+        ? `/matches/${match.id}/scorecard?force=true`
+        : `/matches/${match.id}/scorecard`;
+
       const [scRes, aiRes] = await Promise.allSettled([
-        apiClient.get(`/matches/${match.id}/scorecard`),
+        apiClient.get(scUrl),
         apiClient.get(aiUrl),
       ]);
 
@@ -159,7 +163,7 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     }
   }, [match?.id, fetchContests, fetchMatchInfo]);
 
-  // ===== 30-SECOND POLLING for LIVE/OPEN matches =====
+  // ===== 15-SECOND POLLING for LIVE/OPEN matches =====
   useEffect(() => {
     if (!match?.id) return;
     const isMatchRunning = match?.status === 'live' || match?.status === 'open';
@@ -168,8 +172,8 @@ export default function MatchDetailPage({ match, onBack, onJoinContest, onOpenPr
     // Initial fetch immediately
     fetchLiveData();
 
-    // Poll every 30 seconds for responsive live experience
-    const pollInterval = setInterval(() => fetchLiveData(), 30000);
+    // Poll every 15 seconds for real-time experience
+    const pollInterval = setInterval(() => fetchLiveData(), 15000);
 
     return () => clearInterval(pollInterval);
   }, [match?.id, match?.status, fetchLiveData]);

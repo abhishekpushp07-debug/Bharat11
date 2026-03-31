@@ -16,17 +16,17 @@ logger = logging.getLogger(__name__)
 
 # TTL configs (in seconds)
 TTL_PERMANENT = 0  # Never expires
-TTL_LIVE_SCORE = 45  # Re-fetch every 45s for live matches
+TTL_LIVE_SCORE = 15  # Re-fetch every 15s for live matches
 TTL_SERIES_INFO = 86400  # 24 hours
 TTL_SERIES_SQUAD = 86400  # 24 hours
 TTL_SERIES_POINTS = 1800  # 30 min
 TTL_MATCH_INFO = 3600  # 1 hour (or permanent if completed)
-TTL_SCORECARD = 45  # 45s for live (match polling interval)
+TTL_SCORECARD = 15  # 15s for live (frequent updates)
 TTL_MATCH_POINTS = 300  # 5 min (slow API)
 TTL_MATCH_SQUAD = 86400  # 24 hours (doesn't change)
 TTL_MATCH_BBB = 60  # 1 min for live
 TTL_PLAYER_INFO = 86400  # 24 hours
-TTL_CRIC_SCORE = 45  # 45 seconds
+TTL_CRIC_SCORE = 15  # 15 seconds
 
 
 async def get_cached(db: AsyncIOMotorDatabase, cache_type: str, cache_key: str, ttl: int = 0) -> Optional[dict]:

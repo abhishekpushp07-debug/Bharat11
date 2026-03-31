@@ -274,10 +274,11 @@ async def get_live_score(
 )
 async def get_match_scorecard_public(
     match_id: str,
+    force: bool = Query(default=False, description="Force bypass cache"),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Public scorecard endpoint — no admin required. Uses MongoDB cache."""
-    from services.api_cache import cached_cricket
+    from services.api_cache import cached_cricket, set_cache
     from services.settlement_engine import parse_scorecard_to_metrics, _auto_link_cricketdata_id
 
     match = await db.matches.find_one({"id": match_id}, {"_id": 0})
@@ -290,7 +291,15 @@ async def get_match_scorecard_public(
     if not cd_id:
         return {"match_id": match_id, "error": "Scorecard not available", "scorecard": None}
 
-    data = await cached_cricket.get_scorecard(db, cd_id)
+    if force:
+        # Bypass cache — fetch directly from API
+        from services.cricket_data import cricket_service
+        data = await cricket_service.get_scorecard(cd_id)
+        if data:
+            await set_cache(db, "scorecard", cd_id, data, permanent=data.get("matchEnded", False))
+    else:
+        data = await cached_cricket.get_scorecard(db, cd_id)
+
     if not data:
         return {"match_id": match_id, "error": "Could not fetch scorecard", "scorecard": None}
 

@@ -628,6 +628,14 @@ function RawCommentaryFallback({ items }) {
 }
 
 
+// Safely extract player name (API may return object or string)
+function getPlayerName(val) {
+  if (!val) return 'Unknown';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') return val.name || val.fullName || val.nickName || 'Unknown';
+  return String(val);
+}
+
 // Build commentary from scorecard
 function buildFromScorecard(scorecard) {
   const items = [];
@@ -635,17 +643,19 @@ function buildFromScorecard(scorecard) {
     const batting = inn?.batting || [];
     const bowling = inn?.bowling || [];
     for (const b of batting) {
+      const name = getPlayerName(b.batsman);
       const runs = parseInt(b.r) || 0;
       const sixes = parseInt(b['6s']) || 0;
       const fours = parseInt(b['4s']) || 0;
       const balls = parseInt(b.b) || 0;
-      if (runs >= 100) items.push({ type: 'milestone', text: `CENTURY! ${b.batsman} smashes ${runs} off ${balls} balls! (${fours}x4, ${sixes}x6)` });
-      else if (runs >= 50) items.push({ type: 'milestone', text: `FIFTY! ${b.batsman} scores ${runs}(${balls}) — ${fours} fours, ${sixes} sixes!` });
-      if (sixes >= 3) items.push({ type: 'six', text: `${b.batsman} hammers ${sixes} MASSIVE SIXES in his innings of ${runs}!` });
-      if (b.dismissal && b.dismissal !== 'not out') items.push({ type: 'wicket', text: `OUT! ${b.batsman} ${runs}(${balls}) — ${b.dismissal}` });
+      if (runs >= 100) items.push({ type: 'milestone', text: `CENTURY! ${name} smashes ${runs} off ${balls} balls! (${fours}x4, ${sixes}x6)` });
+      else if (runs >= 50) items.push({ type: 'milestone', text: `FIFTY! ${name} scores ${runs}(${balls}) — ${fours} fours, ${sixes} sixes!` });
+      if (sixes >= 3) items.push({ type: 'six', text: `${name} hammers ${sixes} MASSIVE SIXES in his innings of ${runs}!` });
+      if (b.dismissal && b.dismissal !== 'not out') items.push({ type: 'wicket', text: `OUT! ${name} ${runs}(${balls}) — ${b.dismissal}` });
     }
     for (const bw of bowling) {
-      if ((parseInt(bw.w) || 0) >= 3) items.push({ type: 'bowling', text: `${bw.bowler} picks up ${bw.w}/${bw.r} in ${bw.o} overs! Lethal spell!` });
+      const bName = getPlayerName(bw.bowler);
+      if ((parseInt(bw.w) || 0) >= 3) items.push({ type: 'bowling', text: `${bName} picks up ${bw.w}/${bw.r} in ${bw.o} overs! Lethal spell!` });
     }
   }
   return items;
